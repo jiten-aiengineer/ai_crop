@@ -1,0 +1,32 @@
+.brand img { width: 48px; height: 44px; object-fit: contain; background: white; border-radius: 7px; }
+.endorsed { display: flex; align-items: center; gap: 13px; margin-bottom: 34px; color: #718077; font-size: 10px; line-height: 1.45; text-transform: uppercase; letter-spacing: .07em; }
+.endorsed img { width: 76px; height: 62px; object-fit: contain; }
+.endorsed b { color: var(--green); font-size: 11px; }
+.powered-by { display: flex; align-items: center; gap: 11px; border-top: 1px solid var(--line); margin-top: 20px; padding-top: 19px; color: #718077; font-size: 9px; line-height: 1.45; }
+.powered-by img { width: 54px; height: 45px; object-fit: contain; }
+.powered-by b { color: var(--green); }
+.form-error { margin: -4px 0 13px; padding: 10px 12px; border-radius: 8px; background: #fff0eb; color: #a13b28; font-size: 11px; }
+.alternatives, .next-action { font-size: 11px; line-height: 1.55; color: #5f6f65; }
+.alternatives { margin: 16px 0 0; }
+.next-action { margin-top: 18px; padding: 14px 16px; background: #f5f7f0; border-radius: 10px; }
+.next-action p { margin: 5px 0 0; }
+footer img { width: 62px; height: 50px; object-fit: contain; }
+footer div b { color: var(--ink); font-size: 10px; }
+footer div p { margin: 3px 0 0; }
+.mobile-nav { display: none; }
+
+@media (max-width: 600px) {
+  body { padding-bottom: 76px; }
+  .topbar { position: sticky; top: 0; z-index: 10; background: rgba(255,255,250,.96); backdrop-filter: blur(10px); }
+  .brand img { width: 43px; height: 38px; }
+  .endorsed { justify-content: center; margin-bottom: 24px; }
+  .endorsed img { width: 62px; height: 52px; }
+  .home-panel > button { width: 100%; }
+  footer { display: none; }
+  .mobile-nav { position: fixed; z-index: 15; display: grid; grid-template-columns: repeat(5, 1fr); left: 0; right: 0; bottom: 0; height: 70px; padding: 8px 6px max(7px, env(safe-area-inset-bottom)); background: rgba(255,255,255,.98); border-top: 1px solid #dfe4d8; box-shadow: 0 -8px 24px rgba(19,55,34,.08); }
+  .mobile-nav button { border: 0; background: none; color: #68756d; font-size: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+  .mobile-nav button span { font-size: 18px; }
+  .mobile-nav button.active { color: var(--green); font-weight: 750; }
+  .mobile-nav .camera { align-self: start; width: 50px; height: 50px; margin: -25px auto 0; border: 5px solid white; border-radius: 50%; background: var(--green); color: white; box-shadow: 0 6px 18px rgba(31,107,67,.28); }
+  .mobile-nav .camera span { font-size: 26px; line-height: 1; }
+}
