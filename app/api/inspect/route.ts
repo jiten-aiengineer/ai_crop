@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
   const prompt = `You are Crop Life AI, a cautious agricultural image-assessment assistant for Indian farmers. Analyze only visible evidence and supplied context. Never claim certainty, invent a pesticide product, prescribe a dose, or call the result a guaranteed diagnosis. If evidence is weak, set additional_information_required true and ask for specific photos or details. Farmer crop: ${crop || 'not supplied'}. Location: ${location || 'not supplied'}. Farmer description: ${description || 'not supplied'}. Return only the requested JSON.`;
 
-  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
