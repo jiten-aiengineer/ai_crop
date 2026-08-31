@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { catalogRecommendations } from '../../lib/catalog';
 
 export const runtime = 'edge';
+export const maxDuration = 60;
 
 const MAX_FILES = 5;
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 4 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
 
 type GeminiResponse = {
@@ -38,6 +40,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Use JPG, PNG, WebP or HEIC images up to 4 MB each.' }, { status: 400 });
     }
   }
+  if (images.reduce((total, image) => total + image.size, 0) > MAX_TOTAL_BYTES) {
+    return NextResponse.json({ error: 'The selected photos are too large together. Please use fewer photos and try again.' }, { status: 413 });
+  }
 
   const imageParts = await Promise.all(images.map(async (image) => ({
     inlineData: { mimeType: image.type, data: toBase64(new Uint8Array(await image.arrayBuffer())) },
@@ -48,30 +53,39 @@ export async function POST(request: Request) {
 
   const prompt = `You are Crop Life AI, a cautious agricultural image-assessment assistant for Indian farmers. Analyze only visible evidence and supplied context. Never claim certainty, invent a pesticide product, prescribe a dose, or call the result a guaranteed diagnosis. If evidence is weak, set additional_information_required true and ask for specific photos or details. Farmer crop: ${crop || 'not supplied'}. Location: ${location || 'not supplied'}. Farmer description: ${description || 'not supplied'}. Return only the requested JSON.`;
 
-  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [...imageParts, { text: prompt }] }],
-      generationConfig: {
-        temperature: 0.15,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: 'OBJECT',
-          required: ['crop', 'crop_confidence', 'issue_detected', 'issue_type', 'likely_issue', 'confidence', 'observed_symptoms', 'alternative_possibilities', 'additional_information_required', 'recommended_next_action', 'summary'],
-          properties: {
-            crop: { type: 'STRING' }, crop_confidence: { type: 'NUMBER' }, issue_detected: { type: 'BOOLEAN' },
-            issue_type: { type: 'STRING' }, likely_issue: { type: 'STRING' }, confidence: { type: 'NUMBER' },
-            observed_symptoms: { type: 'ARRAY', items: { type: 'STRING' } },
-            alternative_possibilities: { type: 'ARRAY', items: { type: 'STRING' } },
-            additional_information_required: { type: 'BOOLEAN' }, recommended_next_action: { type: 'STRING' }, summary: { type: 'STRING' },
+  let response: Response;
+  try {
+    response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      signal: AbortSignal.timeout(45_000),
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [...imageParts, { text: prompt }] }],
+        generationConfig: {
+          temperature: 0.15,
+          thinkingConfig: { thinkingLevel: 'minimal' },
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'OBJECT',
+            required: ['crop', 'crop_confidence', 'issue_detected', 'issue_type', 'likely_issue', 'confidence', 'observed_symptoms', 'alternative_possibilities', 'additional_information_required', 'recommended_next_action', 'summary'],
+            properties: {
+              crop: { type: 'STRING' }, crop_confidence: { type: 'NUMBER' }, issue_detected: { type: 'BOOLEAN' },
+              issue_type: { type: 'STRING' }, likely_issue: { type: 'STRING' }, confidence: { type: 'NUMBER' },
+              observed_symptoms: { type: 'ARRAY', items: { type: 'STRING' } },
+              alternative_possibilities: { type: 'ARRAY', items: { type: 'STRING' } },
+              additional_information_required: { type: 'BOOLEAN' }, recommended_next_action: { type: 'STRING' }, summary: { type: 'STRING' },
+            },
           },
         },
-      },
-    }),
-  });
+      }),
+    });
+  } catch {
+    return NextResponse.json({ error: 'AI photo analysis took too long. Please try one or two clear photos.' }, { status: 504 });
+  }
 
-  const payload = await response.json() as GeminiResponse;
+  let payload: GeminiResponse;
+  try { payload = await response.json() as GeminiResponse; }
+  catch { return NextResponse.json({ error: 'AI photo analysis returned an unexpected response. Please try again.' }, { status: 502 }); }
   if (!response.ok) {
     const busy = response.status === 429;
     return NextResponse.json({ error: busy ? 'AI photo analysis is temporarily busy. Please wait a moment and try again.' : 'AI photo analysis could not be completed. Please try again.' }, { status: busy ? 429 : 502 });

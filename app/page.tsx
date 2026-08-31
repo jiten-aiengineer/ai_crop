@@ -17,6 +17,41 @@ type Profile = { name: string; location: string; language: string };
 const categories = ['All products', ...Array.from(new Set(catalog.map((product) => product.category)))];
 const HISTORY_KEY = 'crop-life-ai-inspections-v1';
 const PROFILE_KEY = 'crop-life-ai-profile-v1';
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+async function optimiseImage(file: File) {
+  if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) return file;
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = objectUrl;
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error('This photo could not be prepared.'));
+    });
+    const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
+    if (longestSide <= 1024 && file.size <= 550 * 1024) return file;
+    const scale = Math.min(1, 1024 / longestSide);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', .68));
+    if (!blob) return file;
+    const name = file.name.replace(/\.[^.]+$/, '') || 'crop-photo';
+    return new File([blob], `${name}.jpg`, { type: 'image/jpeg', lastModified: file.lastModified });
+  } catch { return file; }
+  finally { URL.revokeObjectURL(objectUrl); }
+}
+
+async function readApiResponse<T>(response: Response): Promise<T & { error?: string }> {
+  const text = await response.text();
+  try { return JSON.parse(text) as T & { error?: string }; }
+  catch {
+    if (!response.ok) throw new Error('Analysis could not be completed. The photos may be too large or the AI service may be busy. Please try again.');
+    throw new Error('The analysis service returned an unexpected response. Please try again.');
+  }
+}
 
 export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -44,11 +79,16 @@ export default function Home() {
   const openProducts = (query = '') => { setProductQuery(query); nav('products'); };
   const saveProfile = (next: Profile) => { setProfile(next); localStorage.setItem(PROFILE_KEY, JSON.stringify(next)); setProfileOpen(false); };
   const analyse = async (form: HTMLFormElement) => {
+    const uploadBytes = files.reduce((total, file) => total + file.size, 0);
+    if (uploadBytes > MAX_UPLOAD_BYTES) {
+      setError('These photos are still too large to upload together. Please select fewer photos or use JPG images.');
+      return;
+    }
     setLoading(true); setError('');
     const body = new FormData(form); files.forEach((file) => body.append('images', file));
     try {
       const response = await fetch('/api/inspect', { method: 'POST', body });
-      const data = await response.json() as Diagnosis & { error?: string };
+      const data = await readApiResponse<Diagnosis>(response);
       if (!response.ok) throw new Error(data.error || 'Unable to analyse these images.');
       setResult(data);
       const record: StoredInspection = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), crop: data.crop || 'Unknown crop', issue: data.likely_issue || 'No clear issue', confidence: data.confidence, summary: data.summary, result: data };
@@ -78,7 +118,7 @@ function NavButton({ label, target, view, nav }: { label: string; target: View; 
 function initials(name: string) { return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'F'; }
 
 function HomeView({ nav }: { nav: (view: View) => void }) {
-  return <><section className="hero"><div className="hero-copy"><div className="endorsed"><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><span>Developed for farmers by<br /><b>Crop Life Science Limited</b></span></div><p className="eyebrow"><span /> Your crop companion</p><h1>Understand your crop.<br /><em>Act with confidence.</em></h1><p>Take crop photos, get a cautious AI assessment, and discover relevant solutions from Crop Life Science’s verified catalog—not from invented AI product knowledge.</p><div className="trust-row"><span>✓ Gemini image assessment</span><span>✓ 73 catalog products</span><span>✓ Catalog-only suggestions</span></div></div><div className="home-panel"><span className="leaf-shape">⌁</span><small>AI-assisted crop care</small><h2>See something unusual?</h2><p>Photo → probable assessment → catalog match</p><button onClick={() => nav('inspect')}>Take crop pictures <span>→</span></button><div className="panel-stats"><span><b>5</b> photos supported</span><span><b>73</b> CLSL products</span></div></div></section>
+  return <><section className="hero"><div className="hero-copy"><div className="endorsed"><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><span>Developed for farmers by<br /><b>Crop Life Science Limited</b></span></div><p className="eyebrow"><span /> Your crop companion</p><h1>Understand your crop.<br /><em>Act with confidence.</em></h1><p>Take crop photos, get a cautious AI assessment, and discover relevant solutions from Crop Life Science’s verified catalog—not from invented AI product knowledge.</p><div className="trust-row"><span>✓ Gemini image assessment</span><span>✓ 73 catalog products</span><span>✓ Catalog-only suggestions</span></div></div><div className="home-panel"><span className="leaf-shape">⌁</span><small>AI-assisted crop care</small><h2>See something unusual?</h2><p>Photo → probable assessment → catalog match</p><button type="button" onClick={() => nav('inspect')}>Take crop pictures <span>→</span></button><div className="panel-stats"><span><b>5</b> photos supported</span><span><b>73</b> CLSL products</span></div></div></section>
     <section className="quick-section"><div className="section-label"><span>Start here</span><p>Working Phase 1 tools</p></div><div className="quick-grid"><Quick featured icon="⌁" label="Gemini powered" title="AI Crop Inspection" text="Assess crop photos and find catalog matches." onClick={() => nav('inspect')} /><Quick icon="✦" label="Catalog grounded" title="Farmer Assistant" text="Ask agricultural and Crop Life product questions." onClick={() => nav('assistant')} /><Quick icon="◫" label="73 products" title="Product Marketplace" text="Search, filter, compare and inspect catalog details." onClick={() => nav('products')} /></div></section>
     <section className="catalog-band"><div><small>OFFICIAL PRODUCT KNOWLEDGE</small><h2>Every product from the supplied CLSL catalog</h2><p>Insecticides, fungicides, seed treatment, biostimulants, PGRs, micronutrients, weedicides and more.</p></div><button onClick={() => nav('products')}>Explore all 73 products →</button></section></>;
 }
@@ -86,8 +126,16 @@ function Quick(props: { featured?: boolean; icon: string; label: string; title: 
 function PageTitle({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) { return <div className="page-title"><p className="eyebrow"><span />{eyebrow}</p><h1>{title}</h1><p>{text}</p></div>; }
 
 function InspectionForm({ inputRef, files, setFiles, onAnalyse, loading, error }: { inputRef: RefObject<HTMLInputElement | null>; files: File[]; setFiles: (files: File[]) => void; onAnalyse: (form: HTMLFormElement) => Promise<void>; loading: boolean; error: string }) {
+  const [preparing, setPreparing] = useState(false);
   const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void onAnalyse(event.currentTarget); };
-  return <form onSubmit={submit}><div className="card-heading"><span className="step-badge">01</span><div><h2>Add crop photos</h2><p>Up to 5 images · 4 MB each</p></div></div><button type="button" className={`upload-zone ${files.length ? 'has-files' : ''}`} onClick={() => inputRef.current?.click()}><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={(event) => setFiles(Array.from(event.target.files || []).slice(0, 5))} /><span className="upload-icon">↑</span><strong>{files.length ? `${files.length} photo${files.length > 1 ? 's' : ''} ready` : 'Take or upload crop photos'}</strong><small>{files.length ? files.map((file) => file.name).join(' · ') : 'Whole plant, affected area and leaf underside work best'}</small></button>{files.length > 0 && <div className="file-list">{files.map((file, index) => <span key={`${file.name}-${index}`}>{index + 1}. {file.name}<button type="button" onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button></span>)}</div>}<div className="form-row"><label><span>Crop <small>optional</small></span><select name="crop" defaultValue=""><option value="">Select your crop</option><option>Cotton</option><option>Tomato</option><option>Chilli</option><option>Wheat</option><option>Rice</option><option>Sugarcane</option><option>Groundnut</option><option>Soybean</option><option>Maize</option></select></label><label><span>Location <small>optional</small></span><input name="location" placeholder="e.g. Ahmedabad, Gujarat" /></label></div><label className="full-field"><span>What do you notice? <small>optional</small></span><textarea name="description" placeholder="Describe colour changes, spots, insects or when the problem started..." /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={!files.length || loading}>{loading ? 'Analysing visible symptoms…' : 'Analyse my crop'} <span>{loading ? '◌' : '→'}</span></button><p className="safety-note">Probable assessment only. Recommendations are matched from the supplied CLSL catalog; always verify the approved label and local registration.</p></form>;
+  const chooseFiles = async (selected: File[]) => {
+    const picked = selected.slice(0, 5);
+    if (!picked.length) return;
+    setPreparing(true);
+    try { setFiles(await Promise.all(picked.map(optimiseImage))); }
+    finally { setPreparing(false); }
+  };
+  return <form onSubmit={submit}><div className="card-heading"><span className="step-badge">01</span><div><h2>Add crop photos</h2><p>Up to 5 images · automatically optimised</p></div></div><button type="button" className={`upload-zone ${files.length ? 'has-files' : ''}`} onClick={() => inputRef.current?.click()} disabled={preparing}><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseFiles(selected); }} /><span className="upload-icon">↑</span><strong>{preparing ? 'Preparing photos…' : files.length ? `${files.length} photo${files.length > 1 ? 's' : ''} ready` : 'Take or upload crop photos'}</strong><small>{preparing ? 'Reducing upload size for a faster analysis' : files.length ? files.map((file) => file.name).join(' · ') : 'Whole plant, affected area and leaf underside work best'}</small></button>{files.length > 0 && <div className="file-list">{files.map((file, index) => <span key={`${file.name}-${index}`}>{index + 1}. {file.name}<button type="button" onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button></span>)}</div>}<div className="form-row"><label><span>Crop <small>optional</small></span><select name="crop" defaultValue=""><option value="">Select your crop</option><option>Cotton</option><option>Tomato</option><option>Chilli</option><option>Wheat</option><option>Rice</option><option>Sugarcane</option><option>Groundnut</option><option>Soybean</option><option>Maize</option></select></label><label><span>Location <small>optional</small></span><input name="location" placeholder="e.g. Ahmedabad, Gujarat" /></label></div><label className="full-field"><span>What do you notice? <small>optional</small></span><textarea name="description" placeholder="Describe colour changes, spots, insects or when the problem started..." /></label>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={!files.length || loading || preparing}>{loading ? 'Analysing visible symptoms…' : preparing ? 'Preparing photos…' : 'Analyse my crop'} <span>{loading || preparing ? '◌' : '→'}</span></button><p className="safety-note">Probable assessment only. Recommendations are matched from the supplied CLSL catalog; always verify the approved label and local registration.</p></form>;
 }
 function Tips() { return <aside className="tips"><h3>Photos that help</h3><ol><li><b>Whole plant</b><span>Show the plant and surroundings</span></li><li><b>Affected area</b><span>Take a clear symptom close-up</span></li><li><b>Leaf underside</b><span>Capture insects or growth underneath</span></li></ol><div className="privacy-box"><b>Your crop data</b><p>Photos are analysed for this result. Model-training reuse requires separate consent.</p></div><div className="source-seal"><b>Catalog-grounded matching</b><span>Product suggestions are limited to the uploaded CLSL catalog.</span></div></aside>; }
 
