@@ -20,8 +20,9 @@ footer div p { margin: 3px 0 0; }
   .topbar { position: sticky; top: 0; z-index: 10; background: rgba(255,255,250,.96); backdrop-filter: blur(10px); }
   .hero { padding-top: 24px; gap: 18px; }
   .brand img { width: 43px; height: 38px; }
-  .endorsed { justify-content: center; margin-bottom: 24px; }
+  .endorsed { justify-content: center; margin-bottom: 16px; }
   .endorsed img { width: 62px; height: 52px; }
+  .trust-row { margin-top: 18px; }
   .home-panel > button { width: 100%; }
   footer { display: none; }
   .mobile-nav { position: fixed; z-index: 15; display: grid; grid-template-columns: repeat(5, 1fr); left: 0; right: 0; bottom: 0; height: 70px; padding: 8px 6px max(7px, env(safe-area-inset-bottom)); background: rgba(255,255,255,.98); border-top: 1px solid #dfe4d8; box-shadow: 0 -8px 24px rgba(19,55,34,.08); }
