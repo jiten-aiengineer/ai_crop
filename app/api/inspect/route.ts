@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { catalogRecommendations } from '../../lib/catalog';
+import { catalogCropName, catalogRecommendations } from '../../lib/catalog';
 
 export const runtime = 'edge';
 export const maxDuration = 60;
@@ -51,7 +51,11 @@ export async function POST(request: Request) {
   const location = String(form.get('location') || '').slice(0, 120);
   const description = String(form.get('description') || '').slice(0, 800);
 
-  const prompt = `You are Crop Life AI, a cautious agricultural image-assessment assistant for Indian farmers. Analyze only visible crop evidence and supplied context. Never claim certainty, invent a pesticide product, prescribe a dose, or call the result a guaranteed diagnosis. If the image does not show a crop or plant, set issue_detected false, issue_type "none", and additional_information_required true. If a probable crop issue is visible but better photos would help, keep issue_detected true and set additional_information_required true. Use one issue_type value only: insect_pest, fungal_disease, bacterial_disease, weed_problem, nutrient_deficiency, growth_stress, abiotic_stress, unknown, or none. Put the most specific common target or problem name visible in likely_issue, such as whitefly, early blight, sheath blight, or nitrogen deficiency. Farmer crop: ${crop || 'not supplied'}. Location: ${location || 'not supplied'}. Farmer description: ${description || 'not supplied'}. Return only the requested JSON.`;
+  const prompt = `You are Crop Life AI, a cautious agricultural image-assessment assistant for Indian farmers. Study every supplied photo and explain the visible evidence in useful detail. Never claim certainty, invent a pesticide product, prescribe a dose, or call the result a guaranteed diagnosis. Product matching is performed separately from the CLSL catalogue.
+
+Identify the plant/crop from the image. When the farmer supplied a crop, treat it as important context but flag uncertainty if the image conflicts. Describe what appears to be happening, its visible stage/severity, the most likely biological or environmental causes, immediate non-chemical actions, prevention steps, and concise questions that would improve confidence. Separate visible observations from inferred causes. If the image does not show a crop or plant, set issue_detected false, issue_type "none", plant_condition "uncertain", and additional_information_required true. If a probable issue is visible but better photos or field details would help, keep issue_detected true and set additional_information_required true.
+
+Use one issue_type only: insect_pest, fungal_disease, bacterial_disease, weed_problem, nutrient_deficiency, growth_stress, abiotic_stress, unknown, or none. Put the most specific common target/problem name in likely_issue, such as whitefly, early blight, sheath blight, or nitrogen deficiency. Keep all advice practical and concise. Farmer crop: ${crop || 'not supplied'}. Location: ${location || 'not supplied'}. Farmer description: ${description || 'not supplied'}. Return only the requested JSON.`;
 
   let response: Response;
   try {
@@ -67,12 +71,18 @@ export async function POST(request: Request) {
           responseMimeType: 'application/json',
           responseSchema: {
             type: 'OBJECT',
-            required: ['crop', 'crop_confidence', 'issue_detected', 'issue_type', 'likely_issue', 'confidence', 'observed_symptoms', 'alternative_possibilities', 'additional_information_required', 'recommended_next_action', 'summary'],
+            required: ['crop', 'crop_confidence', 'plant_condition', 'problem_stage', 'issue_detected', 'issue_type', 'likely_issue', 'confidence', 'observed_symptoms', 'probable_causes', 'alternative_possibilities', 'immediate_actions', 'prevention_tips', 'questions_for_farmer', 'additional_information_required', 'recommended_next_action', 'summary'],
             properties: {
               crop: { type: 'STRING' }, crop_confidence: { type: 'NUMBER' }, issue_detected: { type: 'BOOLEAN' },
+              plant_condition: { type: 'STRING', enum: ['affected', 'stressed', 'healthy', 'uncertain'] },
+              problem_stage: { type: 'STRING', enum: ['early', 'moderate', 'severe', 'unknown'] },
               issue_type: { type: 'STRING', enum: ['insect_pest', 'fungal_disease', 'bacterial_disease', 'weed_problem', 'nutrient_deficiency', 'growth_stress', 'abiotic_stress', 'unknown', 'none'] }, likely_issue: { type: 'STRING' }, confidence: { type: 'NUMBER' },
               observed_symptoms: { type: 'ARRAY', items: { type: 'STRING' } },
+              probable_causes: { type: 'ARRAY', items: { type: 'STRING' } },
               alternative_possibilities: { type: 'ARRAY', items: { type: 'STRING' } },
+              immediate_actions: { type: 'ARRAY', items: { type: 'STRING' } },
+              prevention_tips: { type: 'ARRAY', items: { type: 'STRING' } },
+              questions_for_farmer: { type: 'ARRAY', items: { type: 'STRING' } },
               additional_information_required: { type: 'BOOLEAN' }, recommended_next_action: { type: 'STRING' }, summary: { type: 'STRING' },
             },
           },
@@ -94,7 +104,9 @@ export async function POST(request: Request) {
   if (!text) return NextResponse.json({ error: 'AI returned no assessment.' }, { status: 502 });
   try {
     const diagnosis = JSON.parse(text);
-    return NextResponse.json({ ...diagnosis, recommendations: catalogRecommendations(diagnosis) });
+    const catalogCrop = catalogCropName(crop || diagnosis.crop || '');
+    const groundedDiagnosis = { ...diagnosis, catalog_crop: catalogCrop };
+    return NextResponse.json({ ...groundedDiagnosis, recommendations: catalogRecommendations(groundedDiagnosis) });
   }
   catch { return NextResponse.json({ error: 'AI returned an invalid assessment.' }, { status: 502 }); }
 }

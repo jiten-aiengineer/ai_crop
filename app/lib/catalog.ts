@@ -11,6 +11,8 @@ export type CatalogProduct = {
   image: string;
   sourcePage: number;
   limitedRecord?: boolean;
+  matchScore?: number;
+  matchReason?: string;
 };
 
 export const catalog = catalogData as CatalogProduct[];
@@ -27,10 +29,19 @@ const categorySignals: Array<{ categories: string[]; signals: string[] }> = [
   { categories: ['Seed Treatment'], signals: ['seed treatment', 'seed_treatment', 'seed borne', 'germination'] },
 ];
 
+const issueTypeCategories: Record<string, string[]> = {
+  insect_pest: ['Insecticides'], fungal_disease: ['Fungicides'], bacterial_disease: ['Antibiotic / Bactericide'],
+  weed_problem: ['Weedicides'], nutrient_deficiency: ['Micro Fertilizers', 'Bio Stimulant'],
+  growth_stress: ['Bio Stimulant', 'Plant Growth Regulator'],
+};
+
 const cropAliases: Record<string, string[]> = {
   rice: ['rice', 'paddy'], paddy: ['rice', 'paddy'], soybean: ['soybean', 'soyabean'], soyabean: ['soybean', 'soyabean'],
-  chickpea: ['chickpea', 'chickpea', 'gram'], chilli: ['chilli', 'chillies', 'chili'], potato: ['potato', 'tuber'],
+  chickpea: ['chickpea', 'gram'], gram: ['chickpea', 'gram'], chilli: ['chilli', 'chillies', 'chili'],
+  maize: ['maize', 'corn'], corn: ['maize', 'corn'], sorghum: ['sorghum', 'jowar'], jowar: ['sorghum', 'jowar'],
 };
+
+export const catalogCrops = ['Rice', 'Cotton', 'Sugarcane', 'Wheat', 'Tomato', 'Onion', 'Chilli', 'Soybean', 'Maize', 'Groundnut', 'Potato', 'Gram', 'Grapes', 'Mango', 'Tea', 'Sorghum', 'Brinjal', 'Tobacco'];
 
 function normalize(value: string) {
   return value.toLowerCase().replace(/\bplanthopper\b/g, 'plant hopper').replace(/\bwhite fly\b/g, 'whitefly').replace(/[^a-z0-9%+.-]+/g, ' ').trim();
@@ -38,6 +49,16 @@ function normalize(value: string) {
 
 function tokens(value: string, ignored = stopWords) {
   return [...new Set(normalize(value).split(/\s+/).filter((token) => token.length > 2 && !ignored.has(token)))];
+}
+
+export function catalogCropName(value: string) {
+  const normalized = normalize(value);
+  if (!normalized) return '';
+  const found = catalogCrops.find((crop) => {
+    const canonical = normalize(crop);
+    return (cropAliases[canonical] || [canonical]).some((alias) => new RegExp(`\\b${alias}\\b`).test(normalized));
+  });
+  return found || '';
 }
 
 export function searchCatalog(query: string, limit = 12, category = 'All products') {
@@ -60,14 +81,15 @@ export function searchCatalog(query: string, limit = 12, category = 'All product
     .slice(0, limit);
 }
 
-export function catalogRecommendations(diagnosis: { crop?: string; likely_issue?: string; issue_type?: string; observed_symptoms?: string[]; confidence?: number; additional_information_required?: boolean; issue_detected?: boolean }) {
+export function catalogRecommendations(diagnosis: { crop?: string; catalog_crop?: string; likely_issue?: string; issue_type?: string; observed_symptoms?: string[]; probable_causes?: string[]; confidence?: number; additional_information_required?: boolean; issue_detected?: boolean }) {
   if (!diagnosis.issue_detected || (diagnosis.confidence ?? 0) < 0.42) return [];
 
-  const crop = normalize(diagnosis.crop || '');
+  const crop = normalize(diagnosis.catalog_crop || diagnosis.crop || '');
   const likelyIssue = normalize(diagnosis.likely_issue || '');
-  const issueText = normalize([diagnosis.issue_type, diagnosis.likely_issue, ...(diagnosis.observed_symptoms || [])].filter(Boolean).join(' '));
+  const issueText = normalize([diagnosis.issue_type, diagnosis.likely_issue, ...(diagnosis.observed_symptoms || []), ...(diagnosis.probable_causes || [])].filter(Boolean).join(' '));
   const issueTokens = tokens(issueText, diagnosisStopWords);
-  const allowedCategories = new Set(categorySignals.flatMap((rule) => rule.signals.some((signal) => issueText.includes(signal)) ? rule.categories : []));
+  const primaryCategories = issueTypeCategories[diagnosis.issue_type || ''] || [];
+  const allowedCategories = new Set(primaryCategories.length ? primaryCategories : categorySignals.flatMap((rule) => rule.signals.some((signal) => issueText.includes(signal)) ? rule.categories : []));
   if (issueText.includes('sheath blight')) allowedCategories.add('Antibiotic / Bactericide');
   if (!allowedCategories.size && !issueTokens.length) return [];
 
@@ -80,13 +102,17 @@ export function catalogRecommendations(diagnosis: { crop?: string; likely_issue?
     if (likelyIssue.length > 3 && !['unknown', 'none', 'uncertain'].includes(likelyIssue) && haystack.includes(likelyIssue)) targetScore += 20;
     for (const token of issueTokens) if (haystack.includes(token)) targetScore += 4;
     const cropMatch = aliases.some((alias) => alias.length > 2 && haystack.includes(alias));
-    const broadCropUse = /various crops|multi ?crops|other crops|field crops/.test(haystack);
-    if (issueTokens.length ? !targetScore : !cropMatch) return null;
-    const score = targetScore + (allowedCategories.has(product.category) ? 6 : 0) + (cropMatch ? 5 : broadCropUse ? 1 : 0);
-    if (score < (provisional ? 10 : 8)) return null;
-    return { product, score };
-  }).filter((match): match is { product: CatalogProduct; score: number } => Boolean(match))
+    // Crop matching is intentionally strict: a selected/detected crop must be printed in the supplied catalogue record.
+    if (aliases.length && !cropMatch) return null;
+    const categoryScore = allowedCategories.has(product.category) ? 8 : 0;
+    const score = targetScore + categoryScore + (cropMatch ? 8 : 0);
+    if (score < (provisional ? 14 : 10)) return null;
+    const matchReason = targetScore > 0
+      ? `${diagnosis.catalog_crop || diagnosis.crop || 'Crop'} + probable problem match in the catalogue`
+      : `${diagnosis.catalog_crop || diagnosis.crop || 'Crop'} is listed for this product category`;
+    return { product, score, matchReason };
+  }).filter((match): match is { product: CatalogProduct; score: number; matchReason: string } => Boolean(match))
     .sort((a, b) => b.score - a.score || a.product.name.localeCompare(b.product.name))
-    .slice(0, provisional ? 3 : 5)
-    .map(({ product, score }) => ({ ...product, matchScore: score }));
+    .slice(0, provisional ? 6 : 12)
+    .map(({ product, score, matchReason }) => ({ ...product, matchScore: score, matchReason }));
 }
