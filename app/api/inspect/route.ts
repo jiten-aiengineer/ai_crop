@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { catalogRecommendations } from '../../lib/catalog';
 
 export const runtime = 'edge';
 
@@ -23,7 +24,12 @@ export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'AI service is not configured.' }, { status: 503 });
 
-  const form = await request.formData();
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return NextResponse.json({ error: 'Send crop photos as form data.' }, { status: 400 });
+  }
   const images = form.getAll('images').filter((value): value is File => value instanceof File).slice(0, MAX_FILES);
   if (!images.length) return NextResponse.json({ error: 'Please add at least one crop photo.' }, { status: 400 });
 
@@ -66,9 +72,15 @@ export async function POST(request: Request) {
   });
 
   const payload = await response.json() as GeminiResponse;
-  if (!response.ok) return NextResponse.json({ error: payload.error?.message || 'AI analysis failed.' }, { status: 502 });
+  if (!response.ok) {
+    const busy = response.status === 429;
+    return NextResponse.json({ error: busy ? 'AI photo analysis is temporarily busy. Please wait a moment and try again.' : 'AI photo analysis could not be completed. Please try again.' }, { status: busy ? 429 : 502 });
+  }
   const text = payload.candidates?.[0]?.content?.parts?.find((part) => part.text)?.text;
   if (!text) return NextResponse.json({ error: 'AI returned no assessment.' }, { status: 502 });
-  try { return NextResponse.json(JSON.parse(text)); }
+  try {
+    const diagnosis = JSON.parse(text);
+    return NextResponse.json({ ...diagnosis, recommendations: catalogRecommendations(diagnosis) });
+  }
   catch { return NextResponse.json({ error: 'AI returned an invalid assessment.' }, { status: 502 }); }
 }
