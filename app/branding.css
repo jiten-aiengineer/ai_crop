@@ -1,4 +1,7 @@
 .brand img { width: 48px; height: 44px; object-fit: contain; background: white; border-radius: 7px; }
+.language-picker { height: 38px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid var(--line); border-radius: 10px; background: #f7f9f4; color: var(--green); }
+.language-picker > span { font-size: 13px; font-weight: 800; }
+.language-picker select { max-width: 105px; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 11px; font-weight: 700; cursor: pointer; }
 .endorsed { display: flex; align-items: center; gap: 13px; margin-bottom: 34px; color: #718077; font-size: 10px; line-height: 1.45; text-transform: uppercase; letter-spacing: .07em; }
 .endorsed img { width: 76px; height: 62px; object-fit: contain; }
 .endorsed b { color: var(--green); font-size: 11px; }
@@ -56,6 +59,9 @@ footer div p { margin: 3px 0 0; }
   .topbar { position: sticky; top: 0; z-index: 10; background: rgba(255,255,250,.96); backdrop-filter: blur(10px); }
   .hero { padding-top: 24px; gap: 18px; }
   .brand img { width: 43px; height: 38px; }
+  .language-picker { margin-left: auto; height: 36px; padding: 0 6px; }
+  .language-picker > span { display: none; }
+  .language-picker select { max-width: 92px; font-size: 10px; }
   .endorsed { justify-content: center; margin-bottom: 16px; }
   .endorsed img { width: 62px; height: 52px; }
   .trust-row { margin-top: 18px; }

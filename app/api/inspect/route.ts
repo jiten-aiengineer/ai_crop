@@ -50,12 +50,15 @@ export async function POST(request: Request) {
   const crop = String(form.get('crop') || '').slice(0, 80);
   const location = String(form.get('location') || '').slice(0, 120);
   const description = String(form.get('description') || '').slice(0, 800);
+  const languageCode = String(form.get('language') || 'en');
+  const languageNames: Record<string, string> = { en: 'English', hi: 'Hindi', gu: 'Gujarati', mr: 'Marathi', bn: 'Bengali', bho: 'Bhojpuri' };
+  const responseLanguage = languageNames[languageCode] || 'English';
 
   const prompt = `You are Crop Life AI, a cautious agricultural image-assessment assistant for Indian farmers. Study every supplied photo and explain the visible evidence in useful detail. Never claim certainty, invent a pesticide product, prescribe a dose, or call the result a guaranteed diagnosis. Product matching is performed separately from the CLSL catalogue.
 
 Identify the plant/crop from the image. When the farmer supplied a crop, treat it as important context but flag uncertainty if the image conflicts. Describe what appears to be happening, its visible stage/severity, the most likely biological or environmental causes, immediate non-chemical actions, prevention steps, and concise questions that would improve confidence. Separate visible observations from inferred causes. If the image does not show a crop or plant, set issue_detected false, issue_type "none", plant_condition "uncertain", and additional_information_required true. If a probable issue is visible but better photos or field details would help, keep issue_detected true and set additional_information_required true.
 
-Use one issue_type only: insect_pest, fungal_disease, bacterial_disease, weed_problem, nutrient_deficiency, growth_stress, abiotic_stress, unknown, or none. Put the most specific common target/problem name in likely_issue, such as whitefly, early blight, sheath blight, or nitrogen deficiency. Keep all advice practical and concise. Farmer crop: ${crop || 'not supplied'}. Location: ${location || 'not supplied'}. Farmer description: ${description || 'not supplied'}. Return only the requested JSON.`;
+Use one issue_type only: insect_pest, fungal_disease, bacterial_disease, weed_problem, nutrient_deficiency, growth_stress, abiotic_stress, unknown, or none. Keep crop, likely_issue, issue_type, plant_condition and problem_stage in English because they drive catalogue matching. Write summary, observed_symptoms, probable_causes, alternative_possibilities, immediate_actions, prevention_tips, questions_for_farmer and recommended_next_action in ${responseLanguage}, using simple farmer-friendly language. Farmer crop: ${crop || 'not supplied'}. Location: ${location || 'not supplied'}. Farmer description: ${description || 'not supplied'}. Return only the requested JSON.`;
 
   let response: Response;
   try {
