@@ -19,6 +19,7 @@ type ChatMessage = { role: 'user' | 'assistant'; content: string; products?: Cat
 type StoredInspection = { id: string; createdAt: string; crop: string; issue: string; confidence: number; summary: string; result: Diagnosis };
 type Profile = { name: string; location: string; language: LanguageCode };
 type Copy = Record<string, string>;
+type Theme = 'light' | 'dark';
 
 const categories = ['All products', ...Array.from(new Set(catalog.map((product) => product.category)))];
 const categoryPurpose: Record<string, string> = {
@@ -33,6 +34,7 @@ const categoryPurpose: Record<string, string> = {
 };
 const HISTORY_KEY = 'crop-life-ai-inspections-v1';
 const PROFILE_KEY = 'crop-life-ai-profile-v1';
+const THEME_KEY = 'crop-life-ai-theme-v1';
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 async function optimiseImage(file: File) {
@@ -82,6 +84,7 @@ export default function Home() {
   const [history, setHistory] = useState<StoredInspection[]>([]);
   const [profile, setProfile] = useState<Profile>({ name: 'Farmer', location: '', language: 'en' });
   const [profileOpen, setProfileOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -91,6 +94,16 @@ export default function Home() {
         if (storedHistory) setHistory(JSON.parse(storedHistory));
         if (storedProfile) { const saved = JSON.parse(storedProfile); setProfile({ ...saved, language: getLanguage(saved.language) }); }
       } catch { /* device storage may be unavailable */ }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const saved = localStorage.getItem(THEME_KEY);
+      const initial = saved === 'dark' || saved === 'light' ? saved : document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+      setTheme(initial);
+      document.documentElement.dataset.theme = initial;
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -109,6 +122,7 @@ export default function Home() {
   const openProducts = (query = '') => { setProductQuery(query); nav('products'); };
   const saveProfile = (next: Profile) => { setProfile(next); localStorage.setItem(PROFILE_KEY, JSON.stringify(next)); setProfileOpen(false); };
   const changeLanguage = (next: LanguageCode) => { const updated = { ...profile, language: next }; setProfile(updated); localStorage.setItem(PROFILE_KEY, JSON.stringify(updated)); document.documentElement.lang = next; };
+  const toggleTheme = () => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem(THEME_KEY, next); document.documentElement.dataset.theme = next; };
   const analyse = async (form: HTMLFormElement) => {
     const uploadBytes = files.reduce((total, file) => total + file.size, 0);
     if (uploadBytes > MAX_UPLOAD_BYTES) {
@@ -129,7 +143,7 @@ export default function Home() {
   };
 
   return <main className="app-shell">
-    <Header view={view} nav={nav} profile={profile} onProfile={() => setProfileOpen(true)} language={language} changeLanguage={changeLanguage} t={t} />
+    <Header view={view} nav={nav} profile={profile} onProfile={() => setProfileOpen(true)} language={language} changeLanguage={changeLanguage} theme={theme} toggleTheme={toggleTheme} t={t} />
     {view === 'home' && <HomeView nav={nav} t={t} language={language} location={profile.location} />}
     {view === 'inspect' && <section className="workspace"><PageTitle eyebrow={t.doctor} title={t.inspectHeading} text={t.inspectIntro} /><div className="inspection-layout"><div className="inspect-card large"><InspectionForm inputRef={inputRef} files={files} setFiles={setFiles} onAnalyse={analyse} loading={loading} analysisSeconds={analysisSeconds} error={error} t={t} /></div><Tips t={t} /></div>{result && <Result result={result} onClose={() => setResult(null)} openProducts={openProducts} openProduct={setSelectedProduct} nav={nav} t={t} />}</section>}
     {view === 'assistant' && <Assistant openProduct={setSelectedProduct} language={language} t={t} />}
@@ -143,8 +157,8 @@ export default function Home() {
   </main>;
 }
 
-function Header({ view, nav, profile, onProfile, language, changeLanguage, t }: { view: View; nav: (view: View) => void; profile: Profile; onProfile: () => void; language: LanguageCode; changeLanguage: (language: LanguageCode) => void; t: Copy }) {
-  return <header className="topbar"><button className="brand plain" onClick={() => nav('home')}><img src="/clsl-logo.png" alt="CLSL" /><span><strong>Crop Life AI</strong><small>{t.productTag}</small></span></button><nav className="topnav" aria-label="Main navigation"><NavButton label={t.navInspect} target="inspect" view={view} nav={nav} /><NavButton label={t.navAssistant} target="assistant" view={view} nav={nav} /><NavButton label={t.navProducts} target="products" view={view} nav={nav} /><NavButton label={t.navTools} target="tools" view={view} nav={nav} /><NavButton label={t.navHistory} target="history" view={view} nav={nav} /></nav><label className="language-picker"><span>文</span><select aria-label={t.language} value={language} onChange={(event) => changeLanguage(event.target.value as LanguageCode)}>{languages.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label><button className="profile-button" onClick={onProfile} aria-label={t.profile}>{initials(profile.name)}</button></header>;
+function Header({ view, nav, profile, onProfile, language, changeLanguage, theme, toggleTheme, t }: { view: View; nav: (view: View) => void; profile: Profile; onProfile: () => void; language: LanguageCode; changeLanguage: (language: LanguageCode) => void; theme: Theme; toggleTheme: () => void; t: Copy }) {
+  return <header className="topbar"><button className="brand plain" onClick={() => nav('home')}><img src="/clsl-logo.png" alt="CLSL" /><span><strong>Crop Life AI</strong><small>{t.productTag}</small></span></button><nav className="topnav" aria-label="Main navigation"><NavButton label={t.navInspect} target="inspect" view={view} nav={nav} /><NavButton label={t.navAssistant} target="assistant" view={view} nav={nav} /><NavButton label={t.navProducts} target="products" view={view} nav={nav} /><NavButton label={t.navTools} target="tools" view={view} nav={nav} /><NavButton label={t.navHistory} target="history" view={view} nav={nav} /></nav><label className="language-picker"><span>文</span><select aria-label={t.language} value={language} onChange={(event) => changeLanguage(event.target.value as LanguageCode)}>{languages.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label><button className="theme-toggle" type="button" onClick={toggleTheme} aria-label={theme === 'dark' ? t.lightMode : t.darkMode} title={theme === 'dark' ? t.lightMode : t.darkMode}><span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span><small>{theme === 'dark' ? t.lightMode : t.darkMode}</small></button><button className="profile-button" onClick={onProfile} aria-label={t.profile}>{initials(profile.name)}</button></header>;
 }
 function NavButton({ label, target, view, nav }: { label: string; target: View; view: View; nav: (view: View) => void }) { return <button className={view === target ? 'active' : ''} onClick={() => nav(target)}>{label}</button>; }
 function initials(name: string) { return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'F'; }

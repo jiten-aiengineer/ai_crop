@@ -1,0 +1,39 @@
+.theme-toggle{height:38px;display:flex;align-items:center;gap:7px;padding:0 11px;border:1px solid var(--line);border-radius:10px;background:#f7f9f4;color:var(--ink);font-size:10px;font-weight:750;cursor:pointer}.theme-toggle span{font-size:16px;color:var(--green)}
+html[data-theme="dark"]{color-scheme:dark;--ink:#e9f3ec;--green:#46a873;--lime:#cbe968;--cream:#15231c;--paper:#0d1712;--line:#2d4135}
+html[data-theme="dark"] body{background:var(--paper);color:var(--ink)}
+html[data-theme="dark"] .topbar,html[data-theme="dark"] .mobile-nav{background:rgba(13,23,18,.97);border-color:var(--line)}
+html[data-theme="dark"] .brand small,html[data-theme="dark"] .topnav button,html[data-theme="dark"] footer,html[data-theme="dark"] .hero-copy>p:not(.eyebrow),html[data-theme="dark"] .trust-row,html[data-theme="dark"] .page-title>p:last-child,html[data-theme="dark"] .tools-heading>p:last-child,html[data-theme="dark"] .weather-intro>p:not(.eyebrow){color:#a8b9af}
+html[data-theme="dark"] .language-picker,html[data-theme="dark"] .theme-toggle,html[data-theme="dark"] .profile-button{background:#17261e;border-color:#344a3d;color:var(--ink)}
+html[data-theme="dark"] .language-picker select{color:var(--ink)}
+html[data-theme="dark"] .hero:before{background:#17291e}
+html[data-theme="dark"] .hero h1 em,html[data-theme="dark"] .eyebrow,html[data-theme="dark"] .section-label span{color:#75cb96}
+html[data-theme="dark"] .inspect-card,html[data-theme="dark"] .quick-card,html[data-theme="dark"] .tips,html[data-theme="dark"] .chat-shell,html[data-theme="dark"] .catalog-stat,html[data-theme="dark"] .catalog-card,html[data-theme="dark"] .result-modal,html[data-theme="dark"] .product-modal,html[data-theme="dark"] .profile-modal,html[data-theme="dark"] .history-list,html[data-theme="dark"] .calculator-shell{background:#14221b;border-color:var(--line);box-shadow:0 20px 55px rgba(0,0,0,.24)}
+html[data-theme="dark"] .quick-section,html[data-theme="dark"] .chat-body{background:#101d17}
+html[data-theme="dark"] .upload-zone,html[data-theme="dark"] .empty-state,html[data-theme="dark"] .product-image,html[data-theme="dark"] .product-modal-image{background:#17271e;border-color:#486553;color:var(--ink)}
+html[data-theme="dark"] .upload-zone.has-files,html[data-theme="dark"] .privacy-box,html[data-theme="dark"] .quick-icon,html[data-theme="dark"] .step-badge,html[data-theme="dark"] .crop-avatar{background:#203824;color:#87d5a2}
+html[data-theme="dark"] input,html[data-theme="dark"] textarea,html[data-theme="dark"] select,html[data-theme="dark"] option{background:#101d17!important;color:var(--ink)!important;border-color:#344a3d!important}
+html[data-theme="dark"] input::placeholder,html[data-theme="dark"] textarea::placeholder{color:#71847a}
+html[data-theme="dark"] .result-facts span,html[data-theme="dark"] .issue-box,html[data-theme="dark"] .next-action,html[data-theme="dark"] .diagnosis-list,html[data-theme="dark"] .symptoms span,html[data-theme="dark"] .no-match,html[data-theme="dark"] .file-list>span{background:#18271f;border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] .issue-box p,html[data-theme="dark"] .diagnosis-list li,html[data-theme="dark"] .next-action p,html[data-theme="dark"] .result-facts small,html[data-theme="dark"] .category-matches header p{color:#a0b2a7}
+html[data-theme="dark"] .category-matches>section{border-color:var(--line)}
+html[data-theme="dark"] .category-matches header,html[data-theme="dark"] .mini-products>button,html[data-theme="dark"] .ai-message,html[data-theme="dark"] .chat-products button{background:#18271f;border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] .mini-products img,html[data-theme="dark"] .mini-fallback,html[data-theme="dark"] .image-fallback{background:#eef1eb}
+html[data-theme="dark"] .market-hero{background:#1b3023}
+html[data-theme="dark"] .market-toolbar{background:rgba(13,23,18,.93)}
+html[data-theme="dark"] .market-search,html[data-theme="dark"] .market-toolbar>select,html[data-theme="dark"] .category-chips button{background:#14221b;border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] .category-chips button.selected{background:#3e9b68;color:white}
+html[data-theme="dark"] .catalog-card-body>p,html[data-theme="dark"] .catalog-disclaimer,html[data-theme="dark"] .card-meta span{color:#a1b1a7}
+html[data-theme="dark"] .card-meta span,html[data-theme="dark"] .limited-note,html[data-theme="dark"] .label-warning{background:#1b2a22}
+html[data-theme="dark"] .product-image>img,html[data-theme="dark"] .product-modal-image>img{background:#f3f3ee;border-radius:12px;mix-blend-mode:normal}
+html[data-theme="dark"] .weather-card{background:#142a20;border-color:#305441}
+html[data-theme="dark"] .weather-intro form,html[data-theme="dark"] .activity,html[data-theme="dark"] .weather-metrics span{background:#182a21;border-color:var(--line)}
+html[data-theme="dark"] .activity small,html[data-theme="dark"] .weather-card header p,html[data-theme="dark"] .weather-source{color:#9fb2a7}
+html[data-theme="dark"] .tool-tabs button,html[data-theme="dark"] .area-fields,html[data-theme="dark"] .catalog-dose,html[data-theme="dark"] .calculation-results article,html[data-theme="dark"] .cost-inputs label{background:#18271f;border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] .tool-tabs button.selected,html[data-theme="dark"] .calculation-results article.primary-result{background:#277a4e;color:#fff}
+html[data-theme="dark"] .calculator-inputs select,html[data-theme="dark"] .calculator-inputs em{background:#203127!important;color:#b6c7bc!important}
+html[data-theme="dark"] .history-item{border-color:var(--line)}
+html[data-theme="dark"] .modal-backdrop{background:rgba(1,8,4,.78)}
+html[data-theme="dark"] .modal-close{background:#23352a;color:var(--ink)}
+html[data-theme="dark"] footer img,html[data-theme="dark"] .brand img{background:#fff}
+@media(max-width:600px){.theme-toggle{width:36px;padding:0;justify-content:center}.theme-toggle small{display:none}}
+@media(max-width:420px){.brand>span{display:none}.topbar{gap:7px}.language-picker select{max-width:82px}}

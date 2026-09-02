@@ -4,6 +4,7 @@ import './globals.css';
 import './branding.css';
 import './marketplace.css';
 import './tools.css';
+import './dark-mode.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -37,7 +38,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('crop-life-ai-theme-v1');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch(e){}" }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
