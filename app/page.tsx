@@ -3,8 +3,10 @@
 import { FormEvent, RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { catalog, catalogCrops, CatalogProduct, searchCatalog } from './lib/catalog';
 import { getCopy, getLanguage, LanguageCode, languages } from './lib/i18n';
+import { FarmTools } from './components/FarmTools';
+import { WeatherAdvisory } from './components/WeatherAdvisory';
 
-type View = 'home' | 'inspect' | 'assistant' | 'products' | 'history';
+type View = 'home' | 'inspect' | 'assistant' | 'products' | 'tools' | 'history';
 type Diagnosis = {
   crop: string; crop_confidence: number; issue_detected: boolean; issue_type: string; likely_issue: string;
   confidence: number; observed_symptoms: string[]; alternative_possibilities: string[];
@@ -19,6 +21,16 @@ type Profile = { name: string; location: string; language: LanguageCode };
 type Copy = Record<string, string>;
 
 const categories = ['All products', ...Array.from(new Set(catalog.map((product) => product.category)))];
+const categoryPurpose: Record<string, string> = {
+  'Insecticides': 'Products whose catalogue use aligns with insect-pest management',
+  'Fungicides': 'Products whose catalogue use aligns with fungal-disease management',
+  'Antibiotic / Bactericide': 'Products whose catalogue use aligns with bacterial-disease management',
+  'Weedicides': 'Products whose catalogue use aligns with weed management',
+  'Micro Fertilizers': 'Catalogue nutrition options when the visible issue points to deficiency',
+  'Bio Stimulant': 'Catalogue plant-support options when the issue points to growth stress',
+  'Plant Growth Regulator': 'Catalogue growth-management options for the identified crop',
+  'Seed Treatment': 'Catalogue options intended for seed-borne or germination-stage problems',
+};
 const HISTORY_KEY = 'crop-life-ai-inspections-v1';
 const PROFILE_KEY = 'crop-life-ai-profile-v1';
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
@@ -72,18 +84,20 @@ export default function Home() {
   const [profileOpen, setProfileOpen] = useState(false);
 
   useEffect(() => {
-    try {
-      const storedHistory = localStorage.getItem(HISTORY_KEY);
-      const storedProfile = localStorage.getItem(PROFILE_KEY);
-      if (storedHistory) setHistory(JSON.parse(storedHistory));
-      if (storedProfile) { const saved = JSON.parse(storedProfile); setProfile({ ...saved, language: getLanguage(saved.language) }); }
-    } catch { /* device storage may be unavailable */ }
+    const timer = window.setTimeout(() => {
+      try {
+        const storedHistory = localStorage.getItem(HISTORY_KEY);
+        const storedProfile = localStorage.getItem(PROFILE_KEY);
+        if (storedHistory) setHistory(JSON.parse(storedHistory));
+        if (storedProfile) { const saved = JSON.parse(storedProfile); setProfile({ ...saved, language: getLanguage(saved.language) }); }
+      } catch { /* device storage may be unavailable */ }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    if (!loading) { setAnalysisSeconds(0); return; }
+    if (!loading) return;
     const started = Date.now();
-    setAnalysisSeconds(0);
     const timer = window.setInterval(() => setAnalysisSeconds(Math.floor((Date.now() - started) / 1000)), 250);
     return () => window.clearInterval(timer);
   }, [loading]);
@@ -101,7 +115,7 @@ export default function Home() {
       setError(language === 'en' ? 'These photos are too large together. Please select fewer photos or use JPG images.' : t.safety);
       return;
     }
-    setLoading(true); setError('');
+    setAnalysisSeconds(0); setLoading(true); setError('');
     const body = new FormData(form); body.set('language', language); files.forEach((file) => body.append('images', file));
     try {
       const response = await fetch('/api/inspect', { method: 'POST', body });
@@ -111,15 +125,16 @@ export default function Home() {
       const record: StoredInspection = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), crop: data.crop || 'Unknown crop', issue: data.likely_issue || 'No clear issue', confidence: data.confidence, summary: data.summary, result: data };
       setHistory((previous) => { const next = [record, ...previous].slice(0, 50); localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); return next; });
     } catch (problem) { setError(problem instanceof Error ? problem.message : 'Unable to analyse these images.'); }
-    finally { setLoading(false); }
+    finally { setLoading(false); setAnalysisSeconds(0); }
   };
 
   return <main className="app-shell">
     <Header view={view} nav={nav} profile={profile} onProfile={() => setProfileOpen(true)} language={language} changeLanguage={changeLanguage} t={t} />
-    {view === 'home' && <HomeView nav={nav} t={t} />}
+    {view === 'home' && <HomeView nav={nav} t={t} language={language} location={profile.location} />}
     {view === 'inspect' && <section className="workspace"><PageTitle eyebrow={t.doctor} title={t.inspectHeading} text={t.inspectIntro} /><div className="inspection-layout"><div className="inspect-card large"><InspectionForm inputRef={inputRef} files={files} setFiles={setFiles} onAnalyse={analyse} loading={loading} analysisSeconds={analysisSeconds} error={error} t={t} /></div><Tips t={t} /></div>{result && <Result result={result} onClose={() => setResult(null)} openProducts={openProducts} openProduct={setSelectedProduct} nav={nav} t={t} />}</section>}
     {view === 'assistant' && <Assistant openProduct={setSelectedProduct} language={language} t={t} />}
     {view === 'products' && <Products initialQuery={productQuery} onQuery={setProductQuery} openProduct={setSelectedProduct} t={t} />}
+    {view === 'tools' && <FarmTools language={language} />}
     {view === 'history' && <HistoryView history={history} openResult={setResult} nav={nav} clear={() => { setHistory([]); localStorage.removeItem(HISTORY_KEY); }} t={t} />}
     <MobileNav view={view} nav={nav} t={t} />
     <footer><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><div><b>{t.productOf}</b><p>{t.catalogProducts} · {t.catalogOnly}</p></div><button onClick={() => nav('home')}>{t.home} ↑</button></footer>
@@ -129,14 +144,15 @@ export default function Home() {
 }
 
 function Header({ view, nav, profile, onProfile, language, changeLanguage, t }: { view: View; nav: (view: View) => void; profile: Profile; onProfile: () => void; language: LanguageCode; changeLanguage: (language: LanguageCode) => void; t: Copy }) {
-  return <header className="topbar"><button className="brand plain" onClick={() => nav('home')}><img src="/clsl-logo.png" alt="CLSL" /><span><strong>Crop Life AI</strong><small>{t.productTag}</small></span></button><nav className="topnav" aria-label="Main navigation"><NavButton label={t.navInspect} target="inspect" view={view} nav={nav} /><NavButton label={t.navAssistant} target="assistant" view={view} nav={nav} /><NavButton label={t.navProducts} target="products" view={view} nav={nav} /><NavButton label={t.navHistory} target="history" view={view} nav={nav} /></nav><label className="language-picker"><span>文</span><select aria-label={t.language} value={language} onChange={(event) => changeLanguage(event.target.value as LanguageCode)}>{languages.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label><button className="profile-button" onClick={onProfile} aria-label={t.profile}>{initials(profile.name)}</button></header>;
+  return <header className="topbar"><button className="brand plain" onClick={() => nav('home')}><img src="/clsl-logo.png" alt="CLSL" /><span><strong>Crop Life AI</strong><small>{t.productTag}</small></span></button><nav className="topnav" aria-label="Main navigation"><NavButton label={t.navInspect} target="inspect" view={view} nav={nav} /><NavButton label={t.navAssistant} target="assistant" view={view} nav={nav} /><NavButton label={t.navProducts} target="products" view={view} nav={nav} /><NavButton label={t.navTools} target="tools" view={view} nav={nav} /><NavButton label={t.navHistory} target="history" view={view} nav={nav} /></nav><label className="language-picker"><span>文</span><select aria-label={t.language} value={language} onChange={(event) => changeLanguage(event.target.value as LanguageCode)}>{languages.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label><button className="profile-button" onClick={onProfile} aria-label={t.profile}>{initials(profile.name)}</button></header>;
 }
 function NavButton({ label, target, view, nav }: { label: string; target: View; view: View; nav: (view: View) => void }) { return <button className={view === target ? 'active' : ''} onClick={() => nav(target)}>{label}</button>; }
 function initials(name: string) { return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'F'; }
 
-function HomeView({ nav, t }: { nav: (view: View) => void; t: Copy }) {
+function HomeView({ nav, t, language, location }: { nav: (view: View) => void; t: Copy; language: LanguageCode; location: string }) {
   return <><section className="hero"><div className="hero-copy"><div className="endorsed"><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><span>{t.developed}<br /><b>Crop Life Science Limited</b></span></div><p className="eyebrow"><span /> {t.companion}</p><h1>{t.heroTitle}<br /><em>{t.heroAccent}</em></h1><p>{t.heroText}</p><div className="trust-row"><span>✓ {t.imageAssessment}</span><span>✓ {t.catalogProducts}</span><span>✓ {t.catalogOnly}</span></div></div><div className="home-panel"><span className="leaf-shape">⌁</span><small>{t.care}</small><h2>{t.unusual}</h2><p>{t.flow}</p><button type="button" onClick={() => nav('inspect')}>{t.takePictures} <span>→</span></button><div className="panel-stats"><span><b>5</b> {t.photosSupported}</span><span><b>73</b> CLSL {t.navProducts}</span></div></div></section>
-    <section className="quick-section"><div className="section-label"><span>{t.startHere}</span><p>{t.tools}</p></div><div className="quick-grid"><Quick featured icon="⌁" label={t.geminiPowered} title={t.inspectTitle} text={t.inspectCardText} onClick={() => nav('inspect')} /><Quick icon="✦" label={t.grounded} title={t.assistantTitle} text={t.assistantCardText} onClick={() => nav('assistant')} /><Quick icon="◫" label={t.catalogProducts} title={t.marketplace} text={t.marketCardText} onClick={() => nav('products')} /></div></section>
+    <WeatherAdvisory language={language} initialLocation={location} />
+    <section className="quick-section"><div className="section-label"><span>{t.startHere}</span><p>{t.tools}</p></div><div className="quick-grid"><Quick featured icon="⌁" label={t.geminiPowered} title={t.inspectTitle} text={t.inspectCardText} onClick={() => nav('inspect')} /><Quick icon="✦" label={t.grounded} title={t.assistantTitle} text={t.assistantCardText} onClick={() => nav('assistant')} /><Quick icon="▦" label={t.fieldTools} title={t.calculators} text={t.calculatorCardText} onClick={() => nav('tools')} /><Quick icon="◫" label={t.catalogProducts} title={t.marketplace} text={t.marketCardText} onClick={() => nav('products')} /></div></section>
     <section className="catalog-band"><div><small>{t.officialKnowledge}</small><h2>{t.everyProduct}</h2><p>{t.categorySummary}</p></div><button onClick={() => nav('products')}>{t.explore} →</button></section></>;
 }
 function Quick(props: { featured?: boolean; icon: string; label: string; title: string; text: string; onClick: () => void }) { return <button onClick={props.onClick} className={`quick-card ${props.featured ? 'featured' : ''}`}><span className="quick-icon">{props.icon}</span><div><small>{props.label}</small><h3>{props.title}</h3><p>{props.text}</p></div><b>→</b></button>; }
@@ -173,7 +189,7 @@ function Result({ result, onClose, openProducts, openProduct, nav, t }: { result
     <div className="diagnosis-columns action-lists">{list(t.doNow, result.immediate_actions)}{list(t.prevention, result.prevention_tips)}</div>
     {result.additional_information_required && list(t.improve, result.questions_for_farmer)}
     <section className="matched-products"><div><small>{t.catalogMatch}</small><h3>{groups.length ? `${groups.length} ${t.applicableCategory} · ${result.recommendations.length} ${t.navProducts}` : t.noVerified}</h3><p>{result.catalog_crop ? t.explicitCrop : t.selectCrop}</p></div>
-      {groups.length ? <div className="category-matches">{groups.map(([category, products]) => <section key={category}><header><div><small>{t.applicableCategory}</small><h4>{category}</h4></div><b>{products.length}</b></header><div className="mini-products">{products.map((product) => <button key={product.id} onClick={() => openProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <span className="mini-fallback">CLSL</span>}<span><b>{product.name}</b><small>{product.commonName}</small><em>{product.matchReason}</em></span><i>{t.view} →</i></button>)}</div></section>)}</div> : <p className="no-match">{t.noMatch}</p>}
+      {groups.length ? <div className="category-matches">{groups.map(([category, products]) => <section key={category}><header><div><small>{products.some((product) => product.matchScore && product.matchScore >= 20) ? t.strongCategory : t.applicableCategory}</small><h4>{category}</h4><p>{categoryPurpose[category] || t.catalogCategoryReason}</p></div><b>{products.length}</b></header><div className="mini-products">{products.map((product, index) => <button key={product.id} onClick={() => openProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <span className="mini-fallback">CLSL</span>}<span><b>{product.name}{index === 0 && <mark>{t.topMatch}</mark>}</b><small>{product.commonName}</small><em>{product.matchReason}</em></span><i>{t.view} →</i></button>)}</div></section>)}</div> : <p className="no-match">{t.noMatch}</p>}
     </section>
     <div className="result-actions"><button onClick={() => openProducts(result.catalog_crop || '')}>{result.catalog_crop ? `${t.viewCropProducts}: ${result.catalog_crop}` : t.browseCatalog}</button><button className="secondary" onClick={() => nav('assistant')}>{t.followUp}</button></div><p className="demo-disclaimer">{t.resultDisclaimer}</p>
   </div></div>;
@@ -198,8 +214,9 @@ function Products({ initialQuery, onQuery, openProduct, t }: { initialQuery: str
   const [category, setCategory] = useState('All products');
   const [visible, setVisible] = useState(18);
   const matches = useMemo(() => searchCatalog(initialQuery, 1000, category).map((match) => match.product), [initialQuery, category]);
-  useEffect(() => setVisible(18), [initialQuery, category]);
-  return <section className="marketplace"><div className="market-hero"><div><p className="eyebrow"><span /> {t.officialCatalog}</p><h1>{t.marketHeading}</h1><p>{t.marketIntro}</p></div><div className="catalog-stat"><b>{catalog.length}</b><span>{t.catalogProducts}</span><small>{t.source}</small></div></div><div className="market-toolbar"><label className="market-search"><span>⌕</span><input value={initialQuery} onChange={(event) => onQuery(event.target.value)} placeholder={t.searchPlaceholder} />{initialQuery && <button onClick={() => onQuery('')}>×</button>}</label><select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select></div><div className="category-chips">{categories.map((item) => <button key={item} className={category === item ? 'selected' : ''} onClick={() => setCategory(item)}>{item}<span>{item === 'All products' ? catalog.length : catalog.filter((product) => product.category === item).length}</span></button>)}</div><div className="result-count"><b>{matches.length}</b> {t.found}</div>{matches.length ? <div className="catalog-grid">{matches.slice(0, visible).map((product) => <ProductCard key={product.id} product={product} open={() => openProduct(product)} t={t} />)}</div> : <div className="empty-state"><span>⌕</span><h3>{t.noCatalogMatch}</h3><p>{t.trySearch}</p><button onClick={() => { onQuery(''); setCategory('All products'); }}>{t.showAll}</button></div>}{visible < matches.length && <button className="load-more" onClick={() => setVisible((count) => count + 18)}>{t.loadMore} <span>{visible} / {matches.length}</span></button>}<p className="catalog-disclaimer">{t.resultDisclaimer}</p></section>;
+  const changeQuery = (query: string) => { setVisible(18); onQuery(query); };
+  const changeCategory = (next: string) => { setVisible(18); setCategory(next); };
+  return <section className="marketplace"><div className="market-hero"><div><p className="eyebrow"><span /> {t.officialCatalog}</p><h1>{t.marketHeading}</h1><p>{t.marketIntro}</p></div><div className="catalog-stat"><b>{catalog.length}</b><span>{t.catalogProducts}</span><small>{t.source}</small></div></div><div className="market-toolbar"><label className="market-search"><span>⌕</span><input value={initialQuery} onChange={(event) => changeQuery(event.target.value)} placeholder={t.searchPlaceholder} />{initialQuery && <button onClick={() => changeQuery('')}>×</button>}</label><select value={category} onChange={(event) => changeCategory(event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select></div><div className="category-chips">{categories.map((item) => <button key={item} className={category === item ? 'selected' : ''} onClick={() => changeCategory(item)}>{item}<span>{item === 'All products' ? catalog.length : catalog.filter((product) => product.category === item).length}</span></button>)}</div><div className="result-count"><b>{matches.length}</b> {t.found}</div>{matches.length ? <div className="catalog-grid">{matches.slice(0, visible).map((product) => <ProductCard key={product.id} product={product} open={() => openProduct(product)} t={t} />)}</div> : <div className="empty-state"><span>⌕</span><h3>{t.noCatalogMatch}</h3><p>{t.trySearch}</p><button onClick={() => { changeQuery(''); changeCategory('All products'); }}>{t.showAll}</button></div>}{visible < matches.length && <button className="load-more" onClick={() => setVisible((count) => count + 18)}>{t.loadMore} <span>{visible} / {matches.length}</span></button>}<p className="catalog-disclaimer">{t.resultDisclaimer}</p></section>;
 }
 function ProductCard({ product, open, t }: { product: CatalogProduct; open: () => void; t: Copy }) { return <article className="catalog-card"><button className="product-image" onClick={open}>{product.image ? <img src={product.image} alt={`${product.name} pack`} /> : <div className="image-fallback"><img src="/clsl-logo.png" alt="" /><span>CLSL</span></div>}<span className="category-tag">{product.category}</span></button><div className="catalog-card-body"><small>CLSL · Page {product.sourcePage}</small><h2>{product.name}</h2><p>{product.commonName}</p><div className="card-meta"><span><b>{t.dose}</b>{product.dose || '—'}</span><span><b>{t.packing}</b>{product.packing || '—'}</span></div><button onClick={open}>{t.details} <span>→</span></button></div></article>; }
 

@@ -13,6 +13,7 @@ export type CatalogProduct = {
   limitedRecord?: boolean;
   matchScore?: number;
   matchReason?: string;
+  matchTier?: 'primary' | 'supporting';
 };
 
 export const catalog = catalogData as CatalogProduct[];
@@ -89,7 +90,12 @@ export function catalogRecommendations(diagnosis: { crop?: string; catalog_crop?
   const issueText = normalize([diagnosis.issue_type, diagnosis.likely_issue, ...(diagnosis.observed_symptoms || []), ...(diagnosis.probable_causes || [])].filter(Boolean).join(' '));
   const issueTokens = tokens(issueText, diagnosisStopWords);
   const primaryCategories = issueTypeCategories[diagnosis.issue_type || ''] || [];
-  const allowedCategories = new Set(primaryCategories.length ? primaryCategories : categorySignals.flatMap((rule) => rule.signals.some((signal) => issueText.includes(signal)) ? rule.categories : []));
+  const signalledCategories = categorySignals.flatMap((rule) => rule.signals.some((signal) => issueText.includes(signal)) ? rule.categories : []);
+  // Keep the model's structured problem type as the primary signal, while also
+  // retaining catalogue categories that are explicitly supported by the words in
+  // the assessment (for example rice sheath blight can map to both catalogue
+  // fungicide and antibiotic/bactericide records).
+  const allowedCategories = new Set([...primaryCategories, ...signalledCategories]);
   if (issueText.includes('sheath blight')) allowedCategories.add('Antibiotic / Bactericide');
   if (!allowedCategories.size && !issueTokens.length) return [];
 
@@ -104,15 +110,17 @@ export function catalogRecommendations(diagnosis: { crop?: string; catalog_crop?
     const cropMatch = aliases.some((alias) => alias.length > 2 && haystack.includes(alias));
     // Crop matching is intentionally strict: a selected/detected crop must be printed in the supplied catalogue record.
     if (aliases.length && !cropMatch) return null;
-    const categoryScore = allowedCategories.has(product.category) ? 8 : 0;
+    const isPrimaryCategory = primaryCategories.includes(product.category);
+    const categoryScore = isPrimaryCategory ? 10 : allowedCategories.has(product.category) ? 6 : 0;
     const score = targetScore + categoryScore + (cropMatch ? 8 : 0);
     if (score < (provisional ? 14 : 10)) return null;
+    const cropName = diagnosis.catalog_crop || diagnosis.crop || 'Crop';
     const matchReason = targetScore > 0
-      ? `${diagnosis.catalog_crop || diagnosis.crop || 'Crop'} + probable problem match in the catalogue`
-      : `${diagnosis.catalog_crop || diagnosis.crop || 'Crop'} is listed for this product category`;
-    return { product, score, matchReason };
-  }).filter((match): match is { product: CatalogProduct; score: number; matchReason: string } => Boolean(match))
-    .sort((a, b) => b.score - a.score || a.product.name.localeCompare(b.product.name))
+      ? `${cropName} and ${diagnosis.likely_issue || 'the probable problem'} are both mentioned in this catalogue record`
+      : `${cropName} is listed in this catalogue record and the product category fits the probable problem`;
+    return { product, score, matchReason, matchTier: isPrimaryCategory ? 'primary' as const : 'supporting' as const };
+  }).filter((match): match is { product: CatalogProduct; score: number; matchReason: string; matchTier: 'primary' | 'supporting' } => Boolean(match))
+    .sort((a, b) => Number(b.matchTier === 'primary') - Number(a.matchTier === 'primary') || b.score - a.score || a.product.name.localeCompare(b.product.name))
     .slice(0, provisional ? 6 : 12)
-    .map(({ product, score, matchReason }) => ({ ...product, matchScore: score, matchReason }));
+    .map(({ product, score, matchReason, matchTier }) => ({ ...product, matchScore: score, matchReason, matchTier }));
 }
