@@ -3,7 +3,7 @@ html[data-theme="dark"]{color-scheme:dark;--ink:#e9f3ec;--green:#46a873;--lime:#
 html[data-theme="dark"] body{background:var(--paper);color:var(--ink)}
 html[data-theme="dark"] .topbar,html[data-theme="dark"] .mobile-nav{background:rgba(13,23,18,.97);border-color:var(--line)}
 html[data-theme="dark"] .brand small,html[data-theme="dark"] .topnav button,html[data-theme="dark"] footer,html[data-theme="dark"] .hero-copy>p:not(.eyebrow),html[data-theme="dark"] .trust-row,html[data-theme="dark"] .page-title>p:last-child,html[data-theme="dark"] .tools-heading>p:last-child,html[data-theme="dark"] .weather-intro>p:not(.eyebrow){color:#a8b9af}
-html[data-theme="dark"] .language-picker,html[data-theme="dark"] .theme-toggle,html[data-theme="dark"] .profile-button{background:#17261e;border-color:#344a3d;color:var(--ink)}
+html[data-theme="dark"] .language-picker,html[data-theme="dark"] .theme-toggle,html[data-theme="dark"] .profile-button,html[data-theme="dark"] .contact-button{background:#17261e;border-color:#344a3d;color:var(--ink)}
 html[data-theme="dark"] .language-picker select{color:var(--ink)}
 html[data-theme="dark"] .hero:before{background:#17291e}
 html[data-theme="dark"] .hero h1 em,html[data-theme="dark"] .eyebrow,html[data-theme="dark"] .section-label span{color:#75cb96}
@@ -29,6 +29,8 @@ html[data-theme="dark"] .weather-card{background:#142a20;border-color:#305441}
 html[data-theme="dark"] .weather-intro form,html[data-theme="dark"] .activity,html[data-theme="dark"] .weather-metrics span{background:#182a21;border-color:var(--line)}
 html[data-theme="dark"] .activity small,html[data-theme="dark"] .weather-card header p,html[data-theme="dark"] .weather-source{color:#9fb2a7}
 html[data-theme="dark"] .tool-tabs button,html[data-theme="dark"] .area-fields,html[data-theme="dark"] .catalog-dose,html[data-theme="dark"] .calculation-results article,html[data-theme="dark"] .cost-inputs label{background:#18271f;border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] .mix-breakdown article,html[data-theme="dark"] .contact-directory,html[data-theme="dark"] .contact-results article,html[data-theme="dark"] .no-area-contact{background:#18271f;border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] .photo-source-actions button.gallery{background:#18271f;color:#8bd3a5;border-color:#486553}
 html[data-theme="dark"] .tool-tabs button.selected,html[data-theme="dark"] .calculation-results article.primary-result{background:#277a4e;color:#fff}
 html[data-theme="dark"] .calculator-inputs select,html[data-theme="dark"] .calculator-inputs em{background:#203127!important;color:#b6c7bc!important}
 html[data-theme="dark"] .history-item{border-color:var(--line)}

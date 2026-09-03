@@ -58,7 +58,6 @@ export function WeatherAdvisory({ language, initialLocation = '' }: { language: 
     return [
       { icon:'◉', title:c.spraying, status:sprayStatus, text:sprayReasons.join(' ') || c.sprayGood },
       { icon:'◒', title:c.irrigation, status:rainRisk ? 'avoid' : heatRisk || dryRisk ? 'caution' : 'good', text:rainRisk ? c.irrigateRain : heatRisk || dryRisk ? c.irrigateDry : c.fieldGood },
-      { icon:'◇', title:c.fertilizer, status:rainRisk ? 'avoid' : windRisk ? 'caution' : 'good', text:rainRisk ? c.fertRain : windRisk ? c.windRisk : c.fieldGood },
       { icon:'⌁', title:c.fieldwork, status:rainRisk || current.weather_code >= 80 ? 'caution' : 'good', text:rainRisk || current.weather_code >= 80 ? c.fieldStorm : c.fieldGood },
     ];
   }, [data, c]);

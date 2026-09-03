@@ -1,0 +1,758 @@
+[
+  {
+    "name": "Sandip Malshikare",
+    "designation": "Sales Officer",
+    "state": "Maharashtra",
+    "territory": "Ahmednagar (M.H.)",
+    "city": "Ahmednagar",
+    "email": "ahmednagar@croplifescience.com",
+    "phone": "+917485948017"
+  },
+  {
+    "name": "Premsing Jamsing Girase",
+    "designation": "Regional Manager",
+    "state": "Maharashtra",
+    "territory": "Akola",
+    "city": "Akola",
+    "email": "manager.akola@croplifescience.com",
+    "phone": "+917485928189"
+  },
+  {
+    "name": "Shubham Dilip Tayde",
+    "designation": "Sales Officer",
+    "state": "Maharashtra",
+    "territory": "Akola",
+    "city": "Akola",
+    "email": "akola@croplifescience.com",
+    "phone": ""
+  },
+  {
+    "name": "Rajesh Kumar",
+    "designation": "Sales Officer Trainee",
+    "state": "Uttar Pradesh",
+    "territory": "Aligarh",
+    "city": "Aligarh",
+    "email": "aligarh@croplifescience.com",
+    "phone": "+916358133722"
+  },
+  {
+    "name": "Uday Singh",
+    "designation": "Sales Trainee",
+    "state": "Uttar Pradesh",
+    "territory": "Allahabad (U.P.)",
+    "city": "Allahabad",
+    "email": "allahabad@croplifescience.com",
+    "phone": "+916358133724"
+  },
+  {
+    "name": "Om Sahebrao Turkhade",
+    "designation": "Sales Officer",
+    "state": "Maharashtra",
+    "territory": "Amravati",
+    "city": "Amravati",
+    "email": "amravati@croplifescience.com",
+    "phone": "+919274474998"
+  },
+  {
+    "name": "Bhartesh Shambhubhai Kachchhi",
+    "designation": "Asst. Area Sales Manager",
+    "state": "Gujarat",
+    "territory": "Amreli-Guj",
+    "city": "Amreli",
+    "email": "amreli@croplifescience.com",
+    "phone": "+919909976997"
+  },
+  {
+    "name": "Ankit Naharsingh Rai",
+    "designation": "Sales Officer",
+    "state": "Madhya Pradesh",
+    "territory": "Ashoknagar",
+    "city": "Ashoknagar",
+    "email": "ashoknagar@croplifescience.com",
+    "phone": "+916358133714"
+  },
+  {
+    "name": "Satyabeer Arun Kumar Singh",
+    "designation": "Sales Officer",
+    "state": "Uttar Pradesh",
+    "territory": "Azamgarh-U.P.",
+    "city": "Azamgarh-U.P",
+    "email": "azamgarh@croplifescience.com",
+    "phone": "+917485903813"
+  },
+  {
+    "name": "Kaushik Basu",
+    "designation": "Assistant Regional Manager",
+    "state": "West Bengal",
+    "territory": "Baharampur (W.B.)",
+    "city": "Baharampur",
+    "email": "asm.northwb@croplifescience.com",
+    "phone": "+919998736068"
+  },
+  {
+    "name": "Ramesh Verma",
+    "designation": "Sales Officer",
+    "state": "Uttar Pradesh",
+    "territory": "Barabanki-UP",
+    "city": "Barabanki",
+    "email": "barabanki@croplifescience.com",
+    "phone": "+916358133723"
+  },
+  {
+    "name": "PankajKumar Vijay Pal Gangwar",
+    "designation": "Sales Officer",
+    "state": "Uttar Pradesh",
+    "territory": "Bareilly (W.U.P.)",
+    "city": "Bareilly",
+    "email": "bareilly@croplifescience.com",
+    "phone": "+916358133783"
+  },
+  {
+    "name": "Vivek Raghuwanshi",
+    "designation": "Sales Trainee",
+    "state": "Madhya Pradesh",
+    "territory": "Bareli-MP",
+    "city": "Bareli",
+    "email": "narmadapuram@croplifescience.com",
+    "phone": "+919111018452"
+  },
+  {
+    "name": "Nur Hossain Molla",
+    "designation": "Sales Officer Trainee",
+    "state": "West Bengal",
+    "territory": "Baruipur (W.B.)",
+    "city": "Baruipur",
+    "email": "baruipur@croplifescience.com",
+    "phone": "+919510895610"
+  },
+  {
+    "name": "Nitin Trimbak Waykar",
+    "designation": "Sales Officer",
+    "state": "Maharashtra",
+    "territory": "Beed-MH",
+    "city": "Beed",
+    "email": "beed@croplifescience.com",
+    "phone": "+918788800829"
+  },
+  {
+    "name": "Shivnath Ramnarayan Singh",
+    "designation": "Sr. Sales Officer",
+    "state": "Bihar",
+    "territory": "Begusarari-Bihar",
+    "city": "Begusarari",
+    "email": "begusarai@croplifescience.com",
+    "phone": "+919523599107"
+  },
+  {
+    "name": "Vikash Chaure",
+    "designation": "Sales Trainee",
+    "state": "Madhya Pradesh",
+    "territory": "Betul",
+    "city": "Betul",
+    "email": "betul@croplifescience.com",
+    "phone": "+916358133718"
+  },
+  {
+    "name": "Jitendra Rai",
+    "designation": "Regional Manager",
+    "state": "Madhya Pradesh",
+    "territory": "Bhopal (M.P.)",
+    "city": "Bhopal",
+    "email": "manager.mp@croplifescience.com",
+    "phone": "+919111010503"
+  },
+  {
+    "name": "Vikas Yadav",
+    "designation": "Sales Officer",
+    "state": "Madhya Pradesh",
+    "territory": "Bhopal (M.P.)",
+    "city": "Bhopal",
+    "email": "bhopal@croplifescience.com",
+    "phone": "+916358133711"
+  },
+  {
+    "name": "Abhishekkumar Ambika Prasad",
+    "designation": "Sales Officer",
+    "state": "Bihar",
+    "territory": "Bihar Sharif",
+    "city": "Bihar Sharif",
+    "email": "biharsharif@croplifescience.com",
+    "phone": "+919523599104"
+  },
+  {
+    "name": "Kamla Prasad Pandey",
+    "designation": "Asst. Area Sales Manager",
+    "state": "Chhattisgarh",
+    "territory": "Bilaspur (C.G.)",
+    "city": "Bilaspur",
+    "email": "bilaspur@croplifescience.com",
+    "phone": "+918085251964"
+  },
+  {
+    "name": "Suman Mondal",
+    "designation": "Sales Executive",
+    "state": "West Bengal",
+    "territory": "Birbhum",
+    "city": "Birbhum",
+    "email": "birbhum@croplifescience.com",
+    "phone": "+917487049900"
+  },
+  {
+    "name": "Mahesh Kantibhai Makwana",
+    "designation": "Sales Executive",
+    "state": "Gujarat",
+    "territory": "Botad",
+    "city": "Botad",
+    "email": "botad@croplifescience.com",
+    "phone": "+917069566622"
+  },
+  {
+    "name": "Arijit Mukul Samanta",
+    "designation": "Sales Officer",
+    "state": "West Bengal",
+    "territory": "Burdwan (W.B.)",
+    "city": "Burdwan",
+    "email": "burdwan@croplifescience.com",
+    "phone": ""
+  },
+  {
+    "name": "Satyajit Banerjee",
+    "designation": "Area Sales Manager",
+    "state": "West Bengal",
+    "territory": "Burdwan (W.B.)",
+    "city": "Burdwan",
+    "email": "asm.southwb@croplifescience.com",
+    "phone": "+919998733863"
+  },
+  {
+    "name": "Rupesh Borghade",
+    "designation": "Sales Officer",
+    "state": "Maharashtra",
+    "territory": "Chandrapur-MH",
+    "city": "Chandrapur",
+    "email": "wardha@croplifescience.com",
+    "phone": "+916358133716"
+  },
+  {
+    "name": "Kiran Narsangbhai Chaudhary",
+    "designation": "Sales Officer",
+    "state": "Gujarat",
+    "territory": "Deesa",
+    "city": "Deesa",
+    "email": "deesa@croplifescience.com",
+    "phone": "+919909971907"
+  },
+  {
+    "name": "Mohan Phool Singh Ateriya",
+    "designation": "Sales Officer",
+    "state": "Madhya Pradesh",
+    "territory": "Dewas (M. P.)",
+    "city": "Dewas (M. P.)",
+    "email": "dewas@croplifescience.com",
+    "phone": ""
+  },
+  {
+    "name": "Deepak Kanhaiyalal Patidar",
+    "designation": "Area Sales Manager",
+    "state": "Madhya Pradesh",
+    "territory": "Dhamnod(M.P)",
+    "city": "Dhamnod",
+    "email": "dhamnod@croplifescience.com",
+    "phone": "+919111010032"
+  },
+  {
+    "name": "Lalitkumar Lakshmansingh Sahoo",
+    "designation": "Sr. Sales Executive",
+    "state": "Chhattisgarh",
+    "territory": "Dhamtari (C.G.)",
+    "city": "Dhamtari",
+    "email": "dhamtari@croplifescience.com",
+    "phone": "+919981070411"
+  },
+  {
+    "name": "Ranjan Kumar Srivastava",
+    "designation": "Sales Executive",
+    "state": "Chhattisgarh",
+    "territory": "Durg (CG)",
+    "city": "Durg",
+    "email": "durg@croplifescience.com",
+    "phone": "+918085251965"
+  },
+  {
+    "name": "Tapas Kumar Sahoo",
+    "designation": "Area Sales Manager",
+    "state": "West Bengal",
+    "territory": "Egra-WB",
+    "city": "Egra",
+    "email": "egra@croplifescience.com",
+    "phone": "+919510882703"
+  },
+  {
+    "name": "Satyendra Ram Janam Yadav",
+    "designation": "Sales Officer",
+    "state": "Uttar Pradesh",
+    "territory": "Faizabad (U.P.)",
+    "city": "Faizabad",
+    "email": "faizabad@croplifescience.com",
+    "phone": "+916358133781"
+  },
+  {
+    "name": "Dilip Chaurasiya",
+    "designation": "Sales Officer",
+    "state": "Uttar Pradesh",
+    "territory": "Gorakhpur (UP)",
+    "city": "Gorakhpur",
+    "email": "gorakhpur@croplifescience.com",
+    "phone": "+916358133725"
+  },
+  {
+    "name": "Sanjay Rangusinh Chauhan",
+    "designation": "Sales Officer",
+    "state": "Gujarat",
+    "territory": "Himmatnagar-Guj.",
+    "city": "Himmatnagar",
+    "email": "himmatnagar@croplifescience.com",
+    "phone": "+919512012101"
+  },
+  {
+    "name": "Braj Bhushan Karan Singh Tyagi",
+    "designation": "Area Sales Manager",
+    "state": "Madhya Pradesh",
+    "territory": "Hoshangabad",
+    "city": "Hoshangabad",
+    "email": "hoshangabad@croplifescience.com",
+    "phone": "+916358133709"
+  },
+  {
+    "name": "Jeetesh Sitaram Thakur",
+    "designation": "Sales Officer",
+    "state": "Madhya Pradesh",
+    "territory": "Jabalpur (M.P.)",
+    "city": "Jabalpur",
+    "email": "jabalpur@croplifescience.com",
+    "phone": "+916358133715"
+  },
+  {
+    "name": "Rahul Shamjibhai Kanajariya",
+    "designation": "Sales Officer",
+    "state": "Gujarat",
+    "territory": "Jamnagar-Guj.",
+    "city": "Jamnagar",
+    "email": "jamnagar@croplifescience.com",
+    "phone": "+919879171831"
+  },
+  {
+    "name": "Deepak Khemchandra Rajpoot Singh",
+    "designation": "Sales Officer",
+    "state": "Uttar Pradesh",
+    "territory": "Jhansi (U.P.)",
+    "city": "Jhansi",
+    "email": "jhansi@croplifescience.com",
+    "phone": "+916358133779"
+  },
+  {
+    "name": "Harsh Pankajbhai Naseet",
+    "designation": "Sales Officer",
+    "state": "Gujarat",
+    "territory": "Junagadh",
+    "city": "Junagadh",
+    "email": "junagadh@croplifescience.com",
+    "phone": "+919512012104"
+  },
+  {
+    "name": "Mehul Kumar Rakesh Kumar Rajput",
+    "designation": "Sales Executive",
+    "state": "Uttar Pradesh",
+    "territory": "Kannauj-UP",
+    "city": "Kannauj",
+    "email": "kannauj@croplifescience.com",
+    "phone": "+916358133726"
+  },
+  {
+    "name": "Arvind Kumar Gupta",
+    "designation": "Sales Executive",
+    "state": "Uttar Pradesh",
+    "territory": "Kanpur (U.P.)",
+    "city": "Kanpur",
+    "email": "kanpur@croplifescience.com",
+    "phone": "+916358133780"
+  },
+  {
+    "name": "Sabir Nasiruddin Alam",
+    "designation": "Area Sales Manager",
+    "state": "Bihar",
+    "territory": "Katihar",
+    "city": "Katihar",
+    "email": "katihar@croplifescience.com",
+    "phone": "+918488848175"
+  },
+  {
+    "name": "Debottom Bhadra",
+    "designation": "Regional Manager",
+    "state": "West Bengal",
+    "territory": "Kolkata (W.B.)",
+    "city": "Kolkata",
+    "email": "d.bhadra@croplifescience.com",
+    "phone": "+919073223940"
+  },
+  {
+    "name": "Ashutosh Ashok Kharwar",
+    "designation": "Sales Executive",
+    "state": "Bihar",
+    "territory": "Motihari",
+    "city": "Motihari",
+    "email": "motihari@croplifescience.com",
+    "phone": "+919523590067"
+  },
+  {
+    "name": "Nilesh Jaiswal",
+    "designation": "Sales Officer",
+    "state": "Chhattisgarh",
+    "territory": "Mungeli-CG",
+    "city": "Mungeli-CG",
+    "email": "mungeli@croplifescience.com",
+    "phone": "+916358850324"
+  },
+  {
+    "name": "Rajkamal",
+    "designation": "Sales Officer",
+    "state": "Uttar Pradesh",
+    "territory": "Muzaffarnagar (U.P.)",
+    "city": "Muzaffarnagar",
+    "email": "muzaffarnagar@croplifescience.com",
+    "phone": "+916358133782"
+  },
+  {
+    "name": "Dipak Manohar Patel",
+    "designation": "Sales Officer",
+    "state": "Gujarat",
+    "territory": "Nadiad-Guj",
+    "city": "Nadiad",
+    "email": "nadiad@croplifescience.com",
+    "phone": "+919974580399"
+  },
+  {
+    "name": "Nageshwar Nirbhavane",
+    "designation": "Sales Officer",
+    "state": "Maharashtra",
+    "territory": "Nasik (M.H.)",
+    "city": "Nasik",
+    "email": "nashik@croplifescience.com",
+    "phone": "+916358133717"
+  },
+  {
+    "name": "Mantosh Kameshwar Kumar",
+    "designation": "Sales Officer Trainee",
+    "state": "Bihar",
+    "territory": "Nasrigunj",
+    "city": "Nasrigunj",
+    "email": "nasriganj@croplifescience.com",
+    "phone": "+916358183945"
+  },
+  {
+    "name": "Ghanshyam Rama Dhar Choursiya",
+    "designation": "Regional Manager",
+    "state": "Bihar",
+    "territory": "Patna (Bihar)",
+    "city": "Patna (Bihar)",
+    "email": "gchaurasiya@croplifescience.com",
+    "phone": "+919523599101"
+  },
+  {
+    "name": "Vikram Singh",
+    "designation": "Sales Officer",
+    "state": "Uttar Pradesh",
+    "territory": "Pilibhit-UP",
+    "city": "Pilibhit",
+    "email": "pilibhit@croplifescience.com",
+    "phone": "+919510892642"
+  },
+  {
+    "name": "Janak Digambarro Panchal",
+    "designation": "Regional Manager",
+    "state": "Maharashtra",
+    "territory": "Pune (M.H.)",
+    "city": "Pune",
+    "email": "manager.pune@croplifescience.com",
+    "phone": "+919510886338"
+  },
+  {
+    "name": "Nandu Roy",
+    "designation": "Sales Officer",
+    "state": "West Bengal",
+    "territory": "Raigunj-WB",
+    "city": "Raigunj",
+    "email": "raiganj@croplifescience.com",
+    "phone": "+917487071400"
+  },
+  {
+    "name": "Atul Deole",
+    "designation": "Regional Manager",
+    "state": "Chhattisgarh",
+    "territory": "Raipur (C.G.)",
+    "city": "Raipur",
+    "email": "atul.deole@croplifescience.com",
+    "phone": "+918085251963"
+  },
+  {
+    "name": "Omprakash Pandey",
+    "designation": "Sales Officer",
+    "state": "Chhattisgarh",
+    "territory": "Raipur (C.G.)",
+    "city": "Raipur",
+    "email": "raipur@croplifescience.com",
+    "phone": "+919174300100"
+  },
+  {
+    "name": "Nandlal Savjibhai Sangani",
+    "designation": "Dy.Regional Manager",
+    "state": "Gujarat",
+    "territory": "Rajkot",
+    "city": "Rajkot",
+    "email": "nsangani@croplifescience.com",
+    "phone": "+919979470130"
+  },
+  {
+    "name": "Parth Savaliya",
+    "designation": "Sales Officer",
+    "state": "Gujarat",
+    "territory": "Rajkot",
+    "city": "Rajkot",
+    "email": "rajkot@croplifescience.com",
+    "phone": "+919512012105"
+  },
+  {
+    "name": "VipinKumar Bhagwat Prasad",
+    "designation": "Sales Trainee",
+    "state": "Uttar Pradesh",
+    "territory": "Rath (UP)",
+    "city": "Rath",
+    "email": "rath@croplifescience.com",
+    "phone": "+919510888397"
+  },
+  {
+    "name": "Abhishek Pansingh Madoriya",
+    "designation": "Officer",
+    "state": "Madhya Pradesh",
+    "territory": "Ratlam (M.P.)",
+    "city": "Ratlam",
+    "email": "ratlam@croplifescience.com",
+    "phone": "+918085251960"
+  },
+  {
+    "name": "Hemraj Laxman Patel",
+    "designation": "Sales Officer",
+    "state": "Madhya Pradesh",
+    "territory": "Sagar (M.P.)",
+    "city": "Sagar",
+    "email": "sagar.mp@croplifescience.com",
+    "phone": "+916358133712"
+  },
+  {
+    "name": "Parmeshwar Dattatray Chavan",
+    "designation": "Area Sales Manager",
+    "state": "Maharashtra",
+    "territory": "Sambhaji Nagar",
+    "city": "Sambhaji Nagar",
+    "email": "sambhajinagar@croplifescience.com",
+    "phone": ""
+  },
+  {
+    "name": "Surendra Kumar Sahu",
+    "designation": "Sales Officer",
+    "state": "Chhattisgarh",
+    "territory": "Saraipali ( C. G. )",
+    "city": "Saraipali ( C. G. )",
+    "email": "saraipali@croplifescience.com",
+    "phone": "+919174300200"
+  },
+  {
+    "name": "Shankar Janak Dayal",
+    "designation": "Sales Officer",
+    "state": "Bihar",
+    "territory": "Sasaram-Patna",
+    "city": "Sasaram",
+    "email": "sasaram@croplifescience.com",
+    "phone": "+919523599105"
+  },
+  {
+    "name": "Roopam Kunj Bihari",
+    "designation": "Sales Officer",
+    "state": "Madhya Pradesh",
+    "territory": "Seoni (M.P.)",
+    "city": "Seoni",
+    "email": "seoni@croplifescience.com",
+    "phone": "+919111018453"
+  },
+  {
+    "name": "Mahendra Prajapati",
+    "designation": "Area Sales Manager",
+    "state": "Madhya Pradesh",
+    "territory": "Shivpuri (M.P.)",
+    "city": "Shivpuri",
+    "email": "shivpuri@croplifescience.com",
+    "phone": "+916358133708"
+  },
+  {
+    "name": "Hari Om Prakash",
+    "designation": "Sales Executive",
+    "state": "Bihar",
+    "territory": "Sitamarthi",
+    "city": "Sitamarthi",
+    "email": "sitamarhi@croplifescience.com",
+    "phone": "+919523590066"
+  },
+  {
+    "name": "Prakash Hamirbhai Nakum",
+    "designation": "Sales Officer",
+    "state": "Gujarat",
+    "territory": "Surat",
+    "city": "Surat",
+    "email": "surat@croplifescience.com",
+    "phone": "+919512012139"
+  },
+  {
+    "name": "Nirav Prakashbhai Nangha",
+    "designation": "Sales Officer",
+    "state": "Gujarat",
+    "territory": "Surendranagar",
+    "city": "Surendranagar",
+    "email": "surendranagar@croplifescience.com",
+    "phone": "+919909927482"
+  },
+  {
+    "name": "Suranjan Rabindranath Das",
+    "designation": "Sales Officer",
+    "state": "West Bengal",
+    "territory": "Tarakeswar (WB)",
+    "city": "Tarakeswar",
+    "email": "tarakeswar@croplifescience.com",
+    "phone": ""
+  },
+  {
+    "name": "Rahul Kumar Agrawal",
+    "designation": "Sales Officer",
+    "state": "Madhya Pradesh",
+    "territory": "Ujjain(M.P.)",
+    "city": "Ujjain",
+    "email": "ujjain@croplifescience.com",
+    "phone": "+916358133719"
+  },
+  {
+    "name": "Brijeshkumar Patel",
+    "designation": "Sr. Sales Executive",
+    "state": "Gujarat",
+    "territory": "Vadodara",
+    "city": "Vadodara",
+    "email": "baroda@croplifescience.com",
+    "phone": "+919512012108"
+  },
+  {
+    "name": "Krushnal Bhatti",
+    "designation": "Executive",
+    "state": "Gujarat",
+    "territory": "Vadodara",
+    "city": "Vadodara",
+    "email": "institutional.sales2@croplifescience.com",
+    "phone": "+917485944861"
+  },
+  {
+    "name": "Rajeeokumar Pandey",
+    "designation": "Head",
+    "state": "Gujarat",
+    "territory": "Vadodara",
+    "city": "Vadodara",
+    "email": "sales.head@croplifescience.com",
+    "phone": "+916358247141"
+  },
+  {
+    "name": "Shivam Bhat",
+    "designation": "Executive",
+    "state": "Gujarat",
+    "territory": "Vadodara",
+    "city": "Vadodara",
+    "email": "institutional.sales1@croplifescience.com",
+    "phone": ""
+  },
+  {
+    "name": "Vimalkumar Shah",
+    "designation": "Regional Manager",
+    "state": "Gujarat",
+    "territory": "Vadodara",
+    "city": "Vadodara",
+    "email": "vimal.shah@croplifescience.com",
+    "phone": "+917433001287"
+  },
+  {
+    "name": "Tej Pratap Singh",
+    "designation": "Area Sales Manager",
+    "state": "Uttar Pradesh",
+    "territory": "Varanasi (U.P.)",
+    "city": "Varanasi",
+    "email": "asm.eup@croplifescience.com",
+    "phone": "+917485904953"
+  },
+  {
+    "name": "VivekKumar Gupta",
+    "designation": "Sales Officer",
+    "state": "Uttar Pradesh",
+    "territory": "Varanasi (U.P.)",
+    "city": "Varanasi",
+    "email": "varanasi@croplifescience.com",
+    "phone": ""
+  },
+  {
+    "name": "Sachin Madhavrao Kavar",
+    "designation": "Sales Officer",
+    "state": "Maharashtra",
+    "territory": "Washim",
+    "city": "Washim",
+    "email": "washim@croplifescience.com",
+    "phone": "+917485929181"
+  },
+  {
+    "name": "Sanjay Taksal",
+    "designation": "Sales Officer",
+    "state": "Maharashtra",
+    "territory": "Yawatmal - MH",
+    "city": "Yawatmal",
+    "email": "yawatmal@croplifescience.com",
+    "phone": "+917485924416"
+  },
+  {
+    "name": "Rohit Singh",
+    "designation": "Sr. Area Sales Manager",
+    "state": "Uttar Pradesh",
+    "territory": "lucknow (U.P.)",
+    "city": "lucknow",
+    "email": "asm.cup@croplifescience.com",
+    "phone": "+917080100162"
+  },
+  {
+    "name": "Shobhnath Yadav",
+    "designation": "Zonal Manager",
+    "state": "Uttar Pradesh",
+    "territory": "lucknow (U.P.)",
+    "city": "lucknow",
+    "email": "manager.up@croplifescience.com",
+    "phone": "+916358133721"
+  },
+  {
+    "name": "Bhaskar Pawar",
+    "designation": "Sales Officer",
+    "state": "Maharashtra",
+    "territory": "nanded",
+    "city": "nanded",
+    "email": "nanded@croplifescience.com",
+    "phone": ""
+  },
+  {
+    "name": "Munish Kumar Agnihotri",
+    "designation": "Sales Officer",
+    "state": "Uttar Pradesh",
+    "territory": "shahjahanpur",
+    "city": "shahjahanpur",
+    "email": "shahjahanpur@croplifescience.com",
+    "phone": "+916358133720"
+  }
+]

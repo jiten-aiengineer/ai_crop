@@ -4,6 +4,24 @@ import { catalog, searchCatalog } from '../../lib/catalog';
 export const runtime = 'edge';
 type GeminiResponse = { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>; error?: { message?: string } };
 
+function parseJsonObject(value: string) {
+  const trimmed = value.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  try { return JSON.parse(trimmed) as unknown; }
+  catch {
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1)) as unknown;
+    throw new Error('No JSON object was returned.');
+  }
+}
+
+async function readGeminiResponse(response: Response): Promise<GeminiResponse | null> {
+  const body = await response.text();
+  if (!body.trim()) return null;
+  try { return JSON.parse(body) as GeminiResponse; }
+  catch { return null; }
+}
+
 function catalogFallback(products: typeof catalog, language = 'en') {
   const selected = products.slice(0, 4);
   const copy: Record<string, { found: string; dose: string; warning: string }> = {
@@ -28,7 +46,10 @@ function catalogFallback(products: typeof catalog, language = 'en') {
 export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'AI service is not configured.' }, { status: 503 });
-  const { question, history = [], language = 'en' } = await request.json() as { question?: string; history?: Array<{ role: string; content: string }>; language?: string };
+  let input: { question?: string; history?: Array<{ role: string; content: string }>; language?: string };
+  try { input = await request.json() as typeof input; }
+  catch { return NextResponse.json({ error: 'Please send a valid assistant question.' }, { status: 400 }); }
+  const { question, history = [], language = 'en' } = input;
   const cleanQuestion = String(question || '').trim().slice(0, 1000);
   if (!cleanQuestion) return NextResponse.json({ error: 'Please enter a question.' }, { status: 400 });
 
@@ -43,25 +64,36 @@ export async function POST(request: Request) {
   const contents = [...history.slice(-6).map((message) => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content.slice(0, 1200) }] })), { role: 'user', parts: [{ text: prompt }] }];
   let response: Response;
   try {
-    response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent', {
+    const model = process.env.GEMINI_TEXT_MODEL || 'gemini-3.5-flash-lite';
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      signal: AbortSignal.timeout(35_000),
       body: JSON.stringify({ contents, generationConfig: { temperature: .2, responseMimeType: 'application/json', responseSchema: { type: 'OBJECT', required: ['answer','recommended_product_ids'], properties: { answer: { type: 'STRING' }, recommended_product_ids: { type: 'ARRAY', items: { type: 'STRING' } } } } } }),
     });
   } catch {
     if (candidates.length) return NextResponse.json(catalogFallback(candidates, language));
     return NextResponse.json({ error: 'The assistant is temporarily unavailable. Please try again shortly.' }, { status: 503 });
   }
-  const payload = await response.json() as GeminiResponse;
+  const payload = await readGeminiResponse(response);
   if (!response.ok) {
     if (candidates.length) return NextResponse.json(catalogFallback(candidates, language));
     return NextResponse.json({ error: 'The assistant is temporarily busy. Please try again shortly.' }, { status: response.status === 429 ? 429 : 502 });
   }
+  if (!payload) {
+    if (candidates.length) return NextResponse.json(catalogFallback(candidates, language));
+    return NextResponse.json({ error: 'The assistant service returned an unreadable response. Please try again.' }, { status: 502 });
+  }
   const text = payload.candidates?.[0]?.content?.parts?.find((part) => part.text)?.text;
   if (!text) return NextResponse.json({ error: 'Assistant returned no answer.' }, { status: 502 });
   try {
-    const parsed = JSON.parse(text) as { answer: string; recommended_product_ids: string[] };
+    const parsed = parseJsonObject(text) as { answer?: unknown; recommended_product_ids?: unknown };
+    if (typeof parsed.answer !== 'string' || !parsed.answer.trim()) throw new Error('Missing answer.');
+    const ids = Array.isArray(parsed.recommended_product_ids) ? parsed.recommended_product_ids.filter((id): id is string => typeof id === 'string') : [];
     const allowed = new Set(candidates.map((product) => product.id));
-    const products = catalog.filter((product) => allowed.has(product.id) && parsed.recommended_product_ids.includes(product.id)).slice(0, 4);
-    return NextResponse.json({ answer: parsed.answer, products });
-  } catch { return NextResponse.json({ error: 'Assistant returned an invalid answer.' }, { status: 502 }); }
+    const products = catalog.filter((product) => allowed.has(product.id) && ids.includes(product.id)).slice(0, 4);
+    return NextResponse.json({ answer: parsed.answer.trim(), products });
+  } catch {
+    if (candidates.length) return NextResponse.json(catalogFallback(candidates, language));
+    return NextResponse.json({ error: 'The assistant could not format its answer. Please ask again in a shorter sentence.' }, { status: 502 });
+  }
 }

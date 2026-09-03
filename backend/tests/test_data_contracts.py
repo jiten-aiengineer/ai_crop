@@ -9,6 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "backend"))
 EMPLOYEE_CSV = PROJECT_ROOT / "backend" / "private-import" / "employees.csv"
 PRODUCT_JSON = PROJECT_ROOT / "app" / "data" / "products.json"
+SALES_CONTACT_JSON = PROJECT_ROOT / "app" / "data" / "sales-contacts.json"
 MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "001_initial.sql"
 OPERATIONAL_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "002_operational_data.sql"
 
@@ -56,6 +57,15 @@ class EmployeeImportContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("reporting_manager_name.casefold() == full_name.casefold()", importer)
+
+    def test_public_sales_directory_contains_only_work_contact_fields(self):
+        contacts = json.loads(SALES_CONTACT_JSON.read_text(encoding="utf-8"))
+        self.assertGreaterEqual(len(contacts), 80)
+        allowed = {"name", "designation", "state", "territory", "city", "email", "phone"}
+        for contact in contacts:
+            self.assertEqual(allowed, set(contact))
+            self.assertTrue(contact["email"].endswith("@croplifescience.com"))
+            self.assertNotIn("personal", " ".join(contact).casefold())
 
 
 class MigrationContractTests(unittest.TestCase):

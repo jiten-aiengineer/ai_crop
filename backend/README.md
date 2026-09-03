@@ -44,6 +44,21 @@ The catalogue-knowledge importer creates only crop and problem mappings that are
 explicitly supported by wording in the supplied CLSL catalogue data. It does not
 invent registrations, doses, or recommendations from external sources.
 
+## Pilot sales-contact directory
+
+The farmer profile uses a privacy-limited directory exported from the employee
+database. Only active Sales & Marketing staff, company email, office mobile,
+designation and work territory are included. Personal contact, payroll and HR
+fields are excluded.
+
+```powershell
+$env:PYTHONPATH = "backend"
+python backend/tools/export_sales_contacts.py app/data/sales-contacts.json
+```
+
+Re-export this file after an approved employee or territory change. The public
+web app must never receive the full employee table.
+
 ## Production notes
 
 - Replace the local database password before any shared deployment.

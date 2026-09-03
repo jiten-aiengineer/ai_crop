@@ -14,6 +14,17 @@ type GeminiResponse = {
   error?: { message?: string };
 };
 
+function parseJsonObject(value: string) {
+  const cleaned = value.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  try { return JSON.parse(cleaned); }
+  catch {
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start >= 0 && end > start) return JSON.parse(cleaned.slice(start, end + 1));
+    throw new Error('No JSON object was returned.');
+  }
+}
+
 function toBase64(bytes: Uint8Array) {
   let binary = '';
   for (let index = 0; index < bytes.length; index += 0x8000) {
@@ -62,7 +73,8 @@ Use one issue_type only: insect_pest, fungal_disease, bacterial_disease, weed_pr
 
   let response: Response;
   try {
-    response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent', {
+    const model = process.env.GEMINI_VISION_MODEL || 'gemini-3.5-flash-lite';
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       signal: AbortSignal.timeout(45_000),
@@ -97,7 +109,10 @@ Use one issue_type only: insect_pest, fungal_disease, bacterial_disease, weed_pr
   }
 
   let payload: GeminiResponse;
-  try { payload = await response.json() as GeminiResponse; }
+  try {
+    const raw = await response.text();
+    payload = JSON.parse(raw) as GeminiResponse;
+  }
   catch { return NextResponse.json({ error: 'AI photo analysis returned an unexpected response. Please try again.' }, { status: 502 }); }
   if (!response.ok) {
     const busy = response.status === 429;
@@ -106,7 +121,7 @@ Use one issue_type only: insect_pest, fungal_disease, bacterial_disease, weed_pr
   const text = payload.candidates?.[0]?.content?.parts?.find((part) => part.text)?.text;
   if (!text) return NextResponse.json({ error: 'AI returned no assessment.' }, { status: 502 });
   try {
-    const diagnosis = JSON.parse(text);
+    const diagnosis = parseJsonObject(text);
     const catalogCrop = catalogCropName(crop || diagnosis.crop || '');
     const groundedDiagnosis = { ...diagnosis, catalog_crop: catalogCrop };
     return NextResponse.json({ ...groundedDiagnosis, recommendations: catalogRecommendations(groundedDiagnosis) });
