@@ -1,0 +1,19 @@
+{
+  "name": "Crop Life AI – Farmer Assistant",
+  "short_name": "Crop Life AI",
+  "description": "AI crop inspection, CLSL product guidance, field weather and local sales support.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffefa",
+  "theme_color": "#1f6b43",
+  "categories": ["agriculture", "productivity", "utilities"],
+  "icons": [
+    { "src": "/clsl-logo.png", "sizes": "200x200", "type": "image/png", "purpose": "any" },
+    { "src": "/crop-life-mitra.jpg", "sizes": "1024x1024", "type": "image/jpeg", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Inspect a crop", "short_name": "Inspect", "url": "/?open=inspect", "icons": [{ "src": "/clsl-logo.png", "sizes": "200x200", "type": "image/png" }] },
+    { "name": "Ask Crop Life Mitra", "short_name": "Ask Mitra", "url": "/?open=assistant", "icons": [{ "src": "/crop-life-mitra.jpg", "sizes": "1024x1024", "type": "image/jpeg" }] }
+  ]
+}

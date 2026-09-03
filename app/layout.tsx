@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import './branding.css';
@@ -19,6 +19,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Crop Life AI | Farmer Assistance',
   description: 'AI-assisted crop inspection and approved Crop Life Science product discovery for farmers.',
+  applicationName: 'Crop Life AI',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Crop Life AI' },
+  icons: { icon: '/clsl-logo.png', apple: '/clsl-logo.png' },
   openGraph: {
     title: 'Crop Life AI',
     description: 'Understand your crop. Act with confidence.',
@@ -30,6 +34,16 @@ export const metadata: Metadata = {
     description: 'Understand your crop. Act with confidence.',
     images: ['/og.png'],
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fffefa' },
+    { media: '(prefers-color-scheme: dark)', color: '#0d1712' },
+  ],
 };
 
 export default function RootLayout({

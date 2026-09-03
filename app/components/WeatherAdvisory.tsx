@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { LanguageCode } from '../lib/i18n';
 
 type WeatherData = {
@@ -25,7 +25,7 @@ export function WeatherAdvisory({ language, initialLocation = '' }: { language: 
   const [data, setData] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const load = async (query: string) => {
+  const load = useCallback(async (query: string) => {
     setLoading(true); setError('');
     try {
       const response = await fetch(`/api/weather?${query}`);
@@ -34,7 +34,15 @@ export function WeatherAdvisory({ language, initialLocation = '' }: { language: 
       setData(result);
     } catch (problem) { setError(problem instanceof Error ? problem.message : 'Weather is unavailable.'); }
     finally { setLoading(false); }
-  };
+  }, []);
+  useEffect(() => {
+    const city = initialLocation.trim();
+    const timer = window.setTimeout(() => {
+      setLocation(city);
+      if (city) void load(`location=${encodeURIComponent(city)}`);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [initialLocation, load]);
   const submit = (event: FormEvent) => { event.preventDefault(); if (location.trim()) void load(`location=${encodeURIComponent(location.trim())}`); };
   const useLocation = () => {
     if (!navigator.geolocation) { setError('Location is not supported on this device.'); return; }

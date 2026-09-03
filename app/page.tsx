@@ -5,6 +5,7 @@ import { catalog, catalogCrops, CatalogProduct, searchCatalog } from './lib/cata
 import { getCopy, getLanguage, LanguageCode, languages } from './lib/i18n';
 import { FarmTools } from './components/FarmTools';
 import { WeatherAdvisory } from './components/WeatherAdvisory';
+import { PwaInstall } from './components/PwaInstall';
 import salesContactData from './data/sales-contacts.json';
 
 type View = 'home' | 'inspect' | 'assistant' | 'products' | 'tools' | 'history';
@@ -20,6 +21,11 @@ type ChatMessage = { role: 'user' | 'assistant'; content: string; products?: Cat
 type StoredInspection = { id: string; createdAt: string; crop: string; issue: string; confidence: number; summary: string; result: Diagnosis };
 type Profile = { name: string; location: string; state: string; territory: string; city: string; language: LanguageCode };
 type SalesContact = { name: string; designation: string; state: string; territory: string; city: string; email: string; phone: string };
+type TopWeatherData = {
+  location: string;
+  current: { temperature_2m: number; precipitation: number; weather_code: number; wind_speed_10m: number; label: string };
+  nextSix: { rainChance: number; rainMm: number; maxWind: number; maxGust: number };
+};
 type Copy = Record<string, string>;
 type Theme = 'light' | 'dark';
 
@@ -40,6 +46,30 @@ const THEME_KEY = 'crop-life-ai-theme-v1';
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const DEFAULT_PROFILE: Profile = { name: 'Farmer', location: '', state: '', territory: '', city: '', language: 'en' };
 const salesContacts = salesContactData as SalesContact[];
+
+function designationRank(value: string) {
+  if (/sales officer/i.test(value)) return 1;
+  if (/sales executive/i.test(value)) return 2;
+  if (/area sales/i.test(value)) return 3;
+  if (/regional/i.test(value)) return 4;
+  return 5;
+}
+
+function contactsForProfile(profile: Profile, limit = 2) {
+  if (!profile.state && !profile.territory && !profile.city) return [];
+  return salesContacts.map((contact) => {
+    let score = 0;
+    if (profile.state && contact.state === profile.state) score += 20;
+    if (profile.territory && contact.territory === profile.territory) score += 60;
+    if (profile.city && contact.city === profile.city) score += 100;
+    return { contact, score };
+  }).filter((match) => match.score > 0).sort((a, b) => b.score - a.score || designationRank(a.contact.designation) - designationRank(b.contact.designation)).slice(0, limit).map((match) => match.contact);
+}
+
+function whatsappUrl(contact: SalesContact, message: string) {
+  const phone = contact.phone.replace(/\D/g, '');
+  return phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : '';
+}
 
 async function optimiseImage(file: File) {
   if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) return file;
@@ -106,6 +136,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('open');
+    const timer = window.setTimeout(() => {
+      if (requested && ['inspect', 'assistant', 'products', 'tools', 'history'].includes(requested)) setView(requested as View);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       const saved = localStorage.getItem(THEME_KEY);
       const initial = saved === 'dark' || saved === 'light' ? saved : document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
@@ -163,18 +201,49 @@ export default function Home() {
 
   return <main className="app-shell">
     <Header view={view} nav={nav} profile={profile} onProfile={() => setProfileOpen(true)} language={language} changeLanguage={changeLanguage} theme={theme} toggleTheme={toggleTheme} t={t} />
+    <TopWeatherBar location={profile.city || profile.location} openProfile={() => setProfileOpen(true)} t={t} />
     <div className="mascot-file-inputs" aria-hidden="true"><input ref={mascotCameraRef} tabIndex={-1} type="file" accept="image/*" capture="environment" onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /><input ref={mascotUploadRef} tabIndex={-1} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /></div>
     {view === 'home' && <HomeView nav={nav} t={t} language={language} location={profile.city || profile.location} mascotPreparing={mascotPreparing} takePhoto={() => mascotCameraRef.current?.click()} uploadPhotos={() => mascotUploadRef.current?.click()} />}
-    {view === 'inspect' && <section className="workspace"><PageTitle eyebrow={t.doctor} title={t.inspectHeading} text={t.inspectIntro} /><div className="inspection-layout"><div className="inspect-card large"><InspectionForm inputRef={inputRef} files={files} setFiles={setFiles} onAnalyse={analyse} loading={loading} analysisSeconds={analysisSeconds} error={error} t={t} /></div><Tips t={t} /></div>{result && <Result result={result} onClose={() => setResult(null)} openProducts={openProducts} openProduct={setSelectedProduct} nav={nav} t={t} />}</section>}
+    {view === 'inspect' && <section className="workspace"><PageTitle eyebrow={t.doctor} title={t.inspectHeading} text={t.inspectIntro} /><div className="inspection-layout"><div className="inspect-card large"><InspectionForm inputRef={inputRef} files={files} setFiles={setFiles} onAnalyse={analyse} loading={loading} analysisSeconds={analysisSeconds} error={error} t={t} /></div><Tips t={t} /></div>{result && <Result result={result} profile={profile} onClose={() => setResult(null)} openProfile={() => setProfileOpen(true)} openProducts={openProducts} openProduct={setSelectedProduct} nav={nav} t={t} />}</section>}
     {view === 'assistant' && <Assistant openProduct={setSelectedProduct} language={language} t={t} />}
     {view === 'products' && <Products initialQuery={productQuery} onQuery={setProductQuery} openProduct={setSelectedProduct} t={t} />}
     {view === 'tools' && <FarmTools language={language} />}
-    {view === 'history' && <HistoryView history={history} openResult={setResult} nav={nav} clear={() => { setHistory([]); localStorage.removeItem(HISTORY_KEY); }} t={t} />}
+    {view === 'history' && <HistoryView history={history} openResult={(savedResult) => { setResult(savedResult); nav('inspect'); }} nav={nav} clear={() => { setHistory([]); localStorage.removeItem(HISTORY_KEY); }} t={t} />}
     <MobileNav view={view} nav={nav} t={t} />
+    <PwaInstall label={t.installApp} iosHelp={t.iosInstallHelp} />
     <footer><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><div><b>{t.productOf}</b><p>{t.catalogProducts} · {t.catalogOnly}</p></div><button onClick={() => nav('home')}>{t.home} ↑</button></footer>
     {selectedProduct && <ProductModal product={selectedProduct} close={() => setSelectedProduct(null)} nav={nav} t={t} />}
     {profileOpen && <ProfileModal profile={profile} save={saveProfile} close={() => setProfileOpen(false)} t={t} />}
   </main>;
+}
+
+function TopWeatherBar({ location, openProfile, t }: { location: string; openProfile: () => void; t: Copy }) {
+  const [weather, setWeather] = useState<TopWeatherData | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const city = location.trim();
+    if (!city) return;
+    let active = true;
+    const update = async () => {
+      try {
+        const response = await fetch(`/api/weather?location=${encodeURIComponent(city)}`);
+        const data = await readApiResponse<TopWeatherData>(response);
+        if (!response.ok) throw new Error(data.error || 'Weather unavailable');
+        if (active) { setWeather(data); setFailed(false); }
+      } catch { if (active) setFailed(true); }
+    };
+    void update();
+    const timer = window.setInterval(update, 15 * 60 * 1000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [location]);
+
+  if (!location.trim()) return <button className="top-weather-bar weather-setup" type="button" onClick={openProfile}><span>☀</span><b>{t.addCityWeather}</b><small>{t.addCityWeatherHelp}</small><i>＋</i></button>;
+  const alert = weather ? weather.current.precipitation > 0 || weather.nextSix.rainChance >= 55 || weather.nextSix.rainMm >= 2
+    ? t.topWeatherRain
+    : weather.current.wind_speed_10m >= 15 || weather.nextSix.maxWind >= 18 || weather.nextSix.maxGust >= 28
+      ? t.topWeatherWind
+      : weather.current.temperature_2m >= 35 ? t.topWeatherHeat : t.topWeatherGood : failed ? t.topWeatherUnavailable : t.topWeatherLoading;
+  return <section className={`top-weather-bar ${failed ? 'weather-failed' : ''}`} aria-live="polite"><span className="weather-symbol">{weather?.current.weather_code && weather.current.weather_code >= 51 ? '☂' : '☀'}</span><div><b>{weather?.location || location}</b><p>{alert}</p></div><strong>{weather ? `${Math.round(weather.current.temperature_2m)}°C` : '—°C'}</strong><button type="button" onClick={openProfile}>{t.changeCity}</button></section>;
 }
 
 function Header({ view, nav, profile, onProfile, language, changeLanguage, theme, toggleTheme, t }: { view: View; nav: (view: View) => void; profile: Profile; onProfile: () => void; language: LanguageCode; changeLanguage: (language: LanguageCode) => void; theme: Theme; toggleTheme: () => void; t: Copy }) {
@@ -184,13 +253,33 @@ function NavButton({ label, target, view, nav }: { label: string; target: View; 
 function initials(name: string) { return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'F'; }
 
 function HomeView({ nav, t, language, location, mascotPreparing, takePhoto, uploadPhotos }: { nav: (view: View) => void; t: Copy; language: LanguageCode; location: string; mascotPreparing: boolean; takePhoto: () => void; uploadPhotos: () => void }) {
-  return <><section className="hero"><div className="hero-copy"><div className="endorsed"><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><span>{t.developed}<br /><b>Crop Life Science Limited</b></span></div><p className="eyebrow"><span /> {t.companion}</p><h1>{t.heroTitle}<br /><em>{t.heroAccent}</em></h1><p>{t.heroText}</p><div className="trust-row"><span>✓ {t.imageAssessment}</span><span>✓ {t.catalogProducts}</span><span>✓ {t.catalogOnly}</span></div></div><MascotGuide t={t} preparing={mascotPreparing} takePhoto={takePhoto} uploadPhotos={uploadPhotos} ask={() => nav('assistant')} /></section>
+  return <><section className="hero"><div className="hero-copy"><div className="endorsed"><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><span>{t.developed}<br /><b>Crop Life Science Limited</b></span></div><p className="eyebrow"><span /> {t.companion}</p><h1>{t.heroTitle}<br /><em>{t.heroAccent}</em></h1><p>{t.heroText}</p><div className="trust-row"><span>✓ {t.imageAssessment}</span><span>✓ {t.catalogProducts}</span><span>✓ {t.catalogOnly}</span></div></div><MascotGuide t={t} language={language} preparing={mascotPreparing} takePhoto={takePhoto} uploadPhotos={uploadPhotos} ask={() => nav('assistant')} /></section>
     <WeatherAdvisory language={language} initialLocation={location} />
     <section className="quick-section"><div className="section-label"><span>{t.startHere}</span><p>{t.tools}</p></div><div className="quick-grid"><Quick featured icon="⌁" label={t.geminiPowered} title={t.inspectTitle} text={t.inspectCardText} onClick={() => nav('inspect')} /><Quick icon="✦" label={t.grounded} title={t.assistantTitle} text={t.assistantCardText} onClick={() => nav('assistant')} /><Quick icon="▦" label={t.fieldTools} title={t.calculators} text={t.calculatorCardText} onClick={() => nav('tools')} /><Quick icon="◫" label={t.catalogProducts} title={t.marketplace} text={t.marketCardText} onClick={() => nav('products')} /></div></section>
     <section className="catalog-band"><div><small>{t.officialKnowledge}</small><h2>{t.everyProduct}</h2><p>{t.categorySummary}</p></div><button onClick={() => nav('products')}>{t.explore} →</button></section></>;
 }
-function MascotGuide({ t, preparing, takePhoto, uploadPhotos, ask }: { t: Copy; preparing: boolean; takePhoto: () => void; uploadPhotos: () => void; ask: () => void }) {
-  return <section className="home-panel mascot-home-panel" aria-labelledby="mascot-greeting"><div className="mascot-portrait"><img src="/crop-life-mitra-cutout.webp" alt={`${t.mascotName}, Crop Life AI farming assistant`} /><span><img src="/clsl-logo.png" alt="" />Crop Life AI</span><div className="mascot-wave" aria-hidden="true">👋</div><p className="mascot-speech">{t.mascotName}<b>Online</b></p></div><div className="mascot-copy"><small>{t.care}</small><h2 id="mascot-greeting">{t.mascotGreeting}</h2><p>{t.mascotSupport}</p><p className="mascot-prompt">{t.mascotPhotoPrompt}</p><div className="mascot-actions"><button type="button" onClick={takePhoto} disabled={preparing}><span aria-hidden="true">⌾</span>{preparing ? t.mascotPreparing : t.mascotTakePhoto}</button><button type="button" className="secondary" onClick={uploadPhotos} disabled={preparing}><span aria-hidden="true">↑</span>{t.mascotUpload}</button><button type="button" className="tertiary" onClick={ask}><span aria-hidden="true">✦</span>{t.askMitra}</button></div><div className="panel-stats"><span><b>5</b> {t.photosSupported}</span><span><b>73</b> CLSL {t.navProducts}</span></div></div></section>;
+function MascotGuide({ t, language, preparing, takePhoto, uploadPhotos, ask }: { t: Copy; language: LanguageCode; preparing: boolean; takePhoto: () => void; uploadPhotos: () => void; ask: () => void }) {
+  const [talking, setTalking] = useState(false);
+  const [line, setLine] = useState(0);
+  const talkLines = [t.mascotTalkPhoto, t.mascotTalkWeather, t.mascotTalkContact];
+  useEffect(() => {
+    const timer = window.setInterval(() => setLine((current) => (current + 1) % talkLines.length), 4200);
+    return () => window.clearInterval(timer);
+  }, [talkLines.length]);
+  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+  const speak = () => {
+    if (!('speechSynthesis' in window)) return;
+    if (talking) { window.speechSynthesis.cancel(); setTalking(false); return; }
+    const utterance = new SpeechSynthesisUtterance(`${t.mascotGreeting} ${talkLines[line]}`);
+    utterance.lang = ({ en:'en-IN', hi:'hi-IN', gu:'gu-IN', mr:'mr-IN', bn:'bn-IN', bho:'hi-IN' } as Record<LanguageCode,string>)[language];
+    utterance.rate = .92;
+    utterance.onstart = () => setTalking(true);
+    utterance.onend = () => setTalking(false);
+    utterance.onerror = () => setTalking(false);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  };
+  return <section className="home-panel mascot-home-panel" aria-labelledby="mascot-greeting"><div className={`mascot-portrait ${talking ? 'is-speaking' : ''}`}><img src="/crop-life-mitra-cutout.webp" alt={`${t.mascotName}, Crop Life AI farming assistant`} /><span><img src="/clsl-logo.png" alt="" />Crop Life AI</span><div className="mascot-wave" aria-hidden="true">👋</div><div className={`mascot-dialogue ${talking ? 'speaking' : ''}`}><small>{t.mascotName} · {t.online}</small><p>{talkLines[line]}</p><i aria-hidden="true"><b /><b /><b /></i></div></div><div className="mascot-copy"><small>{t.care}</small><h2 id="mascot-greeting">{t.mascotGreeting}</h2><p>{t.mascotSupport}</p><p className="mascot-prompt">{t.mascotPhotoPrompt}</p><div className="mascot-actions"><button type="button" onClick={takePhoto} disabled={preparing}><span aria-hidden="true">⌾</span>{preparing ? t.mascotPreparing : t.mascotTakePhoto}</button><button type="button" className="secondary" onClick={uploadPhotos} disabled={preparing}><span aria-hidden="true">↑</span>{t.mascotUpload}</button><button type="button" className="speak" onClick={speak}><span aria-hidden="true">{talking ? '■' : '🔊'}</span>{talking ? t.stopMitra : t.listenMitra}</button><button type="button" className="tertiary" onClick={ask}><span aria-hidden="true">✦</span>{t.askMitra}</button></div><div className="panel-stats"><span><b>5</b> {t.photosSupported}</span><span><b>73</b> CLSL {t.navProducts}</span></div></div></section>;
 }
 function Quick(props: { featured?: boolean; icon: string; label: string; title: string; text: string; onClick: () => void }) { return <button onClick={props.onClick} className={`quick-card ${props.featured ? 'featured' : ''}`}><span className="quick-icon">{props.icon}</span><div><small>{props.label}</small><h3>{props.title}</h3><p>{props.text}</p></div><b>→</b></button>; }
 function PageTitle({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) { return <div className="page-title"><p className="eyebrow"><span />{eyebrow}</p><h1>{title}</h1><p>{text}</p></div>; }
@@ -212,7 +301,7 @@ function InspectionForm({ inputRef, files, setFiles, onAnalyse, loading, analysi
 }
 function Tips({ t }: { t: Copy }) { return <aside className="tips"><h3>{t.tips}</h3><ol><li><b>{t.wholePlant}</b><span>{t.wholePlantHelp}</span></li><li><b>{t.affectedArea}</b><span>{t.affectedHelp}</span></li><li><b>{t.underside}</b><span>{t.undersideHelp}</span></li></ol><div className="privacy-box"><b>{t.cropData}</b><p>{t.privacy}</p></div><div className="source-seal"><b>{t.catalogGrounded}</b><span>{t.catalogLimit}</span></div></aside>; }
 
-function Result({ result, onClose, openProducts, openProduct, nav, t }: { result: Diagnosis; onClose: () => void; openProducts: (query: string) => void; openProduct: (product: CatalogProduct) => void; nav: (view: View) => void; t: Copy }) {
+function Result({ result, profile, onClose, openProfile, openProducts, openProduct, nav, t }: { result: Diagnosis; profile: Profile; onClose: () => void; openProfile: () => void; openProducts: (query: string) => void; openProduct: (product: CatalogProduct) => void; nav: (view: View) => void; t: Copy }) {
   const confidence = Math.round(Math.max(0, Math.min(1, result.confidence)) * 100);
   const groups = Object.entries((result.recommendations || []).reduce<Record<string, CatalogProduct[]>>((all, product) => {
     (all[product.category] ||= []).push(product); return all;
@@ -230,8 +319,20 @@ function Result({ result, onClose, openProducts, openProduct, nav, t }: { result
     <section className="matched-products"><div><small>{t.catalogMatch}</small><h3>{groups.length ? `${groups.length} ${t.applicableCategory} · ${result.recommendations.length} ${t.navProducts}` : t.noVerified}</h3><p>{result.catalog_crop ? t.explicitCrop : t.selectCrop}</p></div>
       {groups.length ? <div className="category-matches">{groups.map(([category, products]) => <section key={category}><header><div><small>{products.some((product) => product.matchScore && product.matchScore >= 20) ? t.strongCategory : t.applicableCategory}</small><h4>{category}</h4><p>{categoryPurpose[category] || t.catalogCategoryReason}</p></div><b>{products.length}</b></header><div className="mini-products">{products.map((product, index) => <button key={product.id} onClick={() => openProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <span className="mini-fallback">CLSL</span>}<span><b>{product.name}{index === 0 && <mark>{t.topMatch}</mark>}</b><small>{product.commonName}</small><em>{product.matchReason}</em></span><i>{t.view} →</i></button>)}</div></section>)}</div> : <p className="no-match">{t.noMatch}</p>}
     </section>
+    <ResultSalesSupport result={result} profile={profile} openProfile={openProfile} t={t} />
     <div className="result-actions"><button onClick={() => openProducts(result.catalog_crop || '')}>{result.catalog_crop ? `${t.viewCropProducts}: ${result.catalog_crop}` : t.browseCatalog}</button><button className="secondary" onClick={() => nav('assistant')}>{t.followUp}</button></div><p className="demo-disclaimer">{t.resultDisclaimer}</p>
   </div></div>;
+}
+
+function ContactButtons({ contact, message, t }: { contact: SalesContact; message: string; t: Copy }) {
+  const whatsapp = whatsappUrl(contact, message);
+  return <div className="contact-actions">{contact.phone && <a href={`tel:${contact.phone}`} aria-label={`${t.callNow} ${contact.name}`}>☎ {t.callNow}</a>}<a href={`mailto:${contact.email}?subject=${encodeURIComponent('Crop Life AI crop support')}`} aria-label={`${t.emailNow} ${contact.name}`}>✉ {t.emailNow}</a>{whatsapp && <a className="whatsapp" href={whatsapp} target="_blank" rel="noreferrer" aria-label={`${t.whatsappNow} ${contact.name}`}>◉ {t.whatsappNow}</a>}</div>;
+}
+
+function ResultSalesSupport({ result, profile, openProfile, t }: { result: Diagnosis; profile: Profile; openProfile: () => void; t: Copy }) {
+  const contacts = contactsForProfile(profile);
+  const message = `${t.whatsappGreeting} ${result.crop || result.catalog_crop || 'crop'} — ${result.likely_issue || result.summary}. ${t.whatsappHelp}`;
+  return <section className="result-sales-support"><div className="result-sales-mitra"><img src="/crop-life-mitra-cutout.webp" alt="" /><div><small>{t.mascotName}</small><h3>{t.mitraFoundSupport}</h3><p>{contacts.length ? t.mitraContactReady : t.mitraAddArea}</p></div><span className="talking-dots" aria-hidden="true"><i /><i /><i /></span></div>{contacts.length ? <div className="result-contact-list">{contacts.map((contact) => <article key={`${contact.email}-${contact.territory}`}><span className="contact-avatar">{initials(contact.name)}</span><div><small>{t.localSalesPerson}</small><b>{contact.name}</b><p>{contact.designation} · {contact.city || contact.territory}</p></div><ContactButtons contact={contact} message={message} t={t} /></article>)}</div> : <button className="set-area-button" type="button" onClick={openProfile}>⌖ {t.addAreaForContact}</button>}<p className="directory-privacy">✓ {t.directoryPrivacy}</p></section>;
 }
 
 function Assistant({ openProduct, language, t }: { openProduct: (product: CatalogProduct) => void; language: LanguageCode; t: Copy }) {
@@ -270,15 +371,12 @@ function ProfileModal({ profile, save, close, t }: { profile: Profile; save: (pr
   const territories = Array.from(new Set(stateContacts.map((contact) => contact.territory))).sort();
   const territoryContacts = stateContacts.filter((contact) => !draft.territory || contact.territory === draft.territory);
   const cities = Array.from(new Set(territoryContacts.map((contact) => contact.city))).sort();
-  const matches = territoryContacts.filter((contact) => !draft.city || contact.city === draft.city).sort((a, b) => {
-    const rank = (value: string) => /sales officer/i.test(value) ? 1 : /sales executive/i.test(value) ? 2 : /area sales/i.test(value) ? 3 : /regional/i.test(value) ? 4 : 5;
-    return rank(a.designation) - rank(b.designation);
-  }).slice(0, 2);
+  const matches = contactsForProfile(draft);
   const changeTerritory = (territory: string) => {
     const first = salesContacts.find((contact) => contact.state === draft.state && contact.territory === territory);
     setDraft({ ...draft, territory, city: first?.city || '' });
   };
-  return <div className="modal-backdrop" role="dialog" aria-modal="true"><form className="profile-modal contact-profile" onSubmit={(event) => { event.preventDefault(); save(draft); }}><button type="button" className="modal-close" onClick={close}>×</button><span className="profile-avatar">{initials(draft.name)}</span><h2>{t.profile}</h2><p>{t.profilePrivacy}</p><div className="profile-fields"><label>{t.name}<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label><label>{t.preferredLanguage}<select value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value as LanguageCode })}>{languages.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label></div><section className="contact-directory"><div className="contact-title"><span>☎</span><div><small>{t.contactSales}</small><h3>{t.areaContact}</h3><p>{t.contactHelp}</p></div></div><div className="contact-location-grid"><label>{t.state}<select value={draft.state} onChange={(event) => setDraft({ ...draft, state: event.target.value, territory: '', city: '' })}><option value="">{t.chooseState}</option>{states.map((state) => <option key={state}>{state}</option>)}</select></label><label>{t.territory}<select value={draft.territory} disabled={!draft.state} onChange={(event) => changeTerritory(event.target.value)}><option value="">{t.chooseTerritory}</option>{territories.map((territory) => <option key={territory}>{territory}</option>)}</select></label><label>{t.city}<select value={draft.city} disabled={!draft.territory} onChange={(event) => setDraft({ ...draft, city: event.target.value })}><option value="">{t.chooseCity}</option>{cities.map((city) => <option key={city}>{city}</option>)}</select></label></div>{draft.state && draft.territory ? <div className="contact-results">{matches.map((contact) => <article key={`${contact.email}-${contact.territory}`}><span className="contact-avatar">{initials(contact.name)}</span><div><small>{t.officialContact}</small><b>{contact.name}</b><p>{contact.designation} · {contact.territory}</p></div><div className="contact-actions">{contact.phone && <a href={`tel:${contact.phone}`}>☎ {t.callNow}</a>}<a href={`mailto:${contact.email}`}>✉ {t.emailNow}</a></div></article>)}</div> : <p className="no-area-contact">{t.noAreaContact}</p>}<p className="directory-privacy">✓ {t.directoryPrivacy}</p></section><button className="primary-button">{t.saveProfile}</button></form></div>;
+  return <div className="modal-backdrop" role="dialog" aria-modal="true"><form className="profile-modal contact-profile" onSubmit={(event) => { event.preventDefault(); save(draft); }}><button type="button" className="modal-close" onClick={close}>×</button><span className="profile-avatar">{initials(draft.name)}</span><h2>{t.profile}</h2><p>{t.profilePrivacy}</p><div className="profile-fields"><label>{t.name}<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label><label>{t.preferredLanguage}<select value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value as LanguageCode })}>{languages.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label></div><section className="contact-directory"><div className="contact-title"><span>☎</span><div><small>{t.contactSales}</small><h3>{t.areaContact}</h3><p>{t.contactHelp}</p></div></div><div className="contact-location-grid"><label>{t.state}<select value={draft.state} onChange={(event) => setDraft({ ...draft, state: event.target.value, territory: '', city: '' })}><option value="">{t.chooseState}</option>{states.map((state) => <option key={state}>{state}</option>)}</select></label><label>{t.territory}<select value={draft.territory} disabled={!draft.state} onChange={(event) => changeTerritory(event.target.value)}><option value="">{t.chooseTerritory}</option>{territories.map((territory) => <option key={territory}>{territory}</option>)}</select></label><label>{t.city}<select value={draft.city} disabled={!draft.territory} onChange={(event) => setDraft({ ...draft, city: event.target.value })}><option value="">{t.chooseCity}</option>{cities.map((city) => <option key={city}>{city}</option>)}</select></label></div>{draft.state && draft.territory ? <div className="contact-results">{matches.map((contact) => <article key={`${contact.email}-${contact.territory}`}><span className="contact-avatar">{initials(contact.name)}</span><div><small>{t.officialContact}</small><b>{contact.name}</b><p>{contact.designation} · {contact.territory}</p></div><ContactButtons contact={contact} message={`${t.whatsappGreeting} ${draft.city || draft.territory}. ${t.whatsappHelp}`} t={t} /></article>)}</div> : <p className="no-area-contact">{t.noAreaContact}</p>}<p className="directory-privacy">✓ {t.directoryPrivacy}</p></section><button className="primary-button">{t.saveProfile}</button></form></div>;
 }
 
 function MobileNav({ view, nav, t }: { view: View; nav: (view: View) => void; t: Copy }) { return <nav className="mobile-nav" aria-label="Mobile navigation"><button className={view === 'home' ? 'active' : ''} onClick={() => nav('home')}><span>⌂</span>{t.home}</button><button className={view === 'assistant' ? 'active' : ''} onClick={() => nav('assistant')}><span>✦</span>{t.assistant}</button><button className="camera" onClick={() => nav('inspect')} aria-label={t.navInspect}><span>＋</span></button><button className={view === 'products' ? 'active' : ''} onClick={() => nav('products')}><span>◫</span>{t.navProducts}</button><button className={view === 'history' ? 'active' : ''} onClick={() => nav('history')}><span>◎</span>{t.history}</button></nav>; }

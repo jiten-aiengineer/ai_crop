@@ -43,3 +43,7 @@ html[data-theme="dark"] .analysis-mascot p span,html[data-theme="dark"] .mascot-
 html[data-theme="dark"] .mascot-portrait>span{background:rgba(245,250,246,.9)}
 @media(max-width:600px){.theme-toggle{width:36px;padding:0;justify-content:center}.theme-toggle small{display:none}}
 @media(max-width:420px){.brand>span{display:none}.topbar{gap:7px}.language-picker select{max-width:82px}}
+html[data-theme="dark"] .top-weather-bar{background:linear-gradient(90deg,#16271d,#183025);border-color:var(--line)}
+html[data-theme="dark"] .top-weather-bar div p,html[data-theme="dark"] .result-sales-mitra p{color:#a8b9af}
+html[data-theme="dark"] .result-sales-support{background:linear-gradient(135deg,#18271f,#152c22);border-color:#355540}
+html[data-theme="dark"] .result-contact-list article{background:#18271f;border-color:var(--line)}
