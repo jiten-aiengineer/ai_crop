@@ -35,5 +35,9 @@ html[data-theme="dark"] .history-item{border-color:var(--line)}
 html[data-theme="dark"] .modal-backdrop{background:rgba(1,8,4,.78)}
 html[data-theme="dark"] .modal-close{background:#23352a;color:var(--ink)}
 html[data-theme="dark"] footer img,html[data-theme="dark"] .brand img{background:#fff}
+html[data-theme="dark"] .analysis-progress,html[data-theme="dark"] .mascot-result-note{background:#1b2d22;border-color:#36513f}
+html[data-theme="dark"] .analysis-track{background:#2a3e31}
+html[data-theme="dark"] .analysis-mascot p span,html[data-theme="dark"] .mascot-result-note p{color:#a9bbb0}
+html[data-theme="dark"] .mascot-portrait>span{background:rgba(245,250,246,.9)}
 @media(max-width:600px){.theme-toggle{width:36px;padding:0;justify-content:center}.theme-toggle small{display:none}}
 @media(max-width:420px){.brand>span{display:none}.topbar{gap:7px}.language-picker select{max-width:82px}}

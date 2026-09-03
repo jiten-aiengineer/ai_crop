@@ -1,0 +1,41 @@
+name: crop-life-ai
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-crop_life_ai}
+      POSTGRES_USER: ${POSTGRES_USER:-crop_life}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crop-life-local-only}
+    ports:
+      # PostgreSQL 16 and 18 are already installed on this PC on 5432/5433.
+      # Keep the project database isolated on an unused host port.
+      - "${POSTGRES_HOST_PORT:-5434}:5432"
+    volumes:
+      - crop_life_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crop_life} -d ${POSTGRES_DB:-crop_life_ai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-crop_life}:${POSTGRES_PASSWORD:-crop-life-local-only}@db:5432/${POSTGRES_DB:-crop_life_ai}
+      INITIAL_ADMIN_EMPLOYEE_CODE: ${INITIAL_ADMIN_EMPLOYEE_CODE:-CLSL-1415}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-aiengineer.2@croplifescience.com}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/private-import:/imports:ro
+
+volumes:
+  crop_life_postgres:

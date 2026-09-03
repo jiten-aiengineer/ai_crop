@@ -40,3 +40,10 @@ next-env.d.ts
 /.vercel-global/
 /.xdg-cache/
 /.xdg-data/
+
+# private production imports
+/backend/private-import/
+/backend/.env
+__pycache__/
+*.py[cod]
+.venv/

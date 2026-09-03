@@ -58,6 +58,42 @@ footer div b { color: var(--ink); font-size: 10px; }
 footer div p { margin: 3px 0 0; }
 .mobile-nav { display: none; }
 
+.mascot-file-inputs { display: none; }
+.home-panel.mascot-home-panel {
+  min-height: 500px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(300px,1.25fr) minmax(230px,.85fr);
+  align-items: stretch;
+  overflow: hidden;
+}
+.mascot-portrait { position: relative; min-height: 500px; overflow: hidden; background: radial-gradient(circle at 52% 45%,#d8f1e8 0,#a9cdc6 48%,#6d9b98 100%); }
+.mascot-portrait > img { width: 100%; height: 100%; display: block; object-fit: contain; object-position: 50% 50%; transform: scale(1.15); }
+.mascot-portrait > span { position: absolute; top: 16px; left: 16px; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid rgba(255,255,255,.6); border-radius: 99px; background: rgba(255,255,255,.88); color: var(--green); box-shadow: 0 8px 26px rgba(8,45,29,.16); font-size: 9px; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; backdrop-filter: blur(9px); }
+.mascot-portrait > span img { width: 26px; height: 22px; object-fit: contain; }
+.mascot-copy { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: center; padding: 34px 30px; }
+.mascot-copy > small { color: var(--lime); font-size: 9px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+.mascot-copy h2 { margin: 11px 0 13px; color: white; font-size: clamp(24px,2.2vw,34px); line-height: 1.08; }
+.mascot-copy > p { margin: 0 0 12px; color: rgba(255,255,255,.82); font-size: 12px; line-height: 1.55; }
+.mascot-copy .mascot-prompt { margin-top: 3px; padding: 12px 13px; border: 1px solid rgba(255,255,255,.15); border-radius: 12px; background: rgba(255,255,255,.08); color: white; }
+.mascot-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 5px; }
+.mascot-actions button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 13px; border: 1px solid var(--lime); border-radius: 9px; background: var(--lime); color: #173c29; font-size: 10px; font-weight: 850; cursor: pointer; }
+.mascot-actions button span { font-size: 17px; line-height: 1; }
+.mascot-actions button.secondary { border-color: rgba(255,255,255,.45); background: transparent; color: white; }
+.mascot-actions button:disabled { cursor: wait; opacity: .68; }
+.mascot-copy .panel-stats { margin-top: 16px; }
+.analysis-mascot { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
+.analysis-mascot img { width: 42px; height: 42px; flex: 0 0 auto; object-fit: cover; object-position: 50% 20%; border: 2px solid white; border-radius: 12px; box-shadow: 0 4px 12px rgba(29,79,51,.14); }
+.analysis-mascot p { margin: 0; }
+.analysis-mascot p b,.analysis-mascot p span { display: block; }
+.analysis-mascot p b { color: var(--green); font-size: 10px; }
+.analysis-mascot p span { margin-top: 3px; color: #748078; font-size: 9px; }
+.mascot-result-note { display: flex; align-items: center; gap: 12px; margin: 13px 44px 4px 0; padding: 10px 12px; border: 1px solid #dce8ca; border-radius: 12px; background: #f2f7e8; }
+.mascot-result-note img { width: 50px; height: 50px; flex: 0 0 auto; object-fit: cover; object-position: 50% 18%; border-radius: 13px; }
+.mascot-result-note b { color: var(--green); font-size: 10px; }
+.mascot-result-note p { margin: 3px 0 0; color: #67756c; font-size: 9px; line-height: 1.45; }
+.assistant-mascot { width: 45px; height: 45px; flex: 0 0 auto; object-fit: cover; object-position: 50% 18%; border-radius: 13px; box-shadow: 0 4px 12px rgba(22,70,43,.14); }
+
 @media (max-width: 600px) {
   .quick-grid { grid-template-columns: 1fr; }
   body { padding-bottom: 76px; }
@@ -71,6 +107,14 @@ footer div p { margin: 3px 0 0; }
   .endorsed img { width: 62px; height: 52px; }
   .trust-row { margin-top: 18px; }
   .home-panel > button { width: 100%; }
+  .home-panel.mascot-home-panel { min-height: 0; padding: 0; grid-template-columns: 1fr; }
+  .mascot-portrait { min-height: 230px; height: 230px; }
+  .mascot-portrait > img { object-fit: contain; object-position: 50% 50%; transform: scale(1.05); }
+  .mascot-copy { padding: 24px 22px 25px; }
+  .mascot-copy h2 { font-size: 25px; }
+  .mascot-actions { grid-template-columns: 1fr; }
+  .home-panel.mascot-home-panel .panel-stats { display: flex; }
+  .mascot-result-note { margin-right: 36px; }
   .result-head { align-items: flex-start; gap: 12px; }
   .result-head h2 { font-size: 25px; }
   .result-facts { grid-template-columns: 1fr; }

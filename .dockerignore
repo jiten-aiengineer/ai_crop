@@ -1,0 +1,11 @@
+.git
+.next
+.vinext
+dist
+node_modules
+.env
+.env.*
+!.env.example
+backend/private-import
+spreadsheet_review
+*.log

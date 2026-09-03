@@ -12,7 +12,7 @@ const en: Record<string, string> = {
   probableAssessment: 'Probable AI assessment', identified: 'Plant identified by Gemini', catalogCrop: 'Catalogue crop used', confidence: 'confidence', condition: 'Condition', visibleStage: 'Visible stage', problemType: 'Problem type', moreInfo: 'PROBABLE RESULT · MORE INFORMATION CAN IMPROVE IT', probable: 'PROBABLE', happening: 'What is happening to the plant', visibleSigns: 'Visible signs', causes: 'Probable causes', alternatives: 'Other possibilities', nextStep: 'Recommended next step', doNow: 'Do now', prevention: 'Prevention', improve: 'Details that can improve the assessment', catalogMatch: 'CLSL CATALOGUE · CROP + CATEGORY MATCH', noVerified: 'No verified crop/category match yet', explicitCrop: 'Only products explicitly listing this crop are shown.', selectCrop: 'Select a catalogue crop for more precise matches.', applicableCategory: 'APPLICABLE CATEGORY', strongCategory: 'STRONGEST APPLICABLE CATEGORY', catalogCategoryReason: 'Catalogue products relevant to this probable problem type', topMatch: 'Top match', view: 'View', noMatch: 'No strong match for both this crop and probable category. Add clearer photos or ask the assistant.', viewCropProducts: 'View all crop products', browseCatalog: 'Browse the full catalogue', followUp: 'Ask a follow-up', resultDisclaimer: 'Gemini explains the visible problem. Products are selected only from the CLSL catalogue. Verify the approved label and expert guidance.',
   assistantEyebrow: 'Catalogue-grounded assistant', askWords: 'Ask in your own words', assistantIntro: 'Ask about crop problems, cultivation, doses or CLSL products.', connected: 'Catalogue connected', hello: 'Namaste! Describe your crop and problem. I will only suggest products found in the CLSL catalogue.', checking: 'Checking the CLSL catalogue', askPlaceholder: 'Ask about crops or catalogue products…',
   officialCatalog: 'Official CLSL catalogue', marketHeading: 'Crop solutions marketplace', marketIntro: 'Explore all 73 products. Search by product, composition, crop, pest, disease or benefit.', source: 'Source: CLSL English Catalogue', searchPlaceholder: 'Search crop, pest, disease or product name…', found: 'products found', noCatalogMatch: 'No catalogue match', trySearch: 'Try a product name, active ingredient, crop, pest or disease.', showAll: 'Show all products', loadMore: 'Load more products', dose: 'Dose', packing: 'Packing', details: 'View product details', useBenefits: 'Use / Benefits', important: 'Important', askProduct: 'Ask AI about this product', continueBrowsing: 'Continue browsing',
-  savedDevice: 'Saved on this device', historyHeading: 'Inspection history', historyIntro: 'Review previous assessments and catalogue matches.', clearHistory: 'Clear history', noInspections: 'No inspections yet', historyEmpty: 'Completed crop assessments will appear here.', startInspection: 'Start an inspection', open: 'Open', profile: 'Farmer profile', profilePrivacy: 'Saved privately on this device.', name: 'Name', preferredLanguage: 'Preferred language', saveProfile: 'Save profile', home: 'Home', assistant: 'Assistant', history: 'History', productOf: 'A product of Crop Life Science Limited',
+  savedDevice: 'Saved on this device', historyHeading: 'Inspection history', historyIntro: 'Review previous assessments and catalogue matches.', clearHistory: 'Clear history', noInspections: 'No inspections yet', historyEmpty: 'Completed crop assessments will appear here.', startInspection: 'Start an inspection', open: 'Open', profile: 'Farmer profile', profilePrivacy: 'Saved privately on this device.', name: 'Name', preferredLanguage: 'Preferred language', saveProfile: 'Save profile', home: 'Home', assistant: 'Assistant', history: 'History', productOf: 'A product of Crop Life Science Limited', mascotName:'Crop Life Mitra', mascotGreeting:'Hello! I’m Crop Life Mitra, your AI farming assistant.', mascotSupport:'I’m here to support crop protection and guide you towards practical farming solutions.', mascotPhotoPrompt:'Take a clear crop photo or upload existing photos. I’ll inspect them and prepare a probable assessment with relevant CLSL catalogue options.', mascotTakePhoto:'Take crop photo', mascotUpload:'Upload photos', mascotPreparing:'Preparing photos…', mascotAnalysing:'I’m checking your crop photos…', mascotReady:'Your crop assessment is ready. Let’s review the probable issue and matching CLSL catalogue options.',
 };
 
 const translations: Record<LanguageCode, Record<string, string>> = {
@@ -24,9 +24,53 @@ const translations: Record<LanguageCode, Record<string, string>> = {
   bho: { language:'भाषा',productTag:'क्रॉप लाइफ साइंस के उत्पाद',navInspect:'फसल जाँच',navAssistant:'AI मददगार',navProducts:'उत्पाद',navHistory:'हमार जाँच',companion:'रउआ फसल के साथी',heroTitle:'आपन फसल के समझीं।',heroAccent:'भरोसा से कदम उठाईं।',heroText:'फसल के फोटो खींचीं, सावधानी वाला AI जाँच पाईं आ CLSL कैटलॉग से सही उपाय देखीं।',takePictures:'फसल के फोटो खींचीं',unusual:'फसल में कुछ अलग दिखत बा?',doctor:'AI फसल डॉक्टर',inspectHeading:'आपन फसल जाँच करीं',inspectIntro:'साफ फोटो अपलोड करीं। उत्पाद खाली CLSL कैटलॉग से मिलावल जाई।',addPhotos:'फसल के फोटो जोड़ीं',upToFive:'जादे से जादे 5 फोटो · अपने आप तैयार',preparing:'फोटो तैयार होत बा…',ready:'फोटो तैयार बा',upload:'फोटो खींचीं भा अपलोड करीं',uploadHelp:'पूरा पौधा, खराब हिस्सा आ पत्ता के नीचे वाला भाग देखाईं',faster:'तेज जाँच खातिर फोटो छोट कइल जात बा',crop:'फसल',fromCatalog:'कैटलॉग से',identify:'Gemini के पहिचाने दीं',location:'जगह',optional:'जरूरी नइखे',notice:'रउआ का देखनी?',noticePlaceholder:'रंग, दाग, कीड़ा भा समस्या कब शुरू भइल, लिखीं…',detailedAnalysis:'पूरा फसल जाँच',aboutTen:'/ करीब 10 सेकंड',stageIdentify:'फसल आ दिखत लक्षण पहिचानल जात बा',stageClassify:'संभावित समस्या जाँचल जात बा',stageMatch:'CLSL कैटलॉग श्रेणी मिलावल जात बा',stageFinal:'सही उत्पाद मिलान पूरा होत बा',analysing:'जाँच होत बा…',analyse:'हमार फसल जाँच करीं',safety:'ई संभावित जाँच बा। मंजूर लेबल आ इलाका के रजिस्ट्रेशन जरूर जाँच लीं।',tips:'काम के फोटो',wholePlant:'पूरा पौधा',wholePlantHelp:'पौधा आ आसपास के जगह देखाईं',affectedArea:'खराब हिस्सा',affectedHelp:'लक्षण के साफ नजदीकी फोटो लीं',underside:'पत्ता के नीचे',undersideHelp:'नीचे के कीड़ा भा बढ़त देखाईं',cropData:'रउआ फसल के जानकारी',privacy:'फोटो एह नतीजा खातिर जाँचल जाला। ट्रेनिंग खातिर अलग सहमति चाहीं।',catalogGrounded:'कैटलॉग आधारित मिलान',catalogLimit:'उत्पाद सुझाव खाली CLSL कैटलॉग से बा।',probableAssessment:'संभावित AI जाँच',identified:'Gemini से पहिचानल पौधा',catalogCrop:'कैटलॉग में इस्तेमाल फसल',confidence:'भरोसा',condition:'हालत',visibleStage:'दिखत अवस्था',problemType:'समस्या के प्रकार',moreInfo:'संभावित नतीजा · अउरी जानकारी से बेहतर होई',happening:'पौधा के का भइल बा',visibleSigns:'दिखत लक्षण',causes:'संभावित कारण',alternatives:'दूसर संभावना',nextStep:'अगिला सुझावल कदम',doNow:'अबहीं का करीं',prevention:'बचाव',improve:'जाँच बेहतर करे वाला जानकारी',catalogMatch:'CLSL कैटलॉग · फसल + श्रेणी मिलान',noVerified:'सही फसल/श्रेणी मिलान नइखे मिलल',explicitCrop:'खाली एह फसल के साफ जिक्र वाला उत्पाद देखावल गइल बा।',selectCrop:'ठीक मिलान खातिर कैटलॉग फसल चुनीं।',applicableCategory:'लागू श्रेणी',view:'देखीं',noMatch:'एह फसल आ श्रेणी खातिर मजबूत मिलान नइखे मिलल।',viewCropProducts:'एह फसल के सब उत्पाद देखीं',browseCatalog:'पूरा कैटलॉग देखीं',followUp:'आगे पूछीं',resultDisclaimer:'Gemini दिखत समस्या समझावेला। उत्पाद खाली CLSL कैटलॉग से चुनल जाला।',assistantTitle:'किसान मददगार',assistantEyebrow:'कैटलॉग आधारित मददगार',askWords:'आपन भाषा में पूछीं',assistantIntro:'फसल समस्या, खेती, खुराक भा CLSL उत्पाद पूछीं।',connected:'कैटलॉग जुड़ल बा',hello:'प्रणाम! आपन फसल आ समस्या बताईं। हम खाली CLSL कैटलॉग के उत्पाद सुझाइब।',checking:'CLSL कैटलॉग देखल जात बा',askPlaceholder:'फसल भा उत्पाद के बारे में पूछीं…',marketplace:'उत्पाद सूची',marketHeading:'फसल समाधान सूची',searchPlaceholder:'फसल, कीड़ा, रोग भा उत्पाद खोजीं…',found:'उत्पाद मिलल',dose:'खुराक',packing:'पैकिंग',details:'उत्पाद के जानकारी देखीं',historyHeading:'जाँच के इतिहास',noInspections:'अभी कवनो जाँच नइखे',startInspection:'जाँच शुरू करीं',profile:'किसान प्रोफाइल',name:'नाम',preferredLanguage:'पसंद के भाषा',saveProfile:'प्रोफाइल सहेजीं',home:'होम',assistant:'मददगार',history:'इतिहास',productOf:'क्रॉप लाइफ साइंस लिमिटेड के उत्पाद' },
 };
 
+const mascotTranslations: Partial<Record<LanguageCode, Record<string, string>>> = {
+  hi: {
+    mascotName: 'क्रॉप लाइफ मित्र',
+    mascotGreeting: 'नमस्ते! मैं क्रॉप लाइफ मित्र, आपका एआई खेती सहायक हूँ।',
+    mascotSupport: 'मैं फसल सुरक्षा और आसान, उपयोगी खेती समाधान में आपकी मदद के लिए यहाँ हूँ।',
+    mascotPhotoPrompt: 'फसल की साफ फोटो लें या मौजूदा फोटो अपलोड करें। मैं जाँच करके संभावित समस्या और संबंधित CLSL कैटलॉग विकल्प दिखाऊँगा।',
+    mascotTakePhoto: 'फसल की फोटो लें', mascotUpload: 'फोटो अपलोड करें', mascotPreparing: 'फोटो तैयार हो रही हैं…',
+    mascotAnalysing: 'मैं आपकी फसल की फोटो जाँच रहा हूँ…',
+    mascotReady: 'आपकी फसल का आकलन तैयार है। आइए संभावित समस्या और मेल खाते CLSL कैटलॉग विकल्प देखें।',
+  },
+  gu: {
+    mascotName: 'ક્રોપ લાઇફ મિત્ર', mascotGreeting: 'નમસ્તે! હું ક્રોપ લાઇફ મિત્ર, તમારો AI ખેતી સહાયક છું.',
+    mascotSupport: 'હું પાક સુરક્ષા અને સરળ, ઉપયોગી ખેતી ઉકેલોમાં તમારી મદદ માટે અહીં છું.',
+    mascotPhotoPrompt: 'પાકનો સ્પષ્ટ ફોટો લો અથવા હાલના ફોટા અપલોડ કરો. હું તપાસ કરીને સંભવિત સમસ્યા અને સંબંધિત CLSL કેટલોગ વિકલ્પ બતાવીશ.',
+    mascotTakePhoto: 'પાકનો ફોટો લો', mascotUpload: 'ફોટા અપલોડ કરો', mascotPreparing: 'ફોટા તૈયાર થાય છે…',
+    mascotAnalysing: 'હું તમારા પાકના ફોટા તપાસી રહ્યો છું…',
+    mascotReady: 'તમારા પાકનું મૂલ્યાંકન તૈયાર છે. ચાલો સંભવિત સમસ્યા અને મેળ ખાતા CLSL કેટલોગ વિકલ્પો જોઈએ.',
+  },
+  mr: {
+    mascotName: 'क्रॉप लाइफ मित्र', mascotGreeting: 'नमस्कार! मी क्रॉप लाइफ मित्र, तुमचा AI शेती सहाय्यक आहे.',
+    mascotSupport: 'पीक संरक्षण आणि सोपे, उपयुक्त शेती उपाय देण्यासाठी मी येथे आहे.',
+    mascotPhotoPrompt: 'पिकाचा स्पष्ट फोटो घ्या किंवा जुने फोटो अपलोड करा. मी तपासून संभाव्य समस्या आणि संबंधित CLSL कॅटलॉग पर्याय दाखवेन.',
+    mascotTakePhoto: 'पिकाचा फोटो घ्या', mascotUpload: 'फोटो अपलोड करा', mascotPreparing: 'फोटो तयार होत आहेत…',
+    mascotAnalysing: 'मी तुमच्या पिकाचे फोटो तपासत आहे…',
+    mascotReady: 'तुमच्या पिकाचे मूल्यांकन तयार आहे. संभाव्य समस्या आणि जुळणारे CLSL कॅटलॉग पर्याय पाहूया.',
+  },
+  bn: {
+    mascotName: 'ক্রপ লাইফ মিত্র', mascotGreeting: 'নমস্কার! আমি ক্রপ লাইফ মিত্র, আপনার AI কৃষি সহায়ক।',
+    mascotSupport: 'ফসল সুরক্ষা ও সহজ, কার্যকর কৃষি সমাধানে সহায়তার জন্য আমি এখানে আছি।',
+    mascotPhotoPrompt: 'ফসলের পরিষ্কার ছবি তুলুন বা আগের ছবি আপলোড করুন। আমি পরীক্ষা করে সম্ভাব্য সমস্যা ও প্রাসঙ্গিক CLSL ক্যাটালগ বিকল্প দেখাব।',
+    mascotTakePhoto: 'ফসলের ছবি তুলুন', mascotUpload: 'ছবি আপলোড করুন', mascotPreparing: 'ছবি প্রস্তুত হচ্ছে…',
+    mascotAnalysing: 'আমি আপনার ফসলের ছবি পরীক্ষা করছি…',
+    mascotReady: 'আপনার ফসলের মূল্যায়ন প্রস্তুত। চলুন সম্ভাব্য সমস্যা ও মিল থাকা CLSL ক্যাটালগ বিকল্প দেখি।',
+  },
+  bho: {
+    mascotName: 'क्रॉप लाइफ मित्र', mascotGreeting: 'प्रणाम! हम क्रॉप लाइफ मित्र, रउआ के AI खेती सहायक बानी।',
+    mascotSupport: 'फसल सुरक्षा आ आसान, काम के खेती समाधान में मदद करे खातिर हम इहाँ बानी।',
+    mascotPhotoPrompt: 'फसल के साफ फोटो खींचीं भा पुरान फोटो अपलोड करीं। हम जाँच करके संभावित समस्या आ संबंधित CLSL कैटलॉग विकल्प देखाइब।',
+    mascotTakePhoto: 'फसल के फोटो खींचीं', mascotUpload: 'फोटो अपलोड करीं', mascotPreparing: 'फोटो तैयार होत बा…',
+    mascotAnalysing: 'हम रउआ फसल के फोटो जाँचत बानी…',
+    mascotReady: 'रउआ फसल के आकलन तैयार बा। चलीं संभावित समस्या आ मेल खाए वाला CLSL कैटलॉग विकल्प देखीं।',
+  },
+};
+
 export function getLanguage(value?: string): LanguageCode {
   const aliases: Record<string, LanguageCode> = { English:'en', Hindi:'hi', Gujarati:'gu', Marathi:'mr', Bengali:'bn', Bhojpuri:'bho' };
   return value && (languages.some((item) => item.code === value) ? value as LanguageCode : aliases[value]) || 'en';
 }
 
-export function getCopy(language: LanguageCode) { return { ...en, ...translations[language] }; }
+export function getCopy(language: LanguageCode) { return { ...en, ...translations[language], ...(mascotTranslations[language] || {}) }; }
