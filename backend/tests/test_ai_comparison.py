@@ -142,6 +142,42 @@ class ComparisonTests(unittest.TestCase):
         self.assertNotIn("products", c.SCHEMA["properties"])
         self.assertNotIn("dosage", c.SCHEMA["properties"])
 
+    def test_local_mode_rejects_cross_origin_remote_and_rebinding(self):
+        from starlette.requests import Request
+        from starlette.responses import Response
+        async def passed(request):
+            return Response("allowed")
+        cases = [
+            ({}, "127.0.0.1", 200),
+            ({"origin": "http://127.0.0.1:8001"}, "127.0.0.1", 200),
+            ({"origin": "https://evil.example"}, "127.0.0.1", 403),
+            ({"host": "evil.example:8001"}, "127.0.0.1", 403),
+            ({"host": "127.0.0.1:9000"}, "127.0.0.1", 403),
+            ({"sec-fetch-site": "cross-site"}, "127.0.0.1", 403),
+            ({"x-clsl-local": ""}, "127.0.0.1", 403),
+            ({"x-forwarded-for": "127.0.0.1"}, "127.0.0.1", 403),
+            ({}, "192.168.1.10", 403),
+        ]
+        with patch.dict(os.environ, {"COMPARISON_LOCAL_MODE": "true"}):
+            for overrides, peer, status in cases:
+                headers = {"host": "127.0.0.1:8001", "x-clsl-local": "1", **overrides}
+                request = Request({"type": "http", "method": "GET", "path": "/v1/comparisons",
+                                   "headers": [(k.encode(), v.encode()) for k,v in headers.items()],
+                                   "client": (peer, 50000), "scheme": "http", "query_string": b""})
+                response = asyncio.run(c.private_boundary(request, passed))
+                self.assertEqual(response.status_code, status, (overrides, peer))
+                if status == 200:
+                    self.assertEqual(response.headers["cache-control"], "no-store")
+                    self.assertEqual(response.headers["x-frame-options"], "DENY")
+
+    def test_default_mode_does_not_allow_local_header_bypass(self):
+        from starlette.requests import Request
+        async def forbidden(request):
+            raise AssertionError("Local access was allowed in server mode")
+        request = Request({"type":"http", "headers": [(b"host",b"127.0.0.1:8001"),(b"x-clsl-local",b"1")], "method":"GET", "path":"/v1/comparisons", "client":("127.0.0.1",12345)})
+        with patch.dict(os.environ, {"COMPARISON_LOCAL_MODE":"false", "COMPARISON_SERVICE_TOKEN":"x"*40}):
+            self.assertEqual(asyncio.run(c.private_boundary(request, forbidden)).status_code, 401)
+
 
 if __name__ == "__main__":
     unittest.main()

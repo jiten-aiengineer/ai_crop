@@ -12,7 +12,9 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --project tsconfig.check.json --noEmit",
-    "test:comparison": "node --test tests/inspection-comparison.test.cjs"
+    "test:comparison": "node --test tests/inspection-comparison.test.cjs",
+    "comparison:build": "vite build --config local-lab/vite.config.ts",
+    "comparison:start": "node --env-file=.env.local scripts/start-comparison.cjs"
   },
   "dependencies": {
     "next": "16.2.6",

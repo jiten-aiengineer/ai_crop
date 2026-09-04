@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", ".next", ".vinext", "dist"],
+  "exclude": ["node_modules", ".next", ".vinext", ".comparison-data", "dist"],
   "compilerOptions": { "incremental": false }
 }
