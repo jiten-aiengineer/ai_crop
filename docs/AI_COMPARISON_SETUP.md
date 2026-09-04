@@ -1,5 +1,24 @@
 # Crop Life AI — Gemini vs Qwen evaluation
 
+## Easiest option: local lab, no administrator key
+
+The new standalone lab runs at **http://127.0.0.1:8001/** on the laptop with Ollama. It uses the existing Gemini settings from `.env.local`, enables local Qwen, and requires no password or administrator-key setup. It does not enable public shadow mode or expose Ollama to the internet.
+
+From the project folder:
+
+```powershell
+npm run comparison:build
+npm run comparison:start
+```
+
+Build again after updating the code; otherwise only the start command is needed after a laptop restart. Keep the service running while using the lab. Upload a photo, select **Run both models**, and open the case details. Choose **Comparison dashboard** to revisit saved cases. No second web-app process is required for this standalone mode.
+
+The public Vercel comparison pages show **Open local comparison lab** instead of an administrator-key prompt when no remote service is configured. Use that link on the same laptop. On a phone, `127.0.0.1` refers to the phone, not this laptop. No mobile/remote bridge has been activated.
+
+Local security is based on loopback binding, actual local peer validation, exact Host/Origin checks, a required same-origin API header, no cross-origin access and anti-framing headers. The service intentionally accepts other trusted users/processes on this laptop; it is not multi-user employee authentication. Do not put this mode behind a reverse proxy, tunnel, or public interface. The launcher disables forwarded-proxy headers. The existing bearer-key server mode remains the default when not using the local launcher.
+
+Images and history stay in the private local database. Gemini still receives the images through its configured API; Qwen receives them locally. The public website does not receive local lab records. The remote-server instructions below remain available for a later shared setup, but are **not required for local lab use**.
+
 ## What has been implemented
 
 The farmer-facing inspection still uses Gemini and the existing deterministic CLSL catalogue matcher. The new private evaluation service stores the same image bytes and field context, then processes Qwen separately. The farmer never waits for Qwen inference. When enabled, a durable enqueue attempt can add up to 1.5 seconds before the farmer response; a failed enqueue is reported as `comparison_status: unavailable` and does not fail Gemini.

@@ -1,0 +1,6 @@
+.comparison-app .cmp-intro{padding:24px 0 18px;max-width:1100px}
+.comparison-app .cmp-intro h1{font-size:clamp(28px,3vw,38px)}
+.comparison-app .cmp-intro>p:last-child{margin-top:12px}
+.comparison-app .cmp-local-link{display:inline-block;background:#234f35;color:#fff;padding:13px 18px;border-radius:9px;text-decoration:none;font-weight:700;margin:10px 0}
+.comparison-app .cmp-local-link:hover{background:#346d49}
+.comparison-app .cmp-setup-note{border-top:1px solid #d9e3da;padding-top:16px;margin-top:20px;font-size:14px;color:#53685e}

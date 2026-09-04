@@ -18,6 +18,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from fastapi import FastAPI, HTTPException, Request as WebRequest
+from fastapi.responses import FileResponse, JSONResponse
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = json.loads((ROOT / "app/data/inspection-contract.json").read_text(encoding="utf-8"))
@@ -337,7 +338,7 @@ async def worker(store, stop):
 
 @asynccontextmanager
 async def lifespan(application):
-    if len(os.getenv("COMPARISON_SERVICE_TOKEN", "")) < 32:
+    if not enabled("COMPARISON_LOCAL_MODE") and len(os.getenv("COMPARISON_SERVICE_TOKEN", "")) < 32:
         raise RuntimeError("Set a unique COMPARISON_SERVICE_TOKEN of at least 32 characters.")
     store = ComparisonStore(os.getenv("COMPARISON_DB_PATH") or str(ROOT / ".comparison-data/comparisons.sqlite3"))
     store.recover()
@@ -354,7 +355,26 @@ app = FastAPI(title="CLSL Private AI Comparison", lifespan=lifespan, docs_url=No
 
 @app.middleware("http")
 async def private_boundary(request: WebRequest, call_next):
-    from fastapi.responses import JSONResponse
+    if enabled("COMPARISON_LOCAL_MODE"):
+        # Local access is not an internet authentication bypass. The launcher binds
+        # loopback only and disables proxy headers; Host + peer + Origin are checked.
+        host = request.headers.get("host", "")
+        permitted_hosts = {"127.0.0.1:8001", "localhost:8001"}
+        origin = request.headers.get("origin")
+        peer = request.client.host if request.client else ""
+        if (peer not in ("127.0.0.1", "::1") or host not in permitted_hosts
+                or any(name in request.headers for name in ("forwarded", "x-forwarded-for", "x-forwarded-host"))
+                or (origin is not None and origin != "http://" + host)):
+            return JSONResponse({"error": "This lab accepts same-origin requests from this laptop only."}, status_code=403)
+        if request.url.path.startswith("/v1/") and (
+                request.headers.get("x-clsl-local") != "1"
+                or request.headers.get("sec-fetch-site", "same-origin") not in ("same-origin", "none")):
+            return JSONResponse({"error": "Open the local lab to access this API."}, status_code=403)
+        response = await call_next(request)
+        response.headers.update({"Cache-Control": "no-store", "X-Frame-Options": "DENY",
+                                 "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
+                                 "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"})
+        return response
     expected = os.getenv("COMPARISON_SERVICE_TOKEN", "")
     supplied = request.headers.get("authorization", "")
     if len(expected) < 32 or not hmac.compare_digest(supplied, "Bearer " + expected):
@@ -362,6 +382,26 @@ async def private_boundary(request: WebRequest, call_next):
     response = await call_next(request)
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@app.get("/")
+def local_index():
+    if not enabled("COMPARISON_LOCAL_MODE"):
+        raise HTTPException(404)
+    index = ROOT / ".comparison-data/ui/index.html"
+    if not index.is_file():
+        raise HTTPException(503, "Build the local lab first with npm run comparison:build.")
+    return FileResponse(index)
+
+
+@app.get("/assets/{filename}")
+def local_asset(filename: str):
+    if not enabled("COMPARISON_LOCAL_MODE") or not re.fullmatch(r"[a-zA-Z0-9_.-]+\.(js|css)", filename):
+        raise HTTPException(404)
+    asset = ROOT / ".comparison-data/ui/assets" / filename
+    if not asset.is_file():
+        raise HTTPException(404)
+    return FileResponse(asset)
 
 
 async def read_body(request):

@@ -9,9 +9,10 @@ const ts=require('typescript');
 // Load real TypeScript modules without a test framework or provider network requests.
 function load(file, overrides={}) {
   const filename=path.resolve(__dirname,'..',file);
-  const source=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
+  const source=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
   const loaded={exports:{}};
   const customRequire=name=>{
+    if(name.endsWith('.css'))return {};
     if(overrides[name])return overrides[name];
     if(name.startsWith('.')){const target=path.resolve(path.dirname(filename),name);return name.endsWith('.json')?JSON.parse(fs.readFileSync(target,'utf8')):load(path.relative(path.resolve(__dirname,'..'),target+'.ts'),overrides);}
     return require(name);
@@ -61,4 +62,21 @@ test('administrator proxy fails closed before any service request',async()=>{
   const prior=global.fetch;const old=process.env.COMPARISON_ADMIN_TOKEN;delete process.env.COMPARISON_ADMIN_TOKEN;
   global.fetch=async()=>{throw new Error('Should never call private service');};
   try{const route=load('app/api/admin/ai-comparison/route.ts');const response=await route.GET(new Request('http://test/api/admin/ai-comparison'));assert.equal(response.status,401);assert.equal(response.headers.get('cache-control'),'no-store');}finally{global.fetch=prior;if(old!==undefined)process.env.COMPARISON_ADMIN_TOKEN=old;}
+});
+
+test('local lab opens on upload controls without a password',()=>{
+  const React=require('react');const {renderToStaticMarkup}=require('react-dom/server');
+  const Dashboard=load('app/components/ComparisonDashboard.tsx',{'next/link':props=>React.createElement('a',props)}).default;
+  const html=renderToStaticMarkup(React.createElement(Dashboard,{localMode:true,initialLab:true}));
+  assert.ok(html.includes('Upload photos'));
+  assert.ok(html.includes('Run both models'));
+  assert.ok(!html.includes('type="password"'));
+});
+
+test('unconfigured public page offers local link instead of an impossible key form',()=>{
+  const React=require('react');const {renderToStaticMarkup}=require('react-dom/server');
+  const Dashboard=load('app/components/ComparisonDashboard.tsx',{'next/link':props=>React.createElement('a',props)}).default;
+  const html=renderToStaticMarkup(React.createElement(Dashboard,{configured:false}));
+  assert.ok(html.includes('http://127.0.0.1:8001/'));
+  assert.ok(!html.includes('type="password"'));
 });
