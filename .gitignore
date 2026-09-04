@@ -47,5 +47,6 @@ next-env.d.ts
 __pycache__/
 *.py[cod]
 .venv/
+/.comparison-data/
 *.tsbuildinfo
 ~$*
