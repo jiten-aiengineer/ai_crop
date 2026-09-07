@@ -105,6 +105,16 @@ async function readApiResponse<T>(response: Response): Promise<T & { error?: str
   }
 }
 
+
+function createClientId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+
 export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
   const mascotCameraRef = useRef<HTMLInputElement>(null);
@@ -193,7 +203,7 @@ export default function Home() {
       const data = await readApiResponse<Diagnosis>(response);
       if (!response.ok) throw new Error(data.error || 'Unable to analyse these images.');
       setResult(data);
-      const record: StoredInspection = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), crop: data.crop || 'Unknown crop', issue: data.likely_issue || 'No clear issue', confidence: data.confidence, summary: data.summary, result: data };
+      const record: StoredInspection = { id: createClientId(), createdAt: new Date().toISOString(), crop: data.crop || 'Unknown crop', issue: data.likely_issue || 'No clear issue', confidence: data.confidence, summary: data.summary, result: data };
       setHistory((previous) => { const next = [record, ...previous].slice(0, 50); localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); return next; });
     } catch (problem) { setError(problem instanceof Error ? problem.message : 'Unable to analyse these images.'); }
     finally { setLoading(false); setAnalysisSeconds(0); }
