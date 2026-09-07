@@ -10,10 +10,10 @@
   "categories": ["agriculture", "productivity", "utilities"],
   "icons": [
     { "src": "/clsl-logo.png", "sizes": "200x200", "type": "image/png", "purpose": "any" },
-    { "src": "/crop-life-mitra.jpg", "sizes": "1024x1024", "type": "image/jpeg", "purpose": "any maskable" }
+    { "src": "/crop-life-mitra-tomato-doctor.jpg", "sizes": "1600x1600", "type": "image/jpeg", "purpose": "any maskable" }
   ],
   "shortcuts": [
     { "name": "Inspect a crop", "short_name": "Inspect", "url": "/?open=inspect", "icons": [{ "src": "/clsl-logo.png", "sizes": "200x200", "type": "image/png" }] },
-    { "name": "Ask Crop Life Mitra", "short_name": "Ask Mitra", "url": "/?open=assistant", "icons": [{ "src": "/crop-life-mitra.jpg", "sizes": "1024x1024", "type": "image/jpeg" }] }
+    { "name": "Ask Crop Life Mitra", "short_name": "Ask Mitra", "url": "/?open=assistant", "icons": [{ "src": "/crop-life-mitra-tomato-doctor.jpg", "sizes": "1600x1600", "type": "image/jpeg" }] }
   ]
 }

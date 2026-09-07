@@ -16,6 +16,7 @@ from .db import connection
 
 
 CATALOG_NOTE = "Catalog-derived: explicit wording in CLSL English Catalogue 2023"
+CIBRC_NOTE = "CIB&RC approved crop mapping supplied by CLSL"
 
 # Canonical crop name followed by literal catalogue spellings/aliases. Generic
 # catalogue groups are retained because some records state only a crop group.
@@ -150,8 +151,27 @@ def contains_phrase(text: str, phrase: str) -> bool:
     return bool(normalized_phrase and re.search(rf"\b{re.escape(normalized_phrase)}\b", text))
 
 
+def approved_crop_aliases(name: str) -> tuple[str, ...]:
+    """Use a known alias set when available, otherwise retain the supplied name."""
+    normalized_name = normalize(name)
+    for canonical_name, aliases in CROP_RULES.items():
+        if normalized_name == normalize(canonical_name) or normalized_name in {normalize(alias) for alias in aliases}:
+            return aliases
+    return (name.casefold(),)
+
+
 def main(path_value: str) -> None:
     products = json.loads(Path(path_value).read_text(encoding="utf-8"))
+    if not isinstance(products, list):
+        raise ValueError("Product import must contain a JSON array.")
+    approved_crop_names = sorted({
+        str(crop).strip()
+        for product in products
+        for crop in product.get("approvedCrops", [])
+        if str(crop).strip()
+    })
+    if not approved_crop_names:
+        raise ValueError("No CIB&RC approved crop mappings were found in the product data.")
     with connection() as conn:
         admin = conn.execute(
             "SELECT id FROM employees WHERE employee_code = %s",
@@ -161,7 +181,9 @@ def main(path_value: str) -> None:
         approval = "approved" if admin_id else "pending"
 
         crop_ids: dict[str, uuid.UUID] = {}
-        for name, aliases in CROP_RULES.items():
+        crop_definitions = {name: aliases for name, aliases in CROP_RULES.items()}
+        crop_definitions.update({name: approved_crop_aliases(name) for name in approved_crop_names})
+        for name, aliases in crop_definitions.items():
             crop_id = uuid.uuid5(uuid.NAMESPACE_URL, f"clsl-crop:{name.casefold()}")
             crop_ids[name] = crop_id
             conn.execute(
@@ -190,9 +212,13 @@ def main(path_value: str) -> None:
                 (problem_id, issue_type, name, json.dumps(list(aliases))),
             )
 
-        # Rebuild only mappings owned by this catalogue importer. Manually added
-        # or expert-reviewed mappings are deliberately preserved.
-        conn.execute("DELETE FROM product_crop_mappings WHERE notes = %s", (CATALOG_NOTE,))
+        # Rebuild only mappings owned by this importer. Manually added or
+        # expert-reviewed mappings are deliberately preserved. CIB&RC mappings
+        # replace historic text-extracted crop links as the recommendation base.
+        conn.execute(
+            "DELETE FROM product_crop_mappings WHERE notes IN (%s, %s)",
+            (CATALOG_NOTE, CIBRC_NOTE),
+        )
         conn.execute("DELETE FROM product_problem_mappings WHERE notes = %s", (CATALOG_NOTE,))
 
         crop_mapping_count = 0
@@ -200,8 +226,9 @@ def main(path_value: str) -> None:
         for product in products:
             product_id = str(product["id"])
             text = normalize(str(product.get("useBenefits") or ""))
-            for crop_name, aliases in CROP_RULES.items():
-                if not any(contains_phrase(text, alias) for alias in aliases):
+            for crop_name in product.get("approvedCrops", []):
+                crop_name = str(crop_name).strip()
+                if not crop_name:
                     continue
                 conn.execute(
                     """
@@ -219,7 +246,7 @@ def main(path_value: str) -> None:
                         notes = EXCLUDED.notes,
                         updated_at = now()
                     """,
-                    (product_id, crop_ids[crop_name], approval, admin_id, admin_id, admin_id, CATALOG_NOTE),
+                    (product_id, crop_ids[crop_name], approval, admin_id, admin_id, admin_id, CIBRC_NOTE),
                 )
                 crop_mapping_count += 1
 
@@ -250,7 +277,7 @@ def main(path_value: str) -> None:
 
         conn.commit()
     print(
-        f"Imported {len(CROP_RULES)} crops and {len(PROBLEM_RULES)} problems; "
+        f"Imported {len(crop_definitions)} crops and {len(PROBLEM_RULES)} problems; "
         f"created {crop_mapping_count} crop mappings and "
         f"{problem_mapping_count} problem mappings ({approval})."
     )

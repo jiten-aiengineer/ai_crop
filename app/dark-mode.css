@@ -21,6 +21,11 @@ html[data-theme="dark"] .mini-products img,html[data-theme="dark"] .mini-fallbac
 html[data-theme="dark"] .market-hero{background:#1b3023}
 html[data-theme="dark"] .market-toolbar{background:rgba(13,23,18,.93)}
 html[data-theme="dark"] .market-search,html[data-theme="dark"] .market-toolbar>select,html[data-theme="dark"] .category-chips button{background:#14221b;border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] .assistant-chooser,html[data-theme="dark"] .assistant-choice-grid,html[data-theme="dark"] .assistant-choice-grid button{background:#14221b;border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] .assistant-chooser-mascot,html[data-theme="dark"] .tomato-mascot{background:#1a3024}
+html[data-theme="dark"] .change-assistant-mode,html[data-theme="dark"] .home-hero-actions .secondary{background:#182a21;border-color:#486553;color:#8bd3a5}
+html[data-theme="dark"] .approved-crop-summary,html[data-theme="dark"] .approved-crops-panel{background:#1b2d22;border-color:#36513f}
+html[data-theme="dark"] .approved-crops-panel>div span{background:#18271f;border-color:#36513f;color:#b5c8bb}
 html[data-theme="dark"] .category-chips button.selected{background:#3e9b68;color:white}
 html[data-theme="dark"] .catalog-card-body>p,html[data-theme="dark"] .catalog-disclaimer,html[data-theme="dark"] .card-meta span{color:#a1b1a7}
 html[data-theme="dark"] .card-meta span,html[data-theme="dark"] .limited-note,html[data-theme="dark"] .label-warning{background:#1b2a22}

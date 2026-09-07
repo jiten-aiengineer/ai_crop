@@ -1,5 +1,5 @@
-const CACHE = 'crop-life-ai-shell-v2';
-const SHELL = ['/', '/manifest.webmanifest', '/clsl-logo.png', '/crop-life-mitra-cutout.webp', '/crop-life-mitra.jpg'];
+const CACHE = 'crop-life-ai-shell-v3';
+const SHELL = ['/', '/manifest.webmanifest', '/clsl-logo.png', '/crop-life-mitra-tomato-doctor.jpg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));

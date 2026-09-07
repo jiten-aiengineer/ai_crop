@@ -10,6 +10,11 @@ export type CatalogProduct = {
   packing: string;
   image: string;
   sourcePage: number;
+  /** Crops transcribed from the earlier CLSL catalogue for reference only. */
+  catalogCrops?: string[];
+  /** Crop registrations from the CLSL-supplied CIB&RC approved mapping. */
+  approvedCrops?: string[];
+  cropMappingSource?: string;
   limitedRecord?: boolean;
   matchScore?: number;
   matchReason?: string;
@@ -38,11 +43,10 @@ const issueTypeCategories: Record<string, string[]> = {
 
 const cropAliases: Record<string, string[]> = {
   rice: ['rice', 'paddy'], paddy: ['rice', 'paddy'], soybean: ['soybean', 'soyabean'], soyabean: ['soybean', 'soyabean'],
-  chickpea: ['chickpea', 'gram'], gram: ['chickpea', 'gram'], chilli: ['chilli', 'chillies', 'chili'],
+  chickpea: ['chickpea', 'gram'], gram: ['chickpea', 'gram'], chilli: ['chilli', 'chillies', 'chili'], chili: ['chilli', 'chillies', 'chili'],
   maize: ['maize', 'corn'], corn: ['maize', 'corn'], sorghum: ['sorghum', 'jowar'], jowar: ['sorghum', 'jowar'],
+  grape: ['grape', 'grapes'], grapes: ['grape', 'grapes'], blackgram: ['blackgram', 'black gram'],
 };
-
-export const catalogCrops = ['Rice', 'Cotton', 'Sugarcane', 'Wheat', 'Tomato', 'Onion', 'Chilli', 'Soybean', 'Maize', 'Groundnut', 'Potato', 'Gram', 'Grapes', 'Mango', 'Tea', 'Sorghum', 'Brinjal', 'Tobacco'];
 
 function normalize(value: string) {
   return value.toLowerCase().replace(/\bplanthopper\b/g, 'plant hopper').replace(/\bwhite fly\b/g, 'whitefly').replace(/[^a-z0-9%+.-]+/g, ' ').trim();
@@ -52,14 +56,42 @@ function tokens(value: string, ignored = stopWords) {
   return [...new Set(normalize(value).split(/\s+/).filter((token) => token.length > 2 && !ignored.has(token)))];
 }
 
+function cropVariants(value: string) {
+  const canonical = normalize(value);
+  return new Set(cropAliases[canonical] || [canonical]);
+}
+
+function sharesCropAlias(first: string, second: string) {
+  const firstAliases = cropVariants(first);
+  const secondAliases = cropVariants(second);
+  return [...firstAliases].some((alias) => secondAliases.has(alias));
+}
+
+/**
+ * The selectable crop list is generated from the supplied CIB&RC mapping, not
+ * from historic catalogue prose. This keeps search and diagnosis matching in
+ * the same approved-crop vocabulary as the product data.
+ */
+export const catalogCrops = Array.from(new Set(catalog.flatMap((product) => product.approvedCrops || [])))
+  .sort((first, second) => first.localeCompare(second));
+
 export function catalogCropName(value: string) {
   const normalized = normalize(value);
   if (!normalized) return '';
   const found = catalogCrops.find((crop) => {
-    const canonical = normalize(crop);
-    return (cropAliases[canonical] || [canonical]).some((alias) => new RegExp(`\\b${alias}\\b`).test(normalized));
+    return [...cropVariants(crop)].some((alias) => new RegExp(`\\b${alias}\\b`).test(normalized));
   });
   return found || '';
+}
+
+export function productSupportsCrop(product: CatalogProduct, crop: string) {
+  const requested = normalize(crop);
+  if (!requested) return false;
+  return (product.approvedCrops || []).some((approvedCrop) => sharesCropAlias(approvedCrop, requested));
+}
+
+export function approvedCropLabel(product: CatalogProduct, crop: string) {
+  return (product.approvedCrops || []).find((approvedCrop) => sharesCropAlias(approvedCrop, crop)) || '';
 }
 
 export function searchCatalog(query: string, limit = 12, category = 'All products') {
@@ -67,13 +99,15 @@ export function searchCatalog(query: string, limit = 12, category = 'All product
   const queryTokens = tokens(normalized);
   const categoryLower = category.toLowerCase();
   return catalog.map((product) => {
-    const haystack = `${product.name} ${product.category} ${product.commonName} ${product.useBenefits} ${product.dose}`.toLowerCase();
+    const cropText = `${(product.approvedCrops || []).join(' ')} ${(product.catalogCrops || []).join(' ')}`.toLowerCase();
+    const haystack = `${product.name} ${product.category} ${product.commonName} ${product.useBenefits} ${product.dose} ${cropText}`.toLowerCase();
     let score = 0;
     if (normalized && haystack.includes(normalized)) score += 12;
     for (const token of queryTokens) {
       if (product.name.toLowerCase().includes(token)) score += 8;
       else if (product.commonName.toLowerCase().includes(token)) score += 5;
       else if (product.useBenefits.toLowerCase().includes(token)) score += 3;
+      else if (cropText.includes(token)) score += 4;
       else if (product.category.toLowerCase().includes(token)) score += 2;
     }
     return { product, score };
@@ -99,7 +133,6 @@ export function catalogRecommendations(diagnosis: { crop?: string; catalog_crop?
   if (issueText.includes('sheath blight')) allowedCategories.add('Antibiotic / Bactericide');
   if (!allowedCategories.size && !issueTokens.length) return [];
 
-  const aliases = cropAliases[crop] || tokens(crop, diagnosisStopWords);
   const provisional = Boolean(diagnosis.additional_information_required);
   return catalog.map((product) => {
     if (allowedCategories.size && !allowedCategories.has(product.category)) return null;
@@ -107,17 +140,19 @@ export function catalogRecommendations(diagnosis: { crop?: string; catalog_crop?
     let targetScore = 0;
     if (likelyIssue.length > 3 && !['unknown', 'none', 'uncertain'].includes(likelyIssue) && haystack.includes(likelyIssue)) targetScore += 20;
     for (const token of issueTokens) if (haystack.includes(token)) targetScore += 4;
-    const cropMatch = aliases.some((alias) => alias.length > 2 && haystack.includes(alias));
-    // Crop matching is intentionally strict: a selected/detected crop must be printed in the supplied catalogue record.
-    if (aliases.length && !cropMatch) return null;
+    const cropMatch = Boolean(crop) && productSupportsCrop(product, crop);
+    // A selected/detected crop must appear in the supplied CIB&RC approved map.
+    // Earlier catalogue wording is retained in the data only as a reference.
+    if (crop && !cropMatch) return null;
     const isPrimaryCategory = primaryCategories.includes(product.category);
     const categoryScore = isPrimaryCategory ? 10 : allowedCategories.has(product.category) ? 6 : 0;
     const score = targetScore + categoryScore + (cropMatch ? 8 : 0);
     if (score < (provisional ? 14 : 10)) return null;
     const cropName = diagnosis.catalog_crop || diagnosis.crop || 'Crop';
+    const approvedCrop = approvedCropLabel(product, cropName);
     const matchReason = targetScore > 0
-      ? `${cropName} and ${diagnosis.likely_issue || 'the probable problem'} are both mentioned in this catalogue record`
-      : `${cropName} is listed in this catalogue record and the product category fits the probable problem`;
+      ? `${approvedCrop || cropName} is in the CIB&RC approved crop map and the catalogue text mentions ${diagnosis.likely_issue || 'the probable problem'}`
+      : `${approvedCrop || cropName} is in the CIB&RC approved crop map and the product category fits the probable problem`;
     return { product, score, matchReason, matchTier: isPrimaryCategory ? 'primary' as const : 'supporting' as const };
   }).filter((match): match is { product: CatalogProduct; score: number; matchReason: string; matchTier: 'primary' | 'supporting' } => Boolean(match))
     .sort((a, b) => Number(b.matchTier === 'primary') - Number(a.matchTier === 'primary') || b.score - a.score || a.product.name.localeCompare(b.product.name))

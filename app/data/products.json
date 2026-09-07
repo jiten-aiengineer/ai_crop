@@ -8,7 +8,34 @@
     "useBenefits": "Binato is advance bactericide. It's effectively control bacterial blast of paddy. It's used in various crops like cotton, papaya, tomato, chillies, brinjal, potato, onion, garlic, grapes etc. for effective control of bacterial diseases.",
     "packing": "20 gm",
     "image": "/products/binato.jpg",
-    "sourcePage": 15
+    "sourcePage": 15,
+    "catalogCrops": [
+      "Paddy",
+      "Cotton",
+      "Potato",
+      "Tomato",
+      "Chili",
+      "Brinjal",
+      "Onion",
+      "Garlic",
+      "Grapes",
+      "Papaya"
+    ],
+    "approvedCrops": [
+      "Paddy",
+      "Cotton",
+      "Papaya",
+      "Tomato",
+      "Chili",
+      "Brinjal",
+      "Potato",
+      "Onion",
+      "Garlic",
+      "Grapes",
+      "Pomegranate",
+      "Citrus"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "blightoblast",
@@ -19,7 +46,18 @@
     "useBenefits": "Blightoblast is an antibiotic with fungicide action. It is most effective against sheath blight disease of rice.",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/blightoblast.jpg",
-    "sourcePage": 15
+    "sourcePage": 15,
+    "catalogCrops": [
+      "Paddy"
+    ],
+    "approvedCrops": [
+      "Paddy",
+      "Potato",
+      "Tomato",
+      "Cotton",
+      "Vegetables"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "humigrow-95",
@@ -30,7 +68,23 @@
     "useBenefits": "Crop - tomato Purely natural product no toxicity, no pollution and safe for use. Fast action or easy to apply by 100% soluble in water. Stimulates plant enzymes and hormones. Improve nutrients uptake through the leaves and roots. Increase frop yield by plant growth, promoting fruit setting. improve the quality of fruits and fruits enlargement.",
     "packing": "1 kg, 500 gm, 250 gm, 100 gm, 50 gm, 10 gm",
     "image": "/products/humigrow-95.jpg",
-    "sourcePage": 17
+    "sourcePage": 17,
+    "catalogCrops": [
+      "Tomato"
+    ],
+    "approvedCrops": [
+      "Tomato",
+      "Chili",
+      "Paddy",
+      "Cotton",
+      "Potato",
+      "Onion",
+      "Sugarcane",
+      "Wheat",
+      "Fruit Crops",
+      "Vegetables"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "p-dozer",
@@ -41,7 +95,17 @@
     "useBenefits": "Crop - Chickprea Enhances produce quality and quantity in agriculture crops.",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml, 50 ml, 25 ml",
     "image": "/products/p-dozer.jpg",
-    "sourcePage": 17
+    "sourcePage": 17,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Chickpea",
+      "Soybean",
+      "Cotton",
+      "Groundnut",
+      "Vegetables",
+      "Pulses"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "seapen",
@@ -52,7 +116,19 @@
     "useBenefits": "Crop - Soyabean & other crops increases the growth and development of healthy roots of plant which absorb essential nutrients and moisture from soil and make the plants strong. Increases the plant photosynthetic activity, strength in plants to face adverse weather conditions. increases quality and yield of crops and profits at low cost of investment. develops resistance against pests and diseases, completely safe for humans, animals and environment.",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/seapen.jpg",
-    "sourcePage": 17
+    "sourcePage": 17,
+    "catalogCrops": [
+      "Soybean"
+    ],
+    "approvedCrops": [
+      "Soybean",
+      "Cotton",
+      "Paddy",
+      "Vegetables",
+      "Pulses",
+      "Fruits"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "trykot",
@@ -63,7 +139,23 @@
     "useBenefits": "Crop - Soyabean TRYKOT is a bio organic product. It is a very useful for organic crop production. It's increase root development. Improve tuber size, shape & quality so it is very popular for use in various crops like paddy, cotton, garlic, onion, potato etc. It's increase chlorophyll in leaves.",
     "packing": "1 kg pouch, 3 kg pouch",
     "image": "/products/trykot.jpg",
-    "sourcePage": 17
+    "sourcePage": 17,
+    "catalogCrops": [
+      "Paddy",
+      "Cotton",
+      "Potato",
+      "Onion",
+      "Garlic",
+      "Soybean"
+    ],
+    "approvedCrops": [
+      "Soybean",
+      "Groundnut",
+      "Potato",
+      "Cotton",
+      "Vegetables"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "ambucrop",
@@ -74,7 +166,21 @@
     "useBenefits": "Ambucrop is a mixture of mencozeb and carbendazim. Misture partner mencozeb remain on the plant surface and acts by contact action, other partner carbendazim, having a systemic action, acts as a protective and curative. Due to contact & systemic action control disease very effectivity with broad spectrum activity. very effectively control of blast, alterneriala leaf spot, tika & wilt. better for seed borne diseases management particularly when fungirhizoctonia and fusarium occurs.",
     "packing": "1 kg, 500 gm, 250 gm, 100 gm, 50 gm, 20 gm",
     "image": "/products/ambucrop.jpg",
-    "sourcePage": 13
+    "sourcePage": 13,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Paddy",
+      "Groundnut",
+      "Potato",
+      "Tomato",
+      "Grape",
+      "Mango",
+      "Cotton",
+      "Chili",
+      "Apple",
+      "Tea"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "dadubar",
@@ -85,7 +191,18 @@
     "useBenefits": "It has good protective, curative, eradicate and anti sporulate mode of action. It is a broad spectrum fungicide highly useful for management of sheath blight and sheath rot on paddy.",
     "packing": "100 gm, 60 gm, 30 gm, 6 gm",
     "image": "/products/dadubar.jpg",
-    "sourcePage": 13
+    "sourcePage": 13,
+    "catalogCrops": [
+      "Paddy"
+    ],
+    "approvedCrops": [
+      "Paddy",
+      "Apple",
+      "Mango",
+      "Grapes",
+      "Groundnut"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "endowin",
@@ -96,7 +213,36 @@
     "useBenefits": "Endowin is used for malticrops like sugarcane , onion, turmeric, tomato, blackgram, soyabean chilli, wheat, groundnut, paddy, cotton. It is control red rot, smut and rust, leafblotch, leaf spot and powdery mildew, early blight and late blight, pod blight, sheath blight",
     "packing": "1 ltr, 500 ml, 200 ml, 100 ml",
     "image": "/products/endowin.jpg",
-    "sourcePage": 13
+    "sourcePage": 13,
+    "catalogCrops": [
+      "Paddy",
+      "Cotton",
+      "Groundnut",
+      "Sugarcane",
+      "Wheat",
+      "Tomato",
+      "Chili",
+      "Onion",
+      "Soybean",
+      "Turmeric",
+      "Blackgram"
+    ],
+    "approvedCrops": [
+      "Sugarcane",
+      "Onion",
+      "Turmeric",
+      "Tomato",
+      "Blackgram",
+      "Soybean",
+      "Chili",
+      "Wheat",
+      "Groundnut",
+      "Paddy",
+      "Cotton",
+      "Grapes",
+      "Mango"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "finowito",
@@ -107,7 +253,19 @@
     "useBenefits": "Finowito is a broad-spectrum, dual-action systemic fungicide. It is used to prevent and cure severe fungal diseases like sheath blight, rusts, mildews, and blights across major agricultural crops The combination of Strobilurin (Azoxystrobin) and Triazole (Tebuconazole) chemistries disrupts fungal cell growth at multiple stages",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/finowito.jpg",
-    "sourcePage": 14
+    "sourcePage": 14,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Paddy",
+      "Chili",
+      "Tomato",
+      "Soybean",
+      "Cotton",
+      "Onion",
+      "Wheat",
+      "Apple"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "ibex",
@@ -118,7 +276,19 @@
     "useBenefits": "I-Bex is a systemic as well as contact fungicide. It's absorbed through leaf & gives long control against fungus. Effective control on diseases like black scurf, damping off, fruit & stem rot, blight & downey mildew in various crops.",
     "packing": "1 kg, 500 gm, 250 gm, 100 gm, 25 gm",
     "image": "/products/ibex.jpg",
-    "sourcePage": 14
+    "sourcePage": 14,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Potato",
+      "Tomato",
+      "Mustard",
+      "Grapes",
+      "Paddy",
+      "Black Pepper",
+      "Tobacco",
+      "Vegetables"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "life-care",
@@ -129,7 +299,19 @@
     "useBenefits": "Highly effecctive systemic fungicide with protective, curative & eradiactiv action. Lifecare controls wide range of disease like erysiphales ( powdery mildew) ascomycetes (scab) basidiomycetes (rush) fungi imperfect (wilt). Lifecare can control various diseases in field crops. it gives phytotonic effect and improves the plant visible characteristics like yields & also produce quickly.",
     "packing": "5 ltr, 1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/life-care.jpg",
-    "sourcePage": 14
+    "sourcePage": 14,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Paddy",
+      "Groundnut",
+      "Mango",
+      "Grapes",
+      "Apple",
+      "Tea",
+      "Chili",
+      "Cumin"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "purate",
@@ -140,7 +322,18 @@
     "useBenefits": "Triple action fungicide contact, systemic and vapour. Efficient and cost effective solution for fungal diseases it is absorbed by leaves within two hours. Instant and uniform solubility. Better yield and quality with phytotonic effect. No irritation on the skin at the time of spray.",
     "packing": "1 kg, 500 gm, 250 gm",
     "image": "/products/purate.jpg",
-    "sourcePage": 14
+    "sourcePage": 14,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Groundnut",
+      "Soybean",
+      "Chili",
+      "Mango",
+      "Grapes",
+      "Paddy",
+      "Cumin"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "rustblast",
@@ -151,7 +344,14 @@
     "useBenefits": "Rustblast is a revolutionary fungicide. Rustblast is unique combination of two fungicide. It is a preventive & curative fungicide, it translocate trough Zylum in plant. Indication - Seathblight & blast of Paddy.",
     "packing": "1 ltr, 500 ml, 300 ml, 100 ml",
     "image": "/products/rustblast.jpg",
-    "sourcePage": 15
+    "sourcePage": 15,
+    "catalogCrops": [
+      "Paddy"
+    ],
+    "approvedCrops": [
+      "Paddy"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "thiocrop",
@@ -162,7 +362,18 @@
     "useBenefits": "Thiocrop is very effective systemic fungicide. It protect crops by preventive & curative on diseases of various crops. It is effectively control on black scurf, anthracnose, powdery mildew, leaf spot, scare in various crops. It absorbed through leaf & roots. very good control on early wilt & collar rot.",
     "packing": "1 kg, 500 gm 250 gm, 100 gm",
     "image": "/products/thiocrop.jpg",
-    "sourcePage": 15
+    "sourcePage": 15,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Paddy",
+      "Wheat",
+      "Papaya",
+      "Apple",
+      "Grapes",
+      "Bottle Gourd",
+      "Tomato"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "ado-70",
@@ -173,7 +384,21 @@
     "useBenefits": "Ado - 70 is a highly neonicotinoid systemic insecticide. Its use for control all sucking pest, including leaf / plant hoppers, aphids, jassids, thrips, and whitefly in various crops. It used for control brown plant hopper and white backed plant hopper. it is also effective against soil insects like termits and some species of biting insects.",
     "packing": "300 gm, 150 gm, 75 gm, 30 gm, 2 gm",
     "image": "/products/ado-70.jpg",
-    "sourcePage": 7
+    "sourcePage": 7,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Paddy",
+      "Cotton",
+      "Okra",
+      "Chili",
+      "Tomato",
+      "Brinjal",
+      "Sugarcane",
+      "Citrus",
+      "Mango",
+      "Groundnut"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "armeezin",
@@ -184,7 +409,23 @@
     "useBenefits": "Armeezin is soil aplied insecticide and having quick action against sucking and chewing pests. It has labelled for use on Ground Nut, Sugarcane, Rice and Cotton. Armeezin may direct the application at the base of the plant for optimum root uptake when making post emergence applications.",
     "packing": "500 gm, 250 gm, 125 gm, 50 gm, 10 gm",
     "image": "/products/armeezin.jpg",
-    "sourcePage": 7
+    "sourcePage": 7,
+    "catalogCrops": [
+      "Paddy",
+      "Cotton",
+      "Sugarcane"
+    ],
+    "approvedCrops": [
+      "Groundnut",
+      "Sugarcane",
+      "Paddy",
+      "Cotton",
+      "Mustard",
+      "Wheat",
+      "Citrus",
+      "Vegetables"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "athoxam",
@@ -195,7 +436,22 @@
     "useBenefits": "Athoxam is a neonicotinoid systemic insecticide. It has also both contact and stomach action. It is recommended for the control of hopper, aphids, leaf miners, mealybugs, whitefly, jassid etc. in agriculture crops. It has transleminar action that puts protection on both sides of the leaf surface. long lasting effects. due to less recommended dosages it reltively economical.",
     "packing": "",
     "image": "/products/athoxam.jpg",
-    "sourcePage": 7
+    "sourcePage": 7,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Paddy",
+      "Cotton",
+      "Mustard",
+      "Wheat",
+      "Okra",
+      "Chili",
+      "Tomato",
+      "Brinjal",
+      "Citrus",
+      "Mango",
+      "Potato"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "bio-prahar",
@@ -206,7 +462,25 @@
     "useBenefits": "Bio Prahar is a broad-spectrum insecticide and miticide derived from natural soil bacteria. It is highly effective for controlling mites (like two-spotted, yellow, and red mites), thrips, and leaf miners. Commonly used on chilies, cotton, vegetables, fruits, tea..",
     "packing": "250 ml, 100 ml 50 ml, 25 ml",
     "image": "/products/bio-prahar.jpg",
-    "sourcePage": 8
+    "sourcePage": 8,
+    "catalogCrops": [
+      "Cotton",
+      "Tea"
+    ],
+    "approvedCrops": [
+      "Rose",
+      "Cotton",
+      "Chili",
+      "Tomato",
+      "Brinjal",
+      "Okra",
+      "Tea",
+      "Grapes",
+      "Citrus",
+      "Apple",
+      "Pomegranate"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "carbelza",
@@ -217,7 +491,18 @@
     "useBenefits": "Carbelza is highly sought after for protecting various crops, most notably paddy (rice). It quickly causes \"knockdown\" and prevents pests from feeding, eventually leading to starvation. It Effectively control on - Brown Plant Hopper (BPH), White Backed Plant Hopper (WBPH), Green Leaf Hopper (GLH), Aphids Whiteflies, Rice Earhead Bugs and Thrips",
     "packing": "666 gm, 333 gm, 133.2 gm",
     "image": "/products/carbelza.jpg",
-    "sourcePage": 8
+    "sourcePage": 8,
+    "catalogCrops": [
+      "Paddy"
+    ],
+    "approvedCrops": [
+      "Paddy",
+      "Cotton",
+      "Vegetables",
+      "Chili",
+      "Tomato"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "carpal",
@@ -228,7 +513,24 @@
     "useBenefits": "Carpal is a highly effective, broad-spectrum systemic insecticide used to control caterpillars, borers, and defoliators across a wide variety of crops. It paralyzes pests upon ingestion or contact, providing immediate feeding cessation and long-lasting crop protection it effectively control on Borers: Stem borers, early shoot borers, top borers, fruit borers, and pod borers. Caterpillars: Fall armyworm, diamondback moth, tobacco caterpillar, and bollworms. Defoliators: Leaf folders and green semiloope",
     "packing": "150 ml, 60 ml, 30 ml, 10 ml",
     "image": "/products/carpal.jpg",
-    "sourcePage": 8
+    "sourcePage": 8,
+    "catalogCrops": [
+      "Tobacco"
+    ],
+    "approvedCrops": [
+      "Paddy",
+      "Sugarcane",
+      "Cotton",
+      "Soybean",
+      "Maize",
+      "Cabbage",
+      "Chili",
+      "Tomato",
+      "Brinjal",
+      "Okra",
+      "Pulses"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "carpal-super",
@@ -239,7 +541,17 @@
     "useBenefits": "Carpal super is a systemic insecticide belonging to the diamide group. It works through a unique mode of action and acts as a syanodine receptor activator. Excellent larvicidal activity through ingenstion. Works through translaminar activity. Its control on pod borer, hairy caterpillar, fruit borer, bollworm, spotted bollworm, early shoot borer and stem borer",
     "packing": "500 ml, 250 ml, 100 ml, 20 ml",
     "image": "/products/carpal-super.jpg",
-    "sourcePage": 8
+    "sourcePage": 8,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Chili",
+      "Tomato",
+      "Brinjal",
+      "Cotton",
+      "Paddy",
+      "Vegetables"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "cropdon",
@@ -250,7 +562,19 @@
     "useBenefits": "Excellent Product for the right start of the crop with effective control against sucking pests. Effectively controls sucking and chewing pests, helping the crop regain healthy growth and greener foliage.",
     "packing": "500 ml, 200 ml, 80 ml, 40 ml, 10 ml",
     "image": "/products/cropdon.jpg",
-    "sourcePage": 9
+    "sourcePage": 9,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Cotton",
+      "Paddy",
+      "Maize",
+      "Groundnut",
+      "Soybean",
+      "Chili",
+      "Tomato",
+      "Tea"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "cyclonex",
@@ -261,7 +585,27 @@
     "useBenefits": "Cyclonex is a broad spectrum insecticide with good preventive and curative properties which provide good flexibilities & broad application window. Cyclonex impacts positively on physiological activity of crops by improving yield and quality of produce. Cyclonex have latest molecules and double protection gives from fungus. Its Used for control of fruit rot, die back and powdery mildew in Chilli, downy mildew, powdery mildew in Grapes, scab, powdery mildew, premature leaf fall in Apple; purple blotch in Onion, sheath blight on Rice, yellow rust on Wheat, early blight on Tomato and early or late blight on Potato. Broad-spectrum insecticide with rapid knockdown and effective control of target pests through contact, stomach and fumigant action",
     "packing": "50 ml, 100 ml, 250 ml, 500 ml, 1 Litre, 5 Litre",
     "image": "/products/cyclonex.jpg",
-    "sourcePage": 9
+    "sourcePage": 9,
+    "catalogCrops": [
+      "Paddy",
+      "Wheat",
+      "Potato",
+      "Tomato",
+      "Chili",
+      "Onion",
+      "Grapes",
+      "Apple"
+    ],
+    "approvedCrops": [
+      "Paddy",
+      "Cotton",
+      "Sugarcane",
+      "Groundnut",
+      "Beans",
+      "Citrus",
+      "Vegetables"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "cyclonex-gold",
@@ -272,7 +616,18 @@
     "useBenefits": "Cyclonex Gold is a powerful, broad-spectrum insecticide that combines an organophosphate (Chlorpyriphos) and a synthetic pyrethroid (Cypermethrin). It is widely used in agriculture for the quick knockdown and long-lasting control of chewing and sucking pests on crops like cotton, rice, and vegetables.",
     "packing": "5 ltr, 1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/cyclonex-gold.jpg",
-    "sourcePage": 9
+    "sourcePage": 9,
+    "catalogCrops": [
+      "Paddy",
+      "Cotton"
+    ],
+    "approvedCrops": [
+      "Cotton",
+      "Paddy",
+      "Sugarcane",
+      "Vegetables"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "fentrix",
@@ -283,7 +638,17 @@
     "useBenefits": "Rapid knockdown action, Long-lasting pest control, Excellent anti-feeding activity, Broad-spectrum performance, It Effectively control on - Thrips, Aphids, Whiteflies, Jassids, Dimond Backmoth, Caterpillars, Mites, Leafminers",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/fentrix.jpg",
-    "sourcePage": 10
+    "sourcePage": 10,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Cabbage",
+      "Chili",
+      "Cotton",
+      "Tea",
+      "Okra",
+      "Tomato"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "frontonil-0-6",
@@ -294,7 +659,18 @@
     "useBenefits": "Frontonil is a granular, broad-spectrum insecticide and soil termiticide. It is primarily used in agriculture to control pests like stem borers, leaf folders, termites, and root grubs. It works by disrupting the target pest's central nervous system upon contact or ingestion. Rice/Paddy: Protects against stem borers and leaf folders. Sugarcane: Controls early shoot and root borers.",
     "packing": "4 kg, 1 kg",
     "image": "/products/frontonil-0-6.jpg",
-    "sourcePage": 10
+    "sourcePage": 10,
+    "catalogCrops": [
+      "Paddy",
+      "Sugarcane"
+    ],
+    "approvedCrops": [
+      "Paddy",
+      "Sugarcane",
+      "Wheat",
+      "Maize"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "imigrow",
@@ -305,7 +681,20 @@
     "useBenefits": "It is Neonicotinoid insecticide has systemic action. Imigrow is a very important insecticide for controlling insects like jassid, aphid, whitefly, leafhopper etc. It is considered a relatively polar material with good xylem mobility and hence it is suitable for seed treatment and soil application. it can also control virus transmitted diseases by seed treatment and control insects such as wire worm, colorado beetles. imidacloprid is a highly demanded insecticides globally to controlsucking pests including termite.",
     "packing": "50 ml, 100 ml, 250 ml, 1 litre, 5 litre",
     "image": "/products/imigrow.jpg",
-    "sourcePage": 10
+    "sourcePage": 10,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Cotton",
+      "Paddy",
+      "Sugarcane",
+      "Sunflower",
+      "Okra",
+      "Chili",
+      "Tomato",
+      "Citrus",
+      "Mango"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "interex",
@@ -316,7 +705,20 @@
     "useBenefits": "Interex is an advance technology for new formulation of imidacloprid. It is a highly neonicotinoid insecticide has a systemic action. It is effectively controls jassid, aphid, thrips, termite, mites, etc. in various crops like cotton, ladyfinger, groundnut etc. it can be applied as a foliar spray, soil drench, seedling dip and seed treatment.",
     "packing": "50 ml to 100 ml per acre",
     "image": "/products/interex.jpg",
-    "sourcePage": 10
+    "sourcePage": 10,
+    "catalogCrops": [
+      "Cotton",
+      "Groundnut"
+    ],
+    "approvedCrops": [
+      "Cotton",
+      "Paddy",
+      "Sugarcane",
+      "Chili",
+      "Tomato",
+      "Okra"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "ladayak",
@@ -327,7 +729,19 @@
     "useBenefits": "Ladayak is new generation insecticide with Capsule suspension formulation means active ingredient is sealed in a tiny thin walled capsule suspended in water, which release only when spray deposit on target pest & leaf surface. Ladayak can effectively control stem borer & leaf folder. Ladayak can effectively control shoot and fruit borer",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/ladayak.jpg",
-    "sourcePage": 10
+    "sourcePage": 10,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Cotton",
+      "Paddy",
+      "Brinjal",
+      "Okra",
+      "Tomato",
+      "Chili",
+      "Onion",
+      "Mango"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "lakir",
@@ -338,7 +752,20 @@
     "useBenefits": "Lakir is a highly potent, fast-acting synthetic pyrethroid insecticide used in agriculture to control a broad spectrum of chewing and sucking pests (such as bollworms, fruit borers, leaf folders, and stem borers) on crops like cotton, rice, and vegetables. It acts as a contact and stomach poison. Upon contact, it quickly affects the pest's nervous system, resulting in rapid paralysis (a \"knockdown effect\") and cessation of feeding.It is non-systemic (remains on the plant's surface), so proper and thorough coverage during spraying is essentia",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/lakir.jpg",
-    "sourcePage": 11
+    "sourcePage": 11,
+    "catalogCrops": [
+      "Paddy",
+      "Cotton"
+    ],
+    "approvedCrops": [
+      "Cotton",
+      "Tea",
+      "Tomato",
+      "Chili",
+      "Paddy",
+      "Chickpea"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "larbotin",
@@ -349,7 +776,21 @@
     "useBenefits": "Larbotin is a powerful product that controls lepidoptera in vegetable and other crops. Larbotin is a naturally derived product and a highly potent modern insecticide for use against caterpillars. It has a unique mode of action that inhibits caterpillars from feeding and is highly effective in controlling resistant insect streams, while its prolonged activity ensures growers powerful crop protection. fulfilling the highest demand for low residues in fresh produce.",
     "packing": "500 gm, 250 gm, 100 gm, 50 gm, 10 gm",
     "image": "/products/larbotin.jpg",
-    "sourcePage": 11
+    "sourcePage": 11,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Cotton",
+      "Paddy",
+      "Cabbage",
+      "Chili",
+      "Tomato",
+      "Brinjal",
+      "Okra",
+      "Chickpea",
+      "Grapes",
+      "Tea"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "leothrine",
@@ -360,7 +801,17 @@
     "useBenefits": "Leothrin has quick knowck down effect and long residual effect on crop. It is effective on sucking pest viz. Jassid, whitefly, hoppers, thrips and aphid on all major crops. It also consume very largfe quantity in construction for protecting timber against termite. it can effectively control initial stage of larvae. It has no irritation effect on end user like other pyrethroide.",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/leothrine.jpg",
-    "sourcePage": 11
+    "sourcePage": 11,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Cotton",
+      "Paddy",
+      "Sugarcane",
+      "Mustard",
+      "Apple",
+      "Tea"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "libra",
@@ -371,7 +822,20 @@
     "useBenefits": "Libra is an insecticide with low toxicity, no pollution, no residue, wide pest control specturm. It is highly effective, low poisonous and environment safety insecticide. It can be degraded in the earth quickly and no accumulated. It is safe for environment. it is recommended for the control of bollworms in cotton. excellent rain fastness.",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml, 50 ml, 25 ml",
     "image": "/products/libra.jpg",
-    "sourcePage": 11
+    "sourcePage": 11,
+    "catalogCrops": [
+      "Cotton"
+    ],
+    "approvedCrops": [
+      "Cotton",
+      "Paddy",
+      "Cabbage",
+      "Chili",
+      "Tomato",
+      "Brinjal",
+      "Chickpea"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "profkel-super",
@@ -382,7 +846,14 @@
     "useBenefits": "it has a synergistic action due to Profenophos + Cypermethrin. It has a strong translaminar action. It control sucking pests as well as bollworm. Strong ovicidal action. Very good control of thrips, ballworm, alphid, jassid, mealybug etc. in agriculture crop.",
     "packing": "5 ltr, 1 ltr, 500 ml, 250 ml, 100 ml, 50 ml",
     "image": "/products/profkel-super.jpg",
-    "sourcePage": 12
+    "sourcePage": 12,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Cotton",
+      "Paddy",
+      "Vegetables"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "promite",
@@ -393,7 +864,17 @@
     "useBenefits": "Promite is a highly specific, systemic insecticide used to control sap-sucking pests like aphids, whiteflies, jassids, and planthoppers. It paralyzes the insect's feeding mechanism, causing them to stop feeding within minutes and die from starvation. Target Pests: Aphids, Whiteflies, Jassids, and Brown Plant Hoppers (BPH).",
     "packing": "1 kg, 500 gm, 250 gm, 120 gm",
     "image": "/products/promite.jpg",
-    "sourcePage": 12
+    "sourcePage": 12,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Paddy",
+      "Cotton",
+      "Chili",
+      "Tomato",
+      "Brinjal",
+      "Citrus"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "qvidic",
@@ -404,7 +885,17 @@
     "useBenefits": "Qvidic exhibits a systemic with translaminar action. It has novel mechanism action in the insects nervous system by acting as an agonist to hatch. It has exhibits triple action, ovicidal, adulticide and larvicidal. The exciting foliar insecticide with new mode of action. it knowck down of a wide range of sucking & foliar feeding pests such as aphids, whitefly, jassid, leafhoppers and plant bugs. unique translaminar activity that puts protection on both sides of the leaf surface to long action with control. with the special active mechanism it can kill those insects which has resistance to organo-phosphorus insecticides.",
     "packing": "1 kg, 500 gm, 250 gm, 100 gm, 50 gm, 20 gm",
     "image": "/products/qvidic.jpg",
-    "sourcePage": 12
+    "sourcePage": 12,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Cotton",
+      "Chili",
+      "Tomato",
+      "Okra",
+      "Citrus",
+      "Tea"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "sangro",
@@ -415,7 +906,17 @@
     "useBenefits": "Controls all stages of whitefly: Eggs, Nymphs & Adults Quick knockdown effect on adult whiteflies Long residual control prevents reinfestation Translaminar action controls hidden pests on leaf undersides Reduces transmission of Cotton Leaf Curl Virus (CLCV) Helps manage sooty mold caused by honeydew secretion Improves crop vigour with phytotonic effect",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/sangro.jpg",
-    "sourcePage": 12
+    "sourcePage": 12,
+    "catalogCrops": [
+      "Cotton"
+    ],
+    "approvedCrops": [
+      "Cotton",
+      "Chili",
+      "Tomato",
+      "Brinjal"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "sanmaan",
@@ -426,7 +927,16 @@
     "useBenefits": "Sanman is a systemic granular insecticide used primarily in agriculture to control destructive pests like stem borers and leaf folders. It is highly effective for protecting crops like paddy (rice) and sugarcane from internal and external pestsMode of Action: It acts on the insect's muscles, causing paralysis, immediate feeding cessation, and eventual death",
     "packing": "4 kg, 1 kg",
     "image": "/products/sanmaan.jpg",
-    "sourcePage": 7
+    "sourcePage": 7,
+    "catalogCrops": [
+      "Paddy",
+      "Sugarcane"
+    ],
+    "approvedCrops": [
+      "Paddy",
+      "Sugarcane"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "shamsher",
@@ -437,7 +947,14 @@
     "useBenefits": "Shamsher has two active ingredients, viz; having dual mode of action. It has been proven to offer low dose and highly effective controls against chronic problem which farmers are facing for many years. Best suited for white grub control & combinatioin of two mode of chemistry gives dual action against pests",
     "packing": "100 gm, 40 gm",
     "image": "/products/shamsher.jpg",
-    "sourcePage": 9
+    "sourcePage": 9,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Sugarcane",
+      "Paddy",
+      "Cotton"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "tanja-50",
@@ -448,7 +965,18 @@
     "useBenefits": "Tanja - 50 is a new generation photostable insecticide with contact, stomach and repellent properties. It is a synthetic pyrethroid insecticides. It is effective for killing pests like bollworms, jassids, thrips and fruits borer.",
     "packing": "5 ltr, 1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/tanja-50.jpg",
-    "sourcePage": 13
+    "sourcePage": 13,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Cotton",
+      "Paddy",
+      "Brinjal",
+      "Okra",
+      "Tomato",
+      "Mango",
+      "Chili"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "kingam-gold",
@@ -459,7 +987,19 @@
     "useBenefits": "fast action by dissolves rapidly and completely in water. Chelated Zinc EDTA is highly efficient and available to support plant growth resulting in higher yields.. This fertilizer can be used from seedlings to the mid season application which can be done through irrigation or foliar sprays. it is computable with other crop care products.",
     "packing": "1 kg, 500 gm, 250 gm, 100 gm, 50 gm, 12 gm",
     "image": "/products/kingam-gold.jpg",
-    "sourcePage": 19
+    "sourcePage": 19,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Paddy",
+      "Wheat",
+      "Maize",
+      "Cotton",
+      "Citrus",
+      "Sugarcane",
+      "Pulses",
+      "Vegetables"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "suforty-90",
@@ -470,7 +1010,22 @@
     "useBenefits": "Suforty is a fertilizer which developed by advance technology Suforty is essential for all Indian soil because 40 to 50% average deficiency of sulphur indian soil. Suforty is highest sulphur contain fertilizer. Suforty is ready food for plant because it is in Suforty form so plant can use immediately & up to long time. Suforty can mixed with all fertilizer like DAP, urea, NPK etc. Suforty increases chlorophyll, so plant remain green that's why more produce food through photosynthesis activity. Suforty increase branches of plant, flowers, fruits, quality of seeds. Suforty protect against fungus diseases. Suforty increases oil percentage particular in oil seed crop. Suforty increases protein, fatty acid & oil percentage in oil seed & pulses crop. Suforty increases sugar recovery in sugarcane crop. Suforty reduce PH of salty soil. Suforty can also applied through drip & sprinkler at the rate of 3 kg per acres. Suforty increase pungency in chilies, onion, garlic etc.",
     "packing": "3 kg pouch, 1 kg pouch, 500 gm",
     "image": "/products/suforty-90.jpg",
-    "sourcePage": 19
+    "sourcePage": 19,
+    "catalogCrops": [
+      "Sugarcane",
+      "Onion",
+      "Garlic",
+      "Pulses"
+    ],
+    "approvedCrops": [
+      "All Agricultural Crops (Groundnut",
+      "Mustard",
+      "Pulses",
+      "Sugarcane",
+      "Paddy",
+      "Wheat)"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "demsin",
@@ -481,7 +1036,17 @@
     "useBenefits": "Demsin recommended for reducing vegetative growth & increasing reproductive system. Demsin is a growth regulator / retarders. Demsin is generally used for flowering stage i.e., 30 to 45 days after germiation.",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/demsin.jpg",
-    "sourcePage": 18
+    "sourcePage": 18,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Cotton",
+      "Potato",
+      "Grapes",
+      "Brinjal",
+      "Tomato",
+      "Sugarcane"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "feramitoz",
@@ -492,7 +1057,26 @@
     "useBenefits": "Feramitoz is a Plant Growth Regulator (PGR) used to improve flowering, prevent premature flower and fruit drop, and increase crop yields. It works by regulating plant hormones and suppressing ethylene production, which helps retain unripe fruits and buds. Preventing Fruit/Flower Drop: Reduces the natural and premature shedding of flower buds and unripe fruits in crops like mango, cotton, chillies, and tomatoes.Increasing Fruit Size: Helps enlarge the fruit size in pineapples and increases the weight/size of berries in grapes",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/feramitoz.jpg",
-    "sourcePage": 18
+    "sourcePage": 18,
+    "catalogCrops": [
+      "Cotton",
+      "Chili",
+      "Grapes",
+      "Mango"
+    ],
+    "approvedCrops": [
+      "Cotton",
+      "Chili",
+      "Tomato",
+      "Brinjal",
+      "Mango",
+      "Grapes",
+      "Citrus",
+      "Pulses",
+      "Apple",
+      "Pineapple"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "powerkin",
@@ -503,7 +1087,18 @@
     "useBenefits": "Powerkin is a systemic plant growth regulator (PGR) that inhibits gibberellin biosynthesis. It is primarily used to control excessive vegetative shoot growth, reduce pruning needs, induce early and uniform flowering, and redirect the plant's energy toward better fruit, bulb, or pod development. Fruit Trees (Mango): Suppresses unwanted vegetative canopy growth, promotes early/synchronized flowering, and significantly improves fruit size, color, and retention",
     "packing": "1 ltr, 500 ml",
     "image": "/products/powerkin.jpg",
-    "sourcePage": 18
+    "sourcePage": 18,
+    "catalogCrops": [
+      "Mango"
+    ],
+    "approvedCrops": [
+      "Mango",
+      "Grapes",
+      "Citrus",
+      "Apple",
+      "Onion"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "xingg-gb",
@@ -514,7 +1109,18 @@
     "useBenefits": "more vegetative growth. More availability of micronutrients. More number of flowers and fruits. More yield and quality produce.",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/xingg-gb.jpg",
-    "sourcePage": 18
+    "sourcePage": 18,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Grapes",
+      "Paddy",
+      "Sugarcane",
+      "Cotton",
+      "Tomato",
+      "Potato",
+      "Fruits"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "bakhtar",
@@ -525,7 +1131,19 @@
     "useBenefits": "Bakhtar seed treatment insecticide offers growers immediate protection against early season insects. Thiamethoxam 30% FS, the active ingredient in bakhtar, improves plant stands and helps maximize yield potential. Delivered on the seed, Bhakhtar offers a convenient way to get crops off to a successful start. proven to increase plant stands, uniformity, vigor and improve yield potential. Helps optimize seeding rates by protecting every seed to ensure plant establishment. provides excellent activity against a broad spectrum of insect pests reduces stress on young seedlings Easy to use and conveniently delivered on the seed, eliminating the need for any additional handling",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml, 50 ml",
     "image": "/products/bakhtar.jpg",
-    "sourcePage": 16
+    "sourcePage": 16,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Cotton",
+      "Paddy",
+      "Wheat",
+      "Maize",
+      "Sunflower",
+      "Okra",
+      "Sorghum",
+      "Soybean"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "virex",
@@ -536,7 +1154,18 @@
     "useBenefits": "Virex is an advanced, triple-action formulation that combines a systemic insecticide and two systemic fungicides. It is primarily used for seed treatment to protect crops against early-stage sucking pests and seed/soil-borne fungal diseases, ensuring healthy crop establishment. Fungal Diseases: Protects against seed rots, damping-off, root rots (e.g., Fusarium, Rhizoctonia), and early foliar infections",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/virex.jpg",
-    "sourcePage": 16
+    "sourcePage": 16,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Paddy",
+      "Wheat",
+      "Cotton",
+      "Soybean",
+      "Groundnut",
+      "Maize",
+      "Pulses"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "liffwet",
@@ -547,7 +1176,12 @@
     "useBenefits": "Superior wetting of hydrophobic surfaces in particular leaves & branches Better uptake through stomatal flooding and penetration. It can use with any other herbicides, insecticides, fungicides & plant growth regulators. All type agro product's performance improve by uniform spreading/ sticking on leaves and branches.",
     "packing": "100 ml, 5 ml",
     "image": "/products/liffwet.jpg",
-    "sourcePage": 16
+    "sourcePage": 16,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "All Agricultural and Horticultural Crops"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "magnastik",
@@ -558,7 +1192,12 @@
     "useBenefits": "Superior wetting of hydrophobic surfaces in particular leaves & branches. Better uptake through stomatal flooding and penetration. It can use with any other herbicides, insecticides, fungicides &plant growth regulators. All type agro product's performance improve by uniform spreading / sticking on leaves and branches.",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/magnastik.jpg",
-    "sourcePage": 16
+    "sourcePage": 16,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "All Agricultural and Horticultural Crops"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "atr-50",
@@ -569,7 +1208,14 @@
     "useBenefits": "ATR-50 effectively controls grassy broad leaved weeds. It provides longer period of protection of crop against weeds. It has good compatibility with other herbicides. It is safe for environment and care should be taken to avoid drift in water way.",
     "packing": "500 gm, 250 gm",
     "image": "/products/atr-50.jpg",
-    "sourcePage": 19
+    "sourcePage": 19,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Maize (Corn)",
+      "Sugarcane",
+      "Sorghum"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "buplon-32",
@@ -580,7 +1226,16 @@
     "useBenefits": "Buplon 32 contains a combination of active ingredients pendimethalin 30% and imazethapyr 2%. It is a selective herbicide that effectively congtrols annual grasses, sedges, and broadleaf weeds that are sensitive to these ingredients.",
     "packing": "1 ltr, 500 ml, 250 ml",
     "image": "/products/buplon-32.jpg",
-    "sourcePage": 19
+    "sourcePage": 19,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Soybean",
+      "Groundnut",
+      "Pulses (Pigeonpea",
+      "Blackgram",
+      "Greengram)"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "chhalang",
@@ -591,7 +1246,17 @@
     "useBenefits": "Chhalang is a highly effective, selective post-emergence herbicide primarily used in maize (corn) and sugarcane to control a broad spectrum of narrow-leaf (grasses) and broad-leaved weeds Target Crops: Maize (Corn) and Sugarcane",
     "packing": "75 ml, 30 ml, 15 ml",
     "image": "/products/chhalang.jpg",
-    "sourcePage": 20
+    "sourcePage": 20,
+    "catalogCrops": [
+      "Sugarcane",
+      "Maize",
+      "Corn"
+    ],
+    "approvedCrops": [
+      "Maize (Corn)",
+      "Sugarcane"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "crop-grip",
@@ -602,7 +1267,15 @@
     "useBenefits": "Cropgrip is a selective systemic herbicide absorbed through the roots and foliage. Cropgrip is used for the control broad leaves weeds like chenopodium album l. (chil) amaranthus viridis Linn. ( tandenjo) in wheat crop only take care about this product should be used after 25 days old wheat crop.",
     "packing": "8 gm combo, 8 gm single",
     "image": "/products/crop-grip.jpg",
-    "sourcePage": 20
+    "sourcePage": 20,
+    "catalogCrops": [
+      "Wheat"
+    ],
+    "approvedCrops": [
+      "Wheat",
+      "Paddy (Transplanted)"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "croplod",
@@ -613,7 +1286,14 @@
     "useBenefits": "Tembotrione 34.4% SC is a selective post emergence herbicide recommended for use with a surfacant to control broadleaf and grassy weeds in maize. It provides effectfive weed control and helps keep the crop environment clean.",
     "packing": "230 ml,115 ml, 57.5 ml",
     "image": "/products/croplod.jpg",
-    "sourcePage": 20
+    "sourcePage": 20,
+    "catalogCrops": [
+      "Maize"
+    ],
+    "approvedCrops": [
+      "Maize (Corn)"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "diclovira",
@@ -624,7 +1304,14 @@
     "useBenefits": "Diclovira is a selective, systemic herbicide primarily used as a pre-emergence or early post-emergence treatment. It is designed to control a broad spectrum of broadleaf weeds and sedges in soybean. Target Weeds: Broadleaf weeds (Amaranthus, Parthenium, Euphorbia) and sedges like Cyperus (nut grass)",
     "packing": "12.4 gm",
     "image": "/products/diclovira.jpg",
-    "sourcePage": 20
+    "sourcePage": 20,
+    "catalogCrops": [
+      "Soybean"
+    ],
+    "approvedCrops": [
+      "Soybean"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "dipker",
@@ -635,7 +1322,14 @@
     "useBenefits": "Dipkar is a selective & systemic herbicide. Dipkar initially absorbed through weed roots & spread all system of plant & destroy weeds. Dipkar control broad leaves weeds. Dipkar used as a pre- emergence herbicide in paddy crop.",
     "packing": "100ml, 250ml, 500ml, 1litre, 5litre",
     "image": "/products/dipker.jpg",
-    "sourcePage": 21
+    "sourcePage": 21,
+    "catalogCrops": [
+      "Paddy"
+    ],
+    "approvedCrops": [
+      "Paddy (Transplanted and Direct Seeded)"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "fiesta",
@@ -646,7 +1340,14 @@
     "useBenefits": "Fiesta is a post-emergent, broad-spectrum herbicide designed specifically for wheat crops. It is used to kill both grassy weeds (like Phalaris minor) and broadleaf weeds (like Chenopodium album) in a single application",
     "packing": "160 gm",
     "image": "/products/fiesta.jpg",
-    "sourcePage": 21
+    "sourcePage": 21,
+    "catalogCrops": [
+      "Wheat"
+    ],
+    "approvedCrops": [
+      "Wheat"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "glykill",
@@ -657,7 +1358,14 @@
     "useBenefits": "Glykill is a broad spectrum, non selective, post emergence herbicide. It control against annual and perennial weeds including grasses, sedges, broad leaf weeds and woody plants. Non residual, it used in plantation crops.",
     "packing": "5 ltr, 1 ltr, 500 ml",
     "image": "/products/glykill.jpg",
-    "sourcePage": 21
+    "sourcePage": 21,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Tea",
+      "Non-Crop Areas",
+      "Bunds and Fallow Land"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "gyprom-71",
@@ -668,7 +1376,15 @@
     "useBenefits": "Effective against annual, perennial and broad leaf, grassy weeds. Gyprom is a broad spectrum, non selective systemic, post emergence berbicides. Easily bio degradeble & non volatile in nature. It is used in plantation crops.",
     "packing": "1 kg, 500 gm, 100 gm",
     "image": "/products/gyprom-71.jpg",
-    "sourcePage": 21
+    "sourcePage": 21,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Tea",
+      "Non-Crop Areas",
+      "Orchards",
+      "Fallow Fields"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "itolon",
@@ -679,7 +1395,14 @@
     "useBenefits": "Post emergence selective systemic herbicide. It used for control of annual grasses including avena, lolium, setaria, phalaris minor and alopecurus spp in cereals specially in wheat crop.",
     "packing": "160 gm",
     "image": "/products/itolon.jpg",
-    "sourcePage": 21
+    "sourcePage": 21,
+    "catalogCrops": [
+      "Wheat"
+    ],
+    "approvedCrops": [
+      "Wheat"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "lawadin",
@@ -690,7 +1413,16 @@
     "useBenefits": "It is a broad spectrum and selective herbicide it has both contact and residual activity it belongs to imidazolinone group of herbicides, which inhibits photosynthesis. It is used as early post emergence herbicide. It is very economical with its broad spectrum activity and low use rate.",
     "packing": "1 ltr, 500 ml, 250 ml",
     "image": "/products/lawadin.jpg",
-    "sourcePage": 22
+    "sourcePage": 22,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Soybean",
+      "Groundnut",
+      "Pulses (Pigeonpea",
+      "Greengram",
+      "Blackgram)"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "lucado",
@@ -701,7 +1433,12 @@
     "useBenefits": "Lucado is a new generation broad spectrum herbicide. It can control phalaris minor and some of broad leaf weeds in single application. It has a double action, the uptake is through leaves and roots with rapid translocation both acropetally and basipetally. it control the sub sequent flushes (2nd & 3rd) of phalaris.",
     "packing": "13.5 gm",
     "image": "/products/lucado.jpg",
-    "sourcePage": 22
+    "sourcePage": 22,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Wheat"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "lurma",
@@ -712,7 +1449,23 @@
     "useBenefits": "Lurma is selective, systematic, post emergence herbicide. It controls post emergence annual and perennial broad leaves weeds in cereals, tea, wheat, sorghum, rice, maize, aquatic broad leaves weeds and non crop land etc. it should be used in accorance with climatic conditions and approval of local authorities.",
     "packing": "5 ltr, 1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/lurma.jpg",
-    "sourcePage": 22
+    "sourcePage": 22,
+    "catalogCrops": [
+      "Paddy",
+      "Wheat",
+      "Maize",
+      "Sorghum",
+      "Tea"
+    ],
+    "approvedCrops": [
+      "Wheat",
+      "Maize",
+      "Sorghum",
+      "Sugarcane",
+      "Potato",
+      "Non-Crop Areas"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "mesopower",
@@ -723,7 +1476,17 @@
     "useBenefits": "Mesopower is a selective, broad-spectrum premix herbicide used to control grassy and broadleaf weeds in maize (corn) and sugarcane crops. It provides both contact and long-lasting residual action, targeting weeds while remaining safe for the crops. Target Crops: Maize (Corn) and Sugarcane. Application Timing: Best applied as an early post-emergent spray when weeds are at the 2 to 4-leaf stage.",
     "packing": "1400 ml & 700 ml",
     "image": "/products/mesopower.jpg",
-    "sourcePage": 22
+    "sourcePage": 22,
+    "catalogCrops": [
+      "Sugarcane",
+      "Maize",
+      "Corn"
+    ],
+    "approvedCrops": [
+      "Maize (Corn)",
+      "Sugarcane"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "oxyflour",
@@ -735,7 +1498,17 @@
     "packing": "",
     "image": "",
     "sourcePage": 6,
-    "limitedRecord": true
+    "limitedRecord": true,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Onion",
+      "Tea",
+      "Potato",
+      "Rice",
+      "Groundnut",
+      "Sugarcane"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "paraxone",
@@ -746,7 +1519,18 @@
     "useBenefits": "<Dose>Paraxone is a non selective herbicide that is widely used to control weed in the garden, field crop and plantation. It can kill ruderal without farming and used in grassveld renewal, chemical weed eradication on non-crop plant. Due to non- selective action take proper precaution to field",
     "packing": "250 ml, 500 ml, 1 litre, 5 litre",
     "image": "/products/paraxone.jpg",
-    "sourcePage": 23
+    "sourcePage": 23,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Tea",
+      "Coffee",
+      "Rubber",
+      "Sugarcane",
+      "Potato",
+      "Cotton (Pre-plant)",
+      "Non-Crop Areas"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "pendee",
@@ -757,7 +1541,20 @@
     "useBenefits": "Pendee inhibits both cell division & cell elongation in shoot & root meristem of susceptible weeds following root absorption both root & shoot growth are inhibited. Due to pre- imergence Weedicide sober for crop. It is very useful role for reduce compatibly in nutrients between crop and weed ultimate increase production. Pendee can applied as pre emergence, pre-plant incorporation lay by and also along with irrigation water etc.",
     "packing": "250 ml, 500 ml, 1 litre, 5 litre",
     "image": "/products/pendee.jpg",
-    "sourcePage": 23
+    "sourcePage": 23,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Wheat",
+      "Paddy",
+      "Cotton",
+      "Soybean",
+      "Groundnut",
+      "Chili",
+      "Onion",
+      "Garlic",
+      "Pulses"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "prabandh",
@@ -768,7 +1565,14 @@
     "useBenefits": "Prabandh is pre emergence selective herbicide for transplanted rice. It is controls grass, broad leaf and sedge weeds. It dissolves and spreads fast and has an effectrive action. It is convenient to use and safe for the crop and environment.",
     "packing": "1 ltr, 600 ml",
     "image": "/products/prabandh.jpg",
-    "sourcePage": 23
+    "sourcePage": 23,
+    "catalogCrops": [
+      "Paddy"
+    ],
+    "approvedCrops": [
+      "Paddy (Transplanted)"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "samyojan",
@@ -779,7 +1583,14 @@
     "useBenefits": "Samyojan is a systemic herbicide that destroys weeds in paddy fields. It is effective against sedges and broad leaved weeds. For nursery paddy it spray 10-12 days after sowing for transplanted paddy it spray 10-14 days after transplanting",
     "packing": "1 ltr, 500 ml, 200 ml, 100 ml, 50 ml, 10 ml",
     "image": "/products/samyojan.jpg",
-    "sourcePage": 23
+    "sourcePage": 23,
+    "catalogCrops": [
+      "Paddy"
+    ],
+    "approvedCrops": [
+      "Paddy (Transplanted and Direct Seeded)"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "samyojan-plus",
@@ -791,7 +1602,12 @@
     "packing": "",
     "image": "",
     "sourcePage": 6,
-    "limitedRecord": true
+    "limitedRecord": true,
+    "catalogCrops": [],
+    "approvedCrops": [
+      "Paddy (Transplanted and Direct Seeded)"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   },
   {
     "id": "toras",
@@ -802,6 +1618,22 @@
     "useBenefits": "Toras is a selective, systemic, post-emergence herbicide. It is primarily used to control narrow-leaf (grassy) weeds in broad-leaf crops without damaging the primary crop. Target Weeds: Barnyard grass, crowfoot grass, crabgrass, and other annual/perennial grasses, Crop Name : Soyabean, Cotton Groundnut, Onion, Black Gram",
     "packing": "1 ltr, 500 ml, 250 ml, 100 ml",
     "image": "/products/toras.jpg",
-    "sourcePage": 23
+    "sourcePage": 23,
+    "catalogCrops": [
+      "Cotton",
+      "Groundnut",
+      "Onion",
+      "Soybean",
+      "Gram"
+    ],
+    "approvedCrops": [
+      "Soybean",
+      "Cotton",
+      "Groundnut",
+      "Blackgram",
+      "Greengram",
+      "Onion"
+    ],
+    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
   }
 ]
