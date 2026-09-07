@@ -69,9 +69,14 @@ class EmployeeImportContractTests(unittest.TestCase):
         contacts = json.loads(SALES_CONTACT_JSON.read_text(encoding="utf-8"))
         self.assertGreaterEqual(len(contacts), 80)
         allowed = {"name", "designation", "state", "territory", "city", "email", "phone"}
+        approved_call_only_contacts = {"Omnarayan Sharma"}
         for contact in contacts:
             self.assertEqual(allowed, set(contact))
-            self.assertTrue(contact["email"].endswith("@croplifescience.com"))
+            if contact["email"]:
+                self.assertTrue(contact["email"].endswith("@croplifescience.com"))
+            else:
+                self.assertIn(contact["name"], approved_call_only_contacts)
+                self.assertTrue(contact["phone"].startswith("+91"))
             self.assertNotIn("personal", " ".join(contact).casefold())
 
 

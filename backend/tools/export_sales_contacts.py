@@ -1,6 +1,7 @@
 """Export a privacy-limited sales directory for the pilot web app.
 
-Only active Sales & Marketing employees with a company email are exported.
+Only active Sales & Marketing employees with a company email are exported, with
+one explicit, user-approved escalation contact from the employee database.
 Personal email, personal mobile, birth date, payroll details and employee IDs are
 never included in the public directory.
 """
@@ -52,6 +53,11 @@ STATE_RULES = {
     ),
 }
 
+# This record was explicitly approved for the farmer-facing fallback route. The
+# employee is pending an office email, so its work mobile is exported but no
+# email or personal contact field is exposed.
+PUBLIC_ESCALATION_EMPLOYEES = ("Omnarayan Sharma",)
+
 
 def infer_state(location: str) -> str:
     value = location.casefold()
@@ -80,13 +86,14 @@ def main(output_path: str) -> None:
     sql = """
         SELECT full_name, designation, location, office_email, office_mobile
         FROM employees
-        WHERE status = 'active'
-          AND department = 'Sales & Marketing'
-          AND office_email IS NOT NULL
+        WHERE (status = 'active'
+               AND department = 'Sales & Marketing'
+               AND office_email IS NOT NULL)
+           OR full_name = ANY(%s)
         ORDER BY location, full_name
     """
     with connection() as conn:
-        rows = conn.execute(sql).fetchall()
+        rows = conn.execute(sql, (list(PUBLIC_ESCALATION_EMPLOYEES),)).fetchall()
 
     contacts = []
     for row in rows:

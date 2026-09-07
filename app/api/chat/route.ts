@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { catalog, searchCatalog } from '../../lib/catalog';
 import { companyAssistantKnowledge } from '../../lib/company-knowledge';
+import { isSalesLocationQuestion, salesDirectoryAnswer } from '../../lib/sales-directory';
 
 export const runtime = 'edge';
 type GeminiResponse = { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>; error?: { message?: string } };
@@ -67,6 +68,12 @@ export async function POST(request: Request) {
   const cleanQuestion = String(question || '').trim().slice(0, 1000);
   if (!cleanQuestion) return NextResponse.json({ error: 'Please enter a question.' }, { status: 400 });
 
+  // Buying-location queries are answered from the privacy-limited employee
+  // directory export, rather than asking Gemini to invent a shop, price or stock.
+  if (isSalesLocationQuestion(cleanQuestion)) {
+    return NextResponse.json({ ...salesDirectoryAnswer(cleanQuestion, language), products: [] });
+  }
+
   const lowerQuestion = cleanQuestion.toLowerCase();
   const exactProducts = catalog.filter((product) => lowerQuestion.includes(product.name.toLowerCase()));
   const rankedMatches = searchCatalog(cleanQuestion, 10).filter((match) => match.score >= 3);
@@ -75,7 +82,7 @@ export async function POST(request: Request) {
   const languageNames: Record<string, string> = { en: 'English', hi: 'Hindi', gu: 'Gujarati', mr: 'Marathi', bn: 'Bengali', bho: 'Bhojpuri' };
   const responseLanguage = languageNames[language] || 'English';
   const cropInstructions = 'You are a cautious agricultural assistant for Indian farmers. You may answer general cultivation questions, but you MUST mention or recommend pesticide, fungicide, herbicide, seed treatment, nutrition, biostimulant, PGR, or any Crop Life product ONLY when it appears in CATALOG_CONTEXT. Never invent a product, composition, dose, crop approval, target, or pack size. If the catalogue context does not support a product request, say that no verified catalogue match was found. Remind the farmer to follow the approved label and local expert guidance.';
-  const companyInstructions = 'You are the company-support face of Crop Life Mitra. Answer only from COMPANY_ASSISTANT_KNOWLEDGE and CATALOG_CONTEXT. You may explain the Crop Life AI digital-service strategy in COMPANY_ASSISTANT_KNOWLEDGE, but do not represent it as the full corporate strategy of CLSL. Do not invent or guess founding year, ownership, locations, financials, manufacturing claims, registrations, corporate commitments, product approvals, or product claims. If the question needs information outside the provided knowledge, say that this assistant does not have an approved company source for it and direct the user to an official CLSL source or representative. Do not give crop treatment advice in this mode; invite the user to choose Crop Support for that.';
+  const companyInstructions = 'You are the company-support face of Crop Life Mitra. Answer only from COMPANY_ASSISTANT_KNOWLEDGE and CATALOG_CONTEXT. You may explain the Crop Life AI digital-service strategy in COMPANY_ASSISTANT_KNOWLEDGE, but do not represent it as the full corporate strategy of CLSL. You may state only the approved company-profile facts in COMPANY_ASSISTANT_KNOWLEDGE and should identify them as coming from official CLSL documents when useful. Do not invent or guess current ownership, leadership, financials, stock price, employee count, exports, registrations, corporate commitments, dealer locations, price, product approvals, or product claims. If the question needs information outside the provided knowledge, say that this assistant does not have an approved company source for it and direct the user to the official CLSL website or representative. Do not give crop treatment advice in this mode; invite the user to choose Crop Support for that.';
   const prompt = `You are Crop Life Mitra, the friendly Crop Life AI assistant for Crop Life Science Limited (CLSL). The selected conversation is ${mode === 'company' ? 'CLSL and Company Support' : 'Crop and Product Support'}. Answer clearly and briefly in ${responseLanguage}, using simple farmer-friendly wording. Keep official product names, chemical compositions and printed catalogue doses unchanged. ${mode === 'company' ? companyInstructions : cropInstructions} Return JSON only with answer and recommended_product_ids. COMPANY_ASSISTANT_KNOWLEDGE=${JSON.stringify(companyAssistantKnowledge)} CATALOG_CONTEXT=${JSON.stringify(catalogContext)} USER_QUESTION=${JSON.stringify(cleanQuestion)}`;
   const contents = [...history.slice(-6).map((message) => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content.slice(0, 1200) }] })), { role: 'user', parts: [{ text: prompt }] }];
   let response: Response;
