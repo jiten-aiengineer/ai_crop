@@ -27,11 +27,19 @@ export async function geminiInspection(input: InspectionInput): Promise<Provider
   const model = process.env.GEMINI_MODEL || process.env.GEMINI_VISION_MODEL || 'gemini-3.5-flash-lite';
   const base = { provider: 'gemini' as const, model, timestamp: new Date().toISOString() };
   try {
-    if (process.env.GEMINI_ENABLED === 'false' || !process.env.GEMINI_API_KEY) throw new Error('Gemini is not configured or is disabled.');
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST', headers: { 'Content-Type':'application/json', 'x-goog-api-key':process.env.GEMINI_API_KEY }, signal: AbortSignal.timeout(45_000),
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (process.env.GEMINI_ENABLED === 'false' || !apiKey) throw new Error('Gemini is not configured or is disabled.');
+    const request = () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST', headers: { 'Content-Type':'application/json', 'x-goog-api-key':apiKey }, signal: AbortSignal.timeout(45_000),
       body: JSON.stringify({ contents:[{role:'user',parts:[...input.images.map((image) => ({inlineData:image})),{text:inspectionPrompt(input)}]}], generationConfig:{temperature:.15,responseMimeType:'application/json',responseJsonSchema:contract.schema} }),
     });
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      response = await request();
+      if (response.ok || attempt === 1 || ![429, 500, 502, 503, 504].includes(response.status)) break;
+      await new Promise<void>((resolve) => setTimeout(resolve, 700));
+    }
+    if (!response) throw new Error('Gemini did not return a response.');
     if (!response.ok) throw new Error(response.status === 429 ? 'Gemini is busy. Please try again shortly.' : `Gemini request failed (${response.status}).`);
     const payload = await response.json() as {candidates?: Array<{content?: {parts?: Array<{text?: string; thought?: boolean}>}}>};
     const finalText = payload.candidates?.[0]?.content?.parts?.filter((part) => part.text && !part.thought).map((part) => part.text).join('');
