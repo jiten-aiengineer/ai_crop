@@ -29,11 +29,14 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-crop_life}:${POSTGRES_PASSWORD:-crop-life-local-only}@db:5432/${POSTGRES_DB:-crop_life_ai}
       INITIAL_ADMIN_EMPLOYEE_CODE: ${INITIAL_ADMIN_EMPLOYEE_CODE:-CLSL-1415}
       INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-aiengineer.2@croplifescience.com}
+      INSPECTION_PERSISTENCE_TOKEN: ${INSPECTION_PERSISTENCE_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      # The frontend on this host can reach FastAPI, but the persistence API is
+      # never exposed directly to the public internet.
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./backend/private-import:/imports:ro
 

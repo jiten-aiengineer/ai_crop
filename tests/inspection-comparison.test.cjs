@@ -80,3 +80,31 @@ test('unconfigured public page offers local link instead of an impossible key fo
   assert.ok(html.includes('http://127.0.0.1:8001/'));
   assert.ok(!html.includes('type="password"'));
 });
+
+test('private S3 inspection archive uses IAM SDK defaults and non-PII UUID keys',async()=>{
+  const names=['AWS_REGION','S3_BUCKET_NAME','S3_INSPECTIONS_PREFIX'];const old=Object.fromEntries(names.map(name=>[name,process.env[name]]));
+  const sent=[];
+  class S3Client{constructor(options){this.options=options;}async send(command){sent.push(command);}}
+  class PutObjectCommand{constructor(input){this.input=input;}}
+  class DeleteObjectCommand{constructor(input){this.input=input;}}
+  Object.assign(process.env,{AWS_REGION:'us-east-1',S3_BUCKET_NAME:'crop-life-ai-data',S3_INSPECTIONS_PREFIX:'inspections'});
+  try{
+    const storage=load('app/lib/s3-storage.ts',{'@aws-sdk/client-s3':{S3Client,PutObjectCommand,DeleteObjectCommand}});
+    const result=await storage.storeInspectionImages('550e8400-e29b-41d4-a716-446655440000',[{bytes:new Uint8Array([1,2,3]),mimeType:'image/jpeg',imageOrder:1}]);
+    assert.equal(result.status,'stored');assert.equal(result.images[0].bucket,'crop-life-ai-data');
+    assert.match(result.images[0].key,/^inspections\/\d{4}\/\d{2}\/\d{2}\/550e8400-e29b-41d4-a716-446655440000\/image-01\.jpg$/);
+    assert.deepEqual(sent[0].input.Bucket,'crop-life-ai-data');assert.equal(sent[0].input.ContentType,'image/jpeg');
+    assert.equal(sent[0].input.ServerSideEncryption,'AES256');assert.equal(sent[0].input.ACL,undefined);
+    assert.equal(new S3Client({region:'unused'}).options.credentials,undefined);
+  }finally{for(const name of names){if(old[name]===undefined)delete process.env[name];else process.env[name]=old[name];}}
+});
+
+test('inspection persistence is skipped safely until its private server token is configured',async()=>{
+  const names=['INSPECTION_PERSISTENCE_URL','INSPECTION_PERSISTENCE_TOKEN'];const old=Object.fromEntries(names.map(name=>[name,process.env[name]]));const prior=global.fetch;
+  const payload={inspectionId:'550e8400-e29b-41d4-a716-446655440000',imageCount:1,input,storage:{status:'not_configured',images:[],failures:[]},provider:{provider:'gemini',model:'test',success:false,latencyMs:3,timestamp:'now',error:'offline'},recommendations:[]};
+  delete process.env.INSPECTION_PERSISTENCE_URL;delete process.env.INSPECTION_PERSISTENCE_TOKEN;global.fetch=async()=>{throw new Error('must not call');};
+  try{
+    const persistence=load('app/lib/inspection-persistence.ts');
+    assert.equal((await persistence.persistInspection(payload)).status,'skipped');
+  }finally{global.fetch=prior;for(const name of names){if(old[name]===undefined)delete process.env[name];else process.env[name]=old[name];}}
+});

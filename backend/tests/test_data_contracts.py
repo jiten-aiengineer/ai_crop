@@ -12,6 +12,7 @@ PRODUCT_JSON = PROJECT_ROOT / "app" / "data" / "products.json"
 SALES_CONTACT_JSON = PROJECT_ROOT / "app" / "data" / "sales-contacts.json"
 MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "001_initial.sql"
 OPERATIONAL_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "002_operational_data.sql"
+S3_PERSISTENCE_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "003_s3_inspection_persistence.sql"
 
 
 class ProductImportContractTests(unittest.TestCase):
@@ -118,6 +119,14 @@ class MigrationContractTests(unittest.TestCase):
         self.assertIn("consent_for_training", sql)
         self.assertIn("retention_status", sql)
         self.assertIn("prediction_role", sql)
+
+    def test_s3_persistence_schema_keeps_private_image_references_and_provider_audits(self):
+        sql = S3_PERSISTENCE_MIGRATION.read_text(encoding="utf-8").lower()
+        self.assertIn("storage_bucket", sql)
+        self.assertIn("image_storage_status", sql)
+        self.assertIn("image_storage_failures", sql)
+        self.assertIn("create table if not exists ai_provider_results", sql)
+        self.assertIn("unique(inspection_id, provider, model_name)", sql)
 
 
 if __name__ == "__main__":

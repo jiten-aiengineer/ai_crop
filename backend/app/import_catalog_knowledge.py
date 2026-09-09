@@ -12,7 +12,6 @@ import uuid
 from pathlib import Path
 
 from .config import INITIAL_ADMIN_EMPLOYEE_CODE
-from .db import connection
 
 
 CATALOG_NOTE = "Catalog-derived: explicit wording in CLSL English Catalogue 2023"
@@ -161,6 +160,10 @@ def approved_crop_aliases(name: str) -> tuple[str, ...]:
 
 
 def main(path_value: str) -> None:
+    # The data-contract tests import the static catalogue rules. Delay the
+    # PostgreSQL driver import until an actual database import is requested.
+    from .db import connection
+
     products = json.loads(Path(path_value).read_text(encoding="utf-8"))
     if not isinstance(products, list):
         raise ValueError("Product import must contain a JSON array.")

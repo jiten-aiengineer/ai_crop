@@ -16,6 +16,8 @@ type Diagnosis = {
   immediate_actions: string[]; prevention_tips: string[]; questions_for_farmer: string[];
   additional_information_required: boolean; recommended_next_action: string; summary: string;
   recommendations: CatalogProduct[];
+  storage_status?: 'not_configured' | 'stored' | 'partial_failure' | 'failed';
+  persistence_status?: 'saved' | 'skipped' | 'failed';
 };
 type ChatMessage = { role: 'user' | 'assistant'; content: string; products?: CatalogProduct[]; contacts?: SalesContact[] };
 type StoredInspection = { id: string; createdAt: string; crop: string; issue: string; confidence: number; summary: string; result: Diagnosis };
@@ -297,7 +299,7 @@ function Result({ result, profile, onClose, openProfile, openProducts, openProdu
   }, {}));
   const list = (title: string, items?: string[]) => items?.length ? <section className="diagnosis-list"><h4>{title}</h4><ul>{items.map((item) => <li key={item}>{item}</li>)}</ul></section> : null;
   return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Crop assessment"><div className="result-modal result-wide">
-    <button className="modal-close" onClick={onClose}>×</button><p className="eyebrow"><span /> {t.probableAssessment}</p><div className="mascot-result-note"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><div><b>{t.mascotName}</b><p>{t.mascotReady}</p></div></div>
+    <button className="modal-close" onClick={onClose}>×</button><p className="eyebrow"><span /> {t.probableAssessment}</p><div className="mascot-result-note"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><div><b>{t.mascotName}</b><p>{t.mascotReady}</p></div></div>{(result.storage_status === 'partial_failure' || result.storage_status === 'failed') && <p className="persistence-warning" role="status">{t.imageArchiveWarning}</p>}{result.persistence_status === 'failed' && <p className="persistence-warning" role="status">{t.inspectionRecordWarning}</p>}
     <div className="result-head"><div><small>{t.identified}</small><h2>{result.crop || '—'}</h2>{result.catalog_crop && <p>{t.catalogCrop}: <b>{result.catalog_crop}</b></p>}</div><span className="confidence"><b>{confidence}%</b> {t.confidence}</span></div>
     <div className="result-facts"><span><small>{t.condition}</small><b>{result.plant_condition || '—'}</b></span><span><small>{t.visibleStage}</small><b>{result.problem_stage || '—'}</b></span><span><small>{t.problemType}</small><b>{(result.issue_type || '—').replaceAll('_', ' ')}</b></span></div>
     <div className="issue-box"><small>{result.additional_information_required ? t.moreInfo : `${t.probable} ${result.issue_type?.replaceAll('_', ' ') || ''}`}</small><h3>{result.likely_issue || '—'}</h3><p>{result.summary}</p></div>

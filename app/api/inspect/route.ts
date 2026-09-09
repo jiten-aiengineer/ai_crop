@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { catalogCropName, catalogRecommendations } from '../../lib/catalog';
 import { geminiInspection, legacyDiagnosis, queueShadow, InspectionInput } from '../../lib/inspection-ai';
+import { persistInspection } from '../../lib/inspection-persistence';
+import { storeInspectionImages } from '../../lib/s3-storage';
 
-export const runtime = 'edge';
+// S3 uses the AWS SDK default credential chain, including the EC2 instance role.
+// It must run only on the server, never in the browser or an edge isolate.
+export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
@@ -13,17 +17,37 @@ export async function POST(request: Request) {
   if (!images.length || images.length > 5) return NextResponse.json({error:'Please add between one and five crop photos.'},{status:400});
   if (images.some((image) => !['image/jpeg','image/png','image/webp','image/heic','image/heif'].includes(image.type) || !image.size) || images.reduce((sum,image) => sum+image.size,0)>4*1024*1024) return NextResponse.json({error:'Use JPG, PNG, WebP or HEIC photos totalling at most 4 MB.'},{status:400});
   const field = (key: string, max: number) => String(form.get(key)||'').slice(0,max);
-  const input: InspectionInput = {context:{crop:field('crop',80),plant:field('plant',80),description:field('description',800),location:field('location',120),notes:field('notes',800),language:field('language',20)||'en'},images:await Promise.all(images.map(async(image) => {
+  const preparedImages = await Promise.all(images.map(async (image, index) => {
     const bytes = new Uint8Array(await image.arrayBuffer());
     let binary='';
     for(let index=0;index<bytes.length;index+=0x8000) binary+=String.fromCharCode(...bytes.subarray(index,index+0x8000));
-    return {mimeType:image.type,data:btoa(binary)};
-  }))};
+    return { bytes, mimeType:image.type, imageOrder:index + 1, data:btoa(binary) };
+  }));
+  const input: InspectionInput = {
+    context:{crop:field('crop',80),plant:field('plant',80),description:field('description',800),location:field('location',120),notes:field('notes',800),language:field('language',20)||'en'},
+    images:preparedImages.map((image) => ({ mimeType:image.mimeType, data:image.data })),
+  };
   const inspectionId = crypto.randomUUID();
-  const gemini = await geminiInspection(input);
+  // Archiving and diagnosis begin together. The response still waits for both
+  // so a storage failure is explicit rather than silently discarded.
+  const [gemini, storage] = await Promise.all([
+    geminiInspection(input),
+    storeInspectionImages(inspectionId, preparedImages.map(({ bytes, mimeType, imageOrder }) => ({ bytes, mimeType, imageOrder })))
+      .catch(() => ({ status: 'failed' as const, images: [], failures: preparedImages.map((image) => ({ imageOrder: image.imageOrder, code: 'upload_failed' as const })) })),
+  ]);
   const comparison = await queueShadow(input,gemini,inspectionId);
-  if (!gemini.success || !gemini.diagnosis) return NextResponse.json({error:gemini.error || 'AI photo analysis could not be completed.',inspection_id:inspectionId,comparison_status:comparison.status},{status:502});
-  const diagnosis = legacyDiagnosis(gemini.diagnosis);
-  const grounded = {...diagnosis,catalog_crop:catalogCropName(input.context.crop || diagnosis.crop)};
-  return NextResponse.json({...grounded,inspection_id:inspectionId,comparison_status:comparison.status,recommendations:catalogRecommendations(grounded)});
+  const diagnosis = gemini.success && gemini.diagnosis ? legacyDiagnosis(gemini.diagnosis) : undefined;
+  const grounded = diagnosis ? {...diagnosis,catalog_crop:catalogCropName(input.context.crop || diagnosis.crop)} : undefined;
+  const recommendations = grounded ? catalogRecommendations(grounded) : [];
+  const persistence = await persistInspection({ inspectionId, input, imageCount: images.length, storage, provider: gemini, recommendations });
+  const storageMetadata = {
+    inspection_id: inspectionId,
+    comparison_status: comparison.status,
+    storage_status: storage.status,
+    stored_image_count: storage.images.length,
+    image_storage_failures: storage.failures.map((failure) => failure.imageOrder),
+    persistence_status: persistence.status,
+  };
+  if (!gemini.success || !grounded) return NextResponse.json({error:gemini.error || 'AI photo analysis could not be completed.',...storageMetadata},{status:502});
+  return NextResponse.json({...grounded,...storageMetadata,recommendations});
 }
