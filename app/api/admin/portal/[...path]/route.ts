@@ -8,7 +8,7 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
     const configuration = assertAdminHost(request);
     if (!configuration.configured) return NextResponse.json({ error: 'The private administration portal is not configured.' }, { status: 503 });
     const session = sessionForRequest(request);
-    if (!session) return NextResponse.json({ error: 'Sign in with your Crop Life Microsoft account.' }, { status: 401 });
+    if (!session) return NextResponse.json({ error: 'Sign in to the Crop Life administration portal.' }, { status: 401 });
     const { path } = await context.params;
     if (!path.length || path.some((part) => !/^[A-Za-z0-9_-]+$/.test(part))) return NextResponse.json({ error: 'Invalid administration route.' }, { status: 400 });
     const incoming = new URL(request.url);

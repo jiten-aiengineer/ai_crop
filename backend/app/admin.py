@@ -21,9 +21,13 @@ from .db import connection
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
-CATALOGUE_EDITOR_ROLES = {"catalog_editor", "product_approver"}
-CATALOGUE_READ_ROLES = CATALOGUE_EDITOR_ROLES | {
-    "manager", "mapping_approver", "expert_review_approver", "employee_access_approver"
+CATALOGUE_MANAGER_ROLES = {"catalog_editor", "manager", "catalogue_manager", "senior_catalogue_manager", "managing_director", "product_approver"}
+SENIOR_CATALOGUE_MANAGER_ROLES = {"senior_catalogue_manager"}
+MANAGING_DIRECTOR_ROLES = {"managing_director"}
+PRODUCT_PUBLISHER_ROLES = {"product_approver", "senior_catalogue_manager", "managing_director"}
+MAPPING_PUBLISHER_ROLES = {"mapping_approver", "senior_catalogue_manager", "managing_director"}
+CATALOGUE_READ_ROLES = CATALOGUE_MANAGER_ROLES | {
+    "mapping_approver", "expert_review_approver", "employee_access_approver"
 }
 ADMIN_READ_ROLES = CATALOGUE_READ_ROLES | {"super_admin"}
 
@@ -74,7 +78,7 @@ class CatalogueChangeRequest(BaseModel):
 
 
 class ApprovalDecision(BaseModel):
-    decision: Literal["approved", "rejected"]
+    decision: Literal["approved", "rejected", "send_to_md"]
     note: str = Field(default="", max_length=2000)
 
 
@@ -165,9 +169,11 @@ def current_admin(identity: AdminIdentity = Depends(_identity)):
         "capabilities": {
             "view_overview": True,
             "view_catalogue": _can(identity, CATALOGUE_READ_ROLES),
-            "submit_catalogue_changes": _can(identity, CATALOGUE_EDITOR_ROLES),
-            "decide_product_changes": _can(identity, {"product_approver"}),
-            "decide_crop_mappings": _can(identity, {"mapping_approver"}),
+            "submit_catalogue_changes": _can(identity, CATALOGUE_MANAGER_ROLES),
+            "decide_product_changes": _can(identity, PRODUCT_PUBLISHER_ROLES),
+            "decide_crop_mappings": _can(identity, MAPPING_PUBLISHER_ROLES),
+            "send_catalogue_changes_to_md": _can(identity, SENIOR_CATALOGUE_MANAGER_ROLES),
+            "finalise_md_catalogue_reviews": _can(identity, MANAGING_DIRECTOR_ROLES),
             "view_inspections": _can(identity, {"manager", "expert_review_approver"}),
             "view_model_observability": _can(identity, {"manager", "expert_review_approver"}),
             "view_employee_access": _can(identity, {"employee_access_approver"}),
@@ -227,7 +233,7 @@ def catalogue_options(identity: AdminIdentity = Depends(_identity)):
 
 @router.post("/catalogue/change-requests", status_code=201)
 def submit_catalogue_change(payload: CatalogueChangeRequest, identity: AdminIdentity = Depends(_identity)):
-    _require(identity, CATALOGUE_EDITOR_ROLES)
+    _require(identity, CATALOGUE_MANAGER_ROLES)
     product = payload.product.model_dump()
     with connection() as conn:
         category = conn.execute("SELECT id FROM product_categories WHERE name = %s", (product["category"],)).fetchone()
@@ -247,8 +253,8 @@ def submit_catalogue_change(payload: CatalogueChangeRequest, identity: AdminIden
         request_id = uuid4()
         conn.execute(
             """
-            INSERT INTO approval_requests(id, entity_type, entity_key, requested_action, proposed_data, status, requested_by)
-            VALUES (%s, 'product_catalogue', %s, %s, %s, 'pending', %s)
+            INSERT INTO approval_requests(id, entity_type, entity_key, requested_action, proposed_data, status, review_stage, requested_by)
+            VALUES (%s, 'product_catalogue', %s, %s, %s, 'pending', 'senior_manager', %s)
             """,
             (request_id, product["product_id"], action, Jsonb(proposed), identity.id),
         )
@@ -266,7 +272,7 @@ def approval_requests(
     with connection() as conn:
         rows = conn.execute(
             """
-            SELECT ar.id, ar.entity_key, ar.requested_action, ar.proposed_data, ar.status,
+            SELECT ar.id, ar.entity_key, ar.requested_action, ar.proposed_data, ar.status, ar.review_stage,
                    ar.decision_note, ar.requested_at, ar.decided_at,
                    requestor.full_name AS requested_by_name, requestor.office_email AS requested_by_email,
                    decider.full_name AS decided_by_name
@@ -284,7 +290,6 @@ def approval_requests(
 
 @router.post("/approvals/{request_id}/decision")
 def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identity: AdminIdentity = Depends(_identity)):
-    _require(identity, {"product_approver"})
     with connection() as conn:
         request = conn.execute(
             """
@@ -296,7 +301,30 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
         ).fetchone()
         if not request:
             raise HTTPException(status_code=404, detail="Pending catalogue approval request not found.")
-        if request["requested_by"] == identity.id and "super_admin" not in identity.roles:
+
+        review_stage = request["review_stage"] or "senior_manager"
+        if decision.decision == "send_to_md":
+            _require(identity, SENIOR_CATALOGUE_MANAGER_ROLES)
+            if review_stage != "senior_manager":
+                raise HTTPException(status_code=409, detail="This request is already with the Managing Director or has been decided.")
+            note = decision.note.strip() or None
+            conn.execute(
+                "UPDATE approval_requests SET review_stage = 'managing_director', decision_note = %s WHERE id = %s",
+                (note, request_id),
+            )
+            _audit(conn, identity.id, "send_catalogue_change_to_managing_director", "approval_request", str(request_id), {"review_stage": review_stage}, {"review_stage": "managing_director", "note": note})
+            conn.commit()
+            return {"id": str(request_id), "status": "pending", "review_stage": "managing_director"}
+
+        if review_stage == "managing_director":
+            _require(identity, MANAGING_DIRECTOR_ROLES)
+        else:
+            _require(identity, PRODUCT_PUBLISHER_ROLES)
+
+        # A normal product approver remains independent. Senior catalogue managers,
+        # the Managing Director and the super administrator may directly publish as
+        # explicitly authorised by the company's workflow.
+        if request["requested_by"] == identity.id and not _can(identity, SENIOR_CATALOGUE_MANAGER_ROLES | MANAGING_DIRECTOR_ROLES):
             raise HTTPException(status_code=403, detail="A separate authorised person must approve your own change.")
 
         proposed = request["proposed_data"]
@@ -310,7 +338,7 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
             (product["product_id"],),
         ).fetchall()
         has_mapping_change = {row["name"] for row in existing_crops} != set(requested_crops)
-        if has_mapping_change and not _can(identity, {"mapping_approver"}):
+        if has_mapping_change and not _can(identity, MAPPING_PUBLISHER_ROLES):
             raise HTTPException(status_code=403, detail="This request changes crop mappings and also requires Mapping Approver authority.")
 
         if decision.decision == "rejected":

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The administration portal is the controlled source for product information used by Crop Life AI. It is designed for a separate private hostname such as `admin.example.com`, not for the public farmer application.
+The administration portal is the controlled source for product information used by Crop Life AI. During the temporary-domain phase it is available at `https://croplifescience.duckdns.org/admin/portal`; later it can move to a separate private hostname such as `admin.example.com` without changing the data or approval model.
 
 It prevents a product from being recommended simply because it appears in old static application data. Once the private AWS integration is enabled, an inspection follows this route:
 
@@ -29,31 +29,37 @@ If the private catalogue service is configured but unavailable, the inspection r
 | Role | Can do | Cannot do by itself |
 |---|---|---|
 | Field Employee | Use farmer-facing crop tools once employee sign-in is enabled | Access the admin portal. |
-| Manager | View operational overview, inspection/S3 metadata and model observability | Edit or publish catalogue records. |
-| Catalogue Editor | Prepare a new product or amend product facts, dose, uses, image asset and crop selection | Publish the record. |
-| Product Approver | Approve/reject product-master changes | Approve a crop mapping change without Mapping Approver authority. |
-| Mapping Approver | Approve/reject crop applicability changes | Approve product facts without Product Approver authority. |
+| Manager / Catalogue Manager | Prepare a new product or amend product facts, dose, uses, image asset and crop selection | Publish the record or bypass a review. |
+| Senior Catalogue Manager | Directly approve and publish a catalogue change, or route it to the Managing Director | Give a final decision on a request already routed to MD review. |
+| Managing Director | Final approve/reject a request routed by a Senior Catalogue Manager; may directly publish a change | Receive ordinary sales/field-user access to the portal. |
 | Expert Review Approver | View inspection/model operational information; later validate diagnosis labels | Publish catalogue changes. |
 | Employee Access Approver | View employee role/hierarchy directory; later approve access changes | Publish catalogue changes. |
-| Super Administrator | Has all portal permissions | Should still use the approval record for traceability. |
+| Super Administrator | Has all portal permissions, including publish and MD escalation actions | Should still use the approval record for traceability. |
 
-`catalog_editor` is introduced by migration `004_admin_catalogue_governance.sql`. Jiten already has Product Approver, Mapping Approver and Super Administrator roles, so he can use the catalogue workflow after Microsoft sign-in is configured.
+Migration `005_catalogue_hierarchy.sql` adds the catalogue-manager, senior-catalogue-manager and managing-director roles, plus a review-stage record on every catalogue request. Jiten already has Super Administrator rights. Sales officers and field employees have no administration role and cannot open the portal.
 
 ## Catalogue publication workflow
 
 1. A Catalogue Editor opens a current product record or prepares a new one.
 2. The editor records the product facts and selects approved crops.
 3. The application saves an immutable proposal in `approval_requests`; it does not change `products` or `product_crop_mappings` yet.
-4. A Product Approver reviews product information.
-5. If the selected crops differ from the approved map, the approver must also be a Mapping Approver.
-6. On approval, the product is marked `active` and `approved`, the approved crop map is updated, and an audit record is written.
-7. The private inspection service immediately uses the new approved product/crop data.
+4. A Senior Catalogue Manager either publishes the change directly or routes it to the Managing Director.
+5. A request at MD review can only be finally approved or rejected by the Managing Director (or Super Administrator).
+6. If the selected crops differ from the approved map, the publisher must also have mapping authority; Senior Catalogue Manager, Managing Director and Super Administrator roles include this authority.
+7. On approval, the product is marked `active` and `approved`, the approved crop map is updated, and an audit record is written.
+8. The private inspection service immediately uses the new approved product/crop data.
 
 ## Product image handling
 
 The first secure version records an approved application image path, for example `/products/product-name.jpg`, and shows a preview in the portal. This prevents an arbitrary external image URL from being placed in a product record.
 
 For a completely self-service image upload workflow, add a second phase with a private S3 media area, file/virus validation, an approval state and an asset publishing job. Do not place product images in the private inspection-image bucket or make inspection images public.
+
+## Temporary HTTPS login, then Microsoft Entra
+
+Until Microsoft Entra is registered, the HTTPS temporary domain permits one named temporary account for Jiten only. The server stores a salted `scrypt` password hash, uses an HTTP-only secure session cookie, rate-limits failed sign-ins, and refuses password sign-in on non-HTTPS requests. It is not a shared admin key.
+
+When Microsoft Entra is ready, set the Entra values below. Microsoft sign-in then becomes the active sign-in method, while FastAPI continues to check the active employee record and assigned database roles for every request.
 
 ## Secure admin subdomain setup
 
@@ -84,10 +90,13 @@ Set these values on the AWS Node service and FastAPI Docker service. Never commi
 CATALOG_RECOMMENDATION_URL=http://127.0.0.1:8000/api/v1/catalog/recommendations
 INTERNAL_SERVICE_TOKEN=<long-random-shared-internal-token>
 
-# The separate administration hostname
-ADMIN_PORTAL_HOSTNAME=admin.<company-domain>
-ADMIN_PORTAL_ORIGIN=https://admin.<company-domain>
+# The temporary HTTPS hostname (replace later with admin.<company-domain>)
+ADMIN_PORTAL_HOSTNAME=croplifescience.duckdns.org
+ADMIN_PORTAL_ORIGIN=https://croplifescience.duckdns.org
 ADMIN_PORTAL_SESSION_SECRET=<at-least-32-random-characters>
+TEMP_ADMIN_USERNAME=jiten
+TEMP_ADMIN_EMAIL=aiengineer.2@croplifescience.com
+TEMP_ADMIN_PASSWORD_HASH=scrypt$16384$8$1$<salt>$<derived-key>
 ENTRA_TENANT_ID=<Microsoft-Entra-tenant-ID>
 ENTRA_CLIENT_ID=<Microsoft-Entra-application-client-ID>
 ENTRA_CLIENT_SECRET=<Microsoft-Entra-client-secret>
@@ -114,8 +123,8 @@ At the time this portal was added, PostgreSQL contains the supplied baseline cat
 | Item | Current baseline |
 |---|---:|
 | CLSL products | 73 |
-| Active crop master records | 31 |
-| Approved product–crop mappings | 111 |
+| Active crop master records | 413 |
+| Approved product–crop mappings | Managed from the approved PostgreSQL catalogue |
 | Approved product–problem mappings | 204 |
 
 The portal reads these records. It does not invent products, registrations, doses or crop approvals from Gemini output.
