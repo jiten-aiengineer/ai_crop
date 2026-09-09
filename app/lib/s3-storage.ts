@@ -1,4 +1,4 @@
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 /** Server-only private S3 storage for the exact image bytes submitted for an inspection. */
 export const SUPPORTED_INSPECTION_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'] as const;
@@ -114,6 +114,23 @@ export async function deleteInspectionImage(image: Pick<StoredInspectionImage, '
   const config = configuredStorage();
   if (!config || image.bucket !== config.bucket) throw new Error('Private S3 inspection storage is not configured.');
   await clientFor(config).send(new DeleteObjectCommand({ Bucket: image.bucket, Key: image.key }));
+}
+
+/**
+ * Reads one retained inspection image for an already-authorised admin request.
+ * It deliberately returns bytes, not a public or pre-signed S3 URL.
+ */
+export async function readPrivateInspectionImage(image: Pick<StoredInspectionImage, 'bucket' | 'key' | 'mimeType'>) {
+  const config = configuredStorage();
+  if (!config || image.bucket !== config.bucket || !image.key.startsWith(`${config.prefix}/`)) {
+    throw new Error('Private inspection image storage is not configured.');
+  }
+  if (!isSupportedMimeType(image.mimeType)) throw new Error('The stored inspection image type is not supported.');
+  const object = await clientFor(config).send(new GetObjectCommand({ Bucket: image.bucket, Key: image.key }));
+  if (!object.Body) throw new Error('The private inspection image could not be read.');
+  const bytes = await object.Body.transformToByteArray();
+  if (!bytes.byteLength || bytes.byteLength > MAX_INSPECTION_BYTES) throw new Error('The stored inspection image is invalid.');
+  return { bytes, mimeType: image.mimeType };
 }
 
 /**

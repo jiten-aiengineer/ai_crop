@@ -125,7 +125,7 @@ export default function Home() {
   const [view, setView] = useState<View>('home');
   const [result, setResult] = useState<Diagnosis | null>(null);
   const [loading, setLoading] = useState(false);
-  const [analysisSeconds, setAnalysisSeconds] = useState(0);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
   const [error, setError] = useState('');
   const [productQuery, setProductQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<CatalogProduct | null>(null);
@@ -158,7 +158,7 @@ export default function Home() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const saved = localStorage.getItem(THEME_KEY);
-      const initial = saved === 'dark' || saved === 'light' ? saved : document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+      const initial = saved === 'dark' || saved === 'light' ? saved : 'light';
       setTheme(initial);
       document.documentElement.dataset.theme = initial;
     }, 0);
@@ -168,7 +168,11 @@ export default function Home() {
   useEffect(() => {
     if (!loading) return;
     const started = Date.now();
-    const timer = window.setInterval(() => setAnalysisSeconds(Math.floor((Date.now() - started) / 1000)), 250);
+    const timer = window.setInterval(() => {
+      const elapsed = Date.now() - started;
+      const next = Math.min(96, Math.max(1, Math.round(5 + 92 * (1 - Math.exp(-elapsed / 18_000)))));
+      setAnalysisProgress((current) => Math.max(current, next));
+    }, 300);
     return () => window.clearInterval(timer);
   }, [loading]);
 
@@ -198,17 +202,20 @@ export default function Home() {
       setError(language === 'en' ? 'These photos are too large together. Please select fewer photos or use JPG images.' : t.safety);
       return;
     }
-    setAnalysisSeconds(0); setLoading(true); setError('');
+    setAnalysisProgress(1); setLoading(true); setError('');
     const body = new FormData(form); body.set('language', language); files.forEach((file) => body.append('images', file));
     try {
       const response = await fetch('/api/inspect', { method: 'POST', body });
       const data = await readApiResponse<Diagnosis>(response);
       if (!response.ok) throw new Error(data.error || 'Unable to analyse these images.');
+      setAnalysisProgress(100);
+      // Let the farmer see the completed state before the diagnosis replaces it.
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 180));
       setResult(data);
       const record: StoredInspection = { id: createClientId(), createdAt: new Date().toISOString(), crop: data.crop || 'Unknown crop', issue: data.likely_issue || 'No clear issue', confidence: data.confidence, summary: data.summary, result: data };
       setHistory((previous) => { const next = [record, ...previous].slice(0, 50); localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); return next; });
     } catch (problem) { setError(problem instanceof Error ? problem.message : 'Unable to analyse these images.'); }
-    finally { setLoading(false); setAnalysisSeconds(0); }
+    finally { setLoading(false); setAnalysisProgress(0); }
   };
 
   return <main className="app-shell">
@@ -216,7 +223,7 @@ export default function Home() {
     <TopWeatherBar location={profile.city || profile.location} openProfile={() => setProfileOpen(true)} t={t} />
     <div className="mascot-file-inputs" aria-hidden="true"><input ref={mascotCameraRef} tabIndex={-1} type="file" accept="image/*" capture="environment" onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /><input ref={mascotUploadRef} tabIndex={-1} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /></div>
     {view === 'home' && <HomeView nav={nav} t={t} language={language} location={profile.city || profile.location} mascotPreparing={mascotPreparing} takePhoto={() => mascotCameraRef.current?.click()} uploadPhotos={() => mascotUploadRef.current?.click()} />}
-    {view === 'inspect' && <section className="workspace"><PageTitle eyebrow={t.doctor} title={t.inspectHeading} text={t.inspectIntro} /><div className="inspection-layout"><div className="inspect-card large"><InspectionForm inputRef={inputRef} files={files} setFiles={setFiles} onAnalyse={analyse} loading={loading} analysisSeconds={analysisSeconds} error={error} t={t} /></div><Tips t={t} /></div>{result && <Result result={result} profile={profile} onClose={() => setResult(null)} openProfile={() => setProfileOpen(true)} openProducts={openProducts} openProduct={setSelectedProduct} nav={nav} t={t} />}</section>}
+    {view === 'inspect' && <section className="workspace"><PageTitle eyebrow={t.doctor} title={t.inspectHeading} text={t.inspectIntro} /><div className="inspection-layout"><div className="inspect-card large"><InspectionForm inputRef={inputRef} files={files} setFiles={setFiles} onAnalyse={analyse} loading={loading} analysisProgress={analysisProgress} error={error} t={t} /></div><Tips t={t} /></div>{result && <Result result={result} profile={profile} onClose={() => setResult(null)} openProfile={() => setProfileOpen(true)} openProducts={openProducts} openProduct={setSelectedProduct} nav={nav} t={t} />}</section>}
     {view === 'assistant' && <Assistant openProduct={setSelectedProduct} language={language} t={t} />}
     {view === 'products' && <Products initialQuery={productQuery} onQuery={setProductQuery} openProduct={setSelectedProduct} t={t} />}
     {view === 'tools' && <FarmTools language={language} />}
@@ -275,7 +282,7 @@ function MascotGuide({ t, preparing, takePhoto, uploadPhotos, ask }: { t: Copy; 
 function Quick(props: { featured?: boolean; icon: string; label: string; title: string; text: string; onClick: () => void }) { return <button onClick={props.onClick} className={`quick-card ${props.featured ? 'featured' : ''}`}><span className="quick-icon">{props.icon}</span><div><small>{props.label}</small><h3>{props.title}</h3><p>{props.text}</p></div><b>→</b></button>; }
 function PageTitle({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) { return <div className="page-title"><p className="eyebrow"><span />{eyebrow}</p><h1>{title}</h1><p>{text}</p></div>; }
 
-function InspectionForm({ inputRef, files, setFiles, onAnalyse, loading, analysisSeconds, error, t }: { inputRef: RefObject<HTMLInputElement | null>; files: File[]; setFiles: (files: File[]) => void; onAnalyse: (form: HTMLFormElement) => Promise<void>; loading: boolean; analysisSeconds: number; error: string; t: Copy }) {
+function InspectionForm({ inputRef, files, setFiles, onAnalyse, loading, analysisProgress, error, t }: { inputRef: RefObject<HTMLInputElement | null>; files: File[]; setFiles: (files: File[]) => void; onAnalyse: (form: HTMLFormElement) => Promise<void>; loading: boolean; analysisProgress: number; error: string; t: Copy }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const [preparing, setPreparing] = useState(false);
   const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void onAnalyse(event.currentTarget); };
@@ -286,9 +293,9 @@ function InspectionForm({ inputRef, files, setFiles, onAnalyse, loading, analysi
     try { setFiles(await Promise.all(picked.map(optimiseImage))); }
     finally { setPreparing(false); }
   };
-  const stage = analysisSeconds < 4 ? t.stageIdentify : analysisSeconds < 8 ? t.stageClassify : analysisSeconds < 11 ? t.stageMatch : t.stageFinal;
+  const stage = analysisProgress < 28 ? t.stageIdentify : analysisProgress < 56 ? t.stageClassify : analysisProgress < 82 ? t.stageMatch : t.stageFinal;
   const inputChange = (event: ChangeEvent<HTMLInputElement>) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseFiles(selected); };
-  return <form onSubmit={submit}><div className="card-heading"><span className="step-badge">01</span><div><h2>{t.addPhotos}</h2><p>{t.upToFive}</p></div></div><div className={`upload-zone ${files.length ? 'has-files' : ''}`}><input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={inputChange} /><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={inputChange} /><span className="upload-icon">⌾</span><strong>{preparing ? t.preparing : files.length ? `${files.length} ${t.ready}` : t.upload}</strong><small>{preparing ? t.faster : files.length ? files.map((file) => file.name).join(' · ') : t.photoSourceHelp}</small><div className="photo-source-actions"><button type="button" onClick={() => cameraRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">⌾</span>{t.takeNewPhoto}</button><button type="button" className="gallery" onClick={() => inputRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">▧</span>{t.chooseGallery}</button></div></div>{files.length > 0 && <div className="file-list">{files.map((file, index) => <span key={`${file.name}-${index}`}>{index + 1}. {file.name}<button type="button" onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button></span>)}</div>}<div className="form-row"><label><span>{t.crop} <small>CIB&RC crop map</small></span><select name="crop" defaultValue=""><option value="">{t.identify}</option>{catalogCrops.map((crop) => <option key={crop}>{crop}</option>)}</select></label><label><span>{t.location} <small>{t.optional}</small></span><input name="location" placeholder="Ahmedabad, Gujarat" /></label></div><label className="full-field"><span>{t.notice} <small>{t.optional}</small></span><textarea name="description" placeholder={t.noticePlaceholder} /></label>{error && <p className="form-error">{error}</p>}{loading && <div className="analysis-progress" role="status" aria-live="polite"><div><span>{t.detailedAnalysis}</span><b>{analysisSeconds}s <small>{t.aboutTen}</small></b></div><div className="analysis-track"><i style={{ width: `${Math.min(95, Math.max(7, analysisSeconds * 10))}%` }} /></div><div className="analysis-mascot"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><p><b>{t.mascotAnalysing}</b><span>{stage}</span></p></div></div>}<button className="primary-button" disabled={!files.length || loading || preparing}>{loading ? `${t.analysing} ${analysisSeconds}s` : preparing ? t.preparing : t.analyse} <span>{loading || preparing ? '◌' : '→'}</span></button><p className="safety-note">{t.safety}</p></form>;
+  return <form onSubmit={submit}><div className="card-heading"><span className="step-badge">01</span><div><h2>{t.addPhotos}</h2><p>{t.upToFive}</p></div></div><div className={`upload-zone ${files.length ? 'has-files' : ''}`}><input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={inputChange} /><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={inputChange} /><span className="upload-icon">⌾</span><strong>{preparing ? t.preparing : files.length ? `${files.length} ${t.ready}` : t.upload}</strong><small>{preparing ? t.faster : files.length ? files.map((file) => file.name).join(' · ') : t.photoSourceHelp}</small><div className="photo-source-actions"><button type="button" onClick={() => cameraRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">⌾</span>{t.takeNewPhoto}</button><button type="button" className="gallery" onClick={() => inputRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">▧</span>{t.chooseGallery}</button></div></div>{files.length > 0 && <div className="file-list">{files.map((file, index) => <span key={`${file.name}-${index}`}>{index + 1}. {file.name}<button type="button" onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button></span>)}</div>}<div className="form-row"><label><span>{t.crop} <small>CIB&RC crop map</small></span><select name="crop" defaultValue=""><option value="">{t.identify}</option>{catalogCrops.map((crop) => <option key={crop}>{crop}</option>)}</select></label><label><span>{t.location} <small>{t.optional}</small></span><input name="location" placeholder="Ahmedabad, Gujarat" /></label></div><label className="full-field"><span>{t.notice} <small>{t.optional}</small></span><textarea name="description" placeholder={t.noticePlaceholder} /></label>{error && <p className="form-error">{error}</p>}{loading && <div className="analysis-progress" role="status" aria-live="polite"><div><span>{t.detailedAnalysis}</span><b>{analysisProgress}%</b></div><div className="analysis-track"><i style={{ width: `${analysisProgress}%` }} /></div><div className="analysis-mascot"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><p><b>{t.mascotAnalysing}</b><span>{stage}</span></p></div></div>}<button className="primary-button" disabled={!files.length || loading || preparing}>{loading ? `${t.analysing} ${analysisProgress}%` : preparing ? t.preparing : t.analyse} <span>{loading || preparing ? '◌' : '→'}</span></button><p className="safety-note">{t.safety}</p></form>;
 }
 function Tips({ t }: { t: Copy }) { return <aside className="tips"><h3>{t.tips}</h3><ol><li><b>{t.wholePlant}</b><span>{t.wholePlantHelp}</span></li><li><b>{t.affectedArea}</b><span>{t.affectedHelp}</span></li><li><b>{t.underside}</b><span>{t.undersideHelp}</span></li></ol><div className="privacy-box"><b>{t.cropData}</b><p>{t.privacy}</p></div><div className="source-seal"><b>{t.catalogGrounded}</b><span>{t.catalogLimit}</span></div></aside>; }
 

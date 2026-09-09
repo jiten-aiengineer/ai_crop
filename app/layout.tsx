@@ -6,6 +6,7 @@ import './marketplace.css';
 import './tools.css';
 import './dark-mode.css';
 import './admin-portal.css';
+import './admin-enhancements.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -41,10 +42,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fffefa' },
-    { media: '(prefers-color-scheme: dark)', color: '#0d1712' },
-  ],
+  themeColor: '#fffefa',
 };
 
 export default function RootLayout({
@@ -55,7 +53,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('crop-life-ai-theme-v1');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch(e){}" }} />
+        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('crop-life-ai-theme-v1');document.documentElement.dataset.theme=t==='dark'||t==='light'?t:'light'}catch(e){document.documentElement.dataset.theme='light'}" }} />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

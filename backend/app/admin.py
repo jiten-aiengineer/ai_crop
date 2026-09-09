@@ -30,6 +30,12 @@ CATALOGUE_READ_ROLES = CATALOGUE_MANAGER_ROLES | {
     "mapping_approver", "expert_review_approver", "employee_access_approver"
 }
 ADMIN_READ_ROLES = CATALOGUE_READ_ROLES | {"super_admin"}
+INSPECTION_REVIEW_ROLES = {"manager", "expert_review_approver"}
+ASSIGNABLE_ROLE_CODES = {
+    "field_employee", "manager", "catalog_editor", "catalogue_manager",
+    "senior_catalogue_manager", "managing_director", "product_approver",
+    "mapping_approver", "expert_review_approver", "employee_access_approver",
+}
 
 
 class AdminIdentity(BaseModel):
@@ -80,6 +86,21 @@ class CatalogueChangeRequest(BaseModel):
 class ApprovalDecision(BaseModel):
     decision: Literal["approved", "rejected", "send_to_md"]
     note: str = Field(default="", max_length=2000)
+
+
+class EmployeeRoleAssignment(BaseModel):
+    roles: list[str] = Field(default_factory=list, max_length=len(ASSIGNABLE_ROLE_CODES))
+
+    @field_validator("roles")
+    @classmethod
+    def known_unique_roles(cls, values: list[str]) -> list[str]:
+        cleaned = [value.strip() for value in values if value.strip()]
+        if len(set(cleaned)) != len(cleaned):
+            raise ValueError("Each role can be selected only once.")
+        unknown = sorted(set(cleaned) - ASSIGNABLE_ROLE_CODES)
+        if unknown:
+            raise ValueError(f"Unknown or protected roles: {', '.join(unknown)}")
+        return cleaned
 
 
 def _identity(
@@ -174,9 +195,10 @@ def current_admin(identity: AdminIdentity = Depends(_identity)):
             "decide_crop_mappings": _can(identity, MAPPING_PUBLISHER_ROLES),
             "send_catalogue_changes_to_md": _can(identity, SENIOR_CATALOGUE_MANAGER_ROLES),
             "finalise_md_catalogue_reviews": _can(identity, MANAGING_DIRECTOR_ROLES),
-            "view_inspections": _can(identity, {"manager", "expert_review_approver"}),
-            "view_model_observability": _can(identity, {"manager", "expert_review_approver"}),
+            "view_inspections": _can(identity, INSPECTION_REVIEW_ROLES),
+            "view_model_observability": _can(identity, INSPECTION_REVIEW_ROLES),
             "view_employee_access": _can(identity, {"employee_access_approver"}),
+            "manage_employee_roles": _can(identity, {"super_admin"}),
         },
     }
 
@@ -407,7 +429,7 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
 
 @router.get("/inspections")
 def inspection_activity(identity: AdminIdentity = Depends(_identity)):
-    _require(identity, {"manager", "expert_review_approver"})
+    _require(identity, INSPECTION_REVIEW_ROLES)
     with connection() as conn:
         rows = conn.execute(
             """
@@ -415,22 +437,56 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
                    i.image_storage_status, i.image_storage_failures, i.failure_message,
                    count(ii.id) FILTER (WHERE ii.retention_status = 'retained') AS retained_images,
                    COALESCE(sum(ii.byte_size) FILTER (WHERE ii.retention_status = 'retained'), 0) AS retained_bytes,
+                   COALESCE(array_agg(DISTINCT ii.image_order) FILTER (WHERE ii.retention_status = 'retained' AND ii.storage_provider = 's3'), '{}') AS image_orders,
                    COALESCE(jsonb_agg(DISTINCT apr.provider) FILTER (WHERE apr.provider IS NOT NULL), '[]'::jsonb) AS providers,
-                   COALESCE(jsonb_agg(DISTINCT ir.product_id) FILTER (WHERE ir.product_id IS NOT NULL), '[]'::jsonb) AS suggested_product_ids
+                   COALESCE(jsonb_agg(DISTINCT ir.product_id) FILTER (WHERE ir.product_id IS NOT NULL), '[]'::jsonb) AS suggested_product_ids,
+                   prediction.crop_text AS detected_crop, prediction.issue_name AS probable_issue,
+                   prediction.issue_type AS issue_type, prediction.severity AS severity,
+                   prediction.confidence AS confidence, prediction.summary AS summary,
+                   prediction.recommended_next_action AS recommended_next_action
             FROM inspections i
             LEFT JOIN inspection_images ii ON ii.inspection_id = i.id
             LEFT JOIN ai_provider_results apr ON apr.inspection_id = i.id
             LEFT JOIN inspection_recommendations ir ON ir.inspection_id = i.id
-            GROUP BY i.id
+            LEFT JOIN LATERAL (
+                SELECT crop_text, issue_name, issue_type, severity, confidence, summary, recommended_next_action
+                FROM ai_predictions prediction
+                WHERE prediction.inspection_id = i.id AND prediction.provider = 'gemini'
+                ORDER BY prediction.created_at DESC
+                LIMIT 1
+            ) prediction ON true
+            GROUP BY i.id, prediction.crop_text, prediction.issue_name, prediction.issue_type,
+                     prediction.severity, prediction.confidence, prediction.summary, prediction.recommended_next_action
             ORDER BY i.created_at DESC LIMIT 200
             """
         ).fetchall()
     return {"items": rows}
 
 
+@router.get("/inspections/{inspection_id}/images/{image_order}")
+def inspection_image_metadata(inspection_id: UUID, image_order: int, identity: AdminIdentity = Depends(_identity)):
+    _require(identity, INSPECTION_REVIEW_ROLES)
+    if image_order < 1 or image_order > 5:
+        raise HTTPException(status_code=404, detail="Retained inspection image not found.")
+    with connection() as conn:
+        image = conn.execute(
+            """
+            SELECT storage_bucket, storage_key, content_type, byte_size, image_order
+            FROM inspection_images
+            WHERE inspection_id = %s AND image_order = %s AND storage_provider = 's3'
+              AND retention_status = 'retained'
+            LIMIT 1
+            """,
+            (inspection_id, image_order),
+        ).fetchone()
+    if not image or not image["storage_bucket"] or not image["storage_key"]:
+        raise HTTPException(status_code=404, detail="Retained inspection image not found.")
+    return {"bucket": image["storage_bucket"], "key": image["storage_key"], "mime_type": image["content_type"], "byte_size": image["byte_size"], "image_order": image["image_order"]}
+
+
 @router.get("/models")
 def model_observability(identity: AdminIdentity = Depends(_identity)):
-    _require(identity, {"manager", "expert_review_approver"})
+    _require(identity, INSPECTION_REVIEW_ROLES)
     with connection() as conn:
         providers = conn.execute(
             """
@@ -476,4 +532,27 @@ def employee_access(identity: AdminIdentity = Depends(_identity)):
             ORDER BY e.full_name
             """
         ).fetchall()
-    return {"items": rows}
+    return {"items": rows, "assignable_role_codes": sorted(ASSIGNABLE_ROLE_CODES)}
+
+
+@router.put("/access/employees/{employee_id}/roles")
+def set_employee_roles(employee_id: UUID, payload: EmployeeRoleAssignment, identity: AdminIdentity = Depends(_identity)):
+    _require(identity, {"super_admin"})
+    with connection() as conn:
+        employee = conn.execute("SELECT id, employee_code, full_name FROM employees WHERE id = %s FOR UPDATE", (employee_id,)).fetchone()
+        if not employee:
+            raise HTTPException(status_code=404, detail="Employee not found.")
+        existing = conn.execute("SELECT role_code FROM employee_roles WHERE employee_id = %s ORDER BY role_code", (employee_id,)).fetchall()
+        old_roles = [row["role_code"] for row in existing]
+        # Super Administrator is intentionally protected from browser editing.
+        # Jiten's emergency access cannot be removed or granted from this screen.
+        conn.execute("DELETE FROM employee_roles WHERE employee_id = %s AND role_code <> 'super_admin'", (employee_id,))
+        for role in payload.roles:
+            conn.execute(
+                "INSERT INTO employee_roles(employee_id, role_code) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                (employee_id, role),
+            )
+        new_roles = conn.execute("SELECT role_code FROM employee_roles WHERE employee_id = %s ORDER BY role_code", (employee_id,)).fetchall()
+        _audit(conn, identity.id, "update_employee_roles", "employee", employee["employee_code"], {"roles": old_roles}, {"roles": [row["role_code"] for row in new_roles]})
+        conn.commit()
+    return {"id": str(employee_id), "employee_code": employee["employee_code"], "roles": [row["role_code"] for row in new_roles]}
