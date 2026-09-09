@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { catalogCropName, catalogRecommendations } from '../../lib/catalog';
+import { catalogCropName } from '../../lib/catalog';
+import { approvedCatalogueRecommendations } from '../../lib/database-catalog';
 import { geminiInspection, legacyDiagnosis, queueShadow, InspectionInput } from '../../lib/inspection-ai';
 import { persistInspection } from '../../lib/inspection-persistence';
 import { storeInspectionImages } from '../../lib/s3-storage';
@@ -38,7 +39,10 @@ export async function POST(request: Request) {
   const comparison = await queueShadow(input,gemini,inspectionId);
   const diagnosis = gemini.success && gemini.diagnosis ? legacyDiagnosis(gemini.diagnosis) : undefined;
   const grounded = diagnosis ? {...diagnosis,catalog_crop:catalogCropName(input.context.crop || diagnosis.crop)} : undefined;
-  const recommendations = grounded ? catalogRecommendations(grounded) : [];
+  const catalogue = grounded
+    ? await approvedCatalogueRecommendations(grounded)
+    : { recommendations: [], source: 'catalogue_unavailable' as const };
+  const recommendations = catalogue.recommendations;
   const persistence = await persistInspection({ inspectionId, input, imageCount: images.length, storage, provider: gemini, recommendations });
   const storageMetadata = {
     inspection_id: inspectionId,
@@ -49,5 +53,5 @@ export async function POST(request: Request) {
     persistence_status: persistence.status,
   };
   if (!gemini.success || !grounded) return NextResponse.json({error:gemini.error || 'AI photo analysis could not be completed.',...storageMetadata},{status:502});
-  return NextResponse.json({...grounded,...storageMetadata,recommendations});
+  return NextResponse.json({...grounded,...storageMetadata,recommendations,catalogue_source:catalogue.source});
 }

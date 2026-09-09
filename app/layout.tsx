@@ -5,6 +5,7 @@ import './branding.css';
 import './marketplace.css';
 import './tools.css';
 import './dark-mode.css';
+import './admin-portal.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

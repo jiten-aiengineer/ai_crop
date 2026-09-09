@@ -6,11 +6,14 @@ from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from psycopg.types.json import Jsonb
 
-from .config import INSPECTION_PERSISTENCE_TOKEN
+from .catalog_engine import recommend
+from .config import INTERNAL_SERVICE_TOKEN
 from .db import connection
+from .admin import router as admin_router
 
 
 app = FastAPI(title="Crop Life AI API", version="0.1.0")
+app.include_router(admin_router)
 
 
 class InspectionContext(BaseModel):
@@ -68,10 +71,10 @@ class InspectionPersistencePayload(BaseModel):
     recommendations: list[RecommendationPayload] = Field(default_factory=list, max_length=12)
 
 
-def _require_persistence_token(value: str | None):
-    if not INSPECTION_PERSISTENCE_TOKEN:
+def _require_internal_service_token(value: str | None):
+    if not INTERNAL_SERVICE_TOKEN:
         raise HTTPException(status_code=503, detail="Inspection persistence is not configured.")
-    if not value or not hmac.compare_digest(value, INSPECTION_PERSISTENCE_TOKEN):
+    if not value or not hmac.compare_digest(value, INTERNAL_SERVICE_TOKEN):
         raise HTTPException(status_code=401, detail="Inspection persistence is unauthorized.")
 
 
@@ -122,7 +125,7 @@ def list_products(
     category: str = Query(default="", max_length=80),
     limit: int = Query(default=50, ge=1, le=100),
 ):
-    filters = ["p.status = 'active'"]
+    filters = ["p.status = 'active'", "p.approval_status = 'approved'"]
     params: list[object] = []
     if search.strip():
         params.append(f"%{search.strip()}%")
@@ -149,6 +152,30 @@ def list_products(
     return {"items": rows, "count": len(rows)}
 
 
+class CatalogRecommendationInput(BaseModel):
+    crop: str = Field(default="", max_length=160)
+    catalog_crop: str = Field(default="", max_length=160)
+    likely_issue: str = Field(default="", max_length=300)
+    issue_type: str = Field(default="", max_length=64)
+    observed_symptoms: list[str] = Field(default_factory=list, max_length=30)
+    probable_causes: list[str] = Field(default_factory=list, max_length=30)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    additional_information_required: bool = False
+    issue_detected: bool = False
+
+
+@app.post("/api/v1/catalog/recommendations")
+def catalogue_recommendations(
+    payload: CatalogRecommendationInput,
+    x_inspection_persistence_token: str | None = Header(default=None),
+):
+    """Return recommendations from approved database catalogue records only."""
+    _require_internal_service_token(x_inspection_persistence_token)
+    with connection() as conn:
+        items = recommend(conn, payload.model_dump())
+    return {"items": items, "source": "approved_postgresql_catalogue"}
+
+
 @app.post("/api/v1/inspections/persist", status_code=201)
 def persist_inspection(
     payload: InspectionPersistencePayload,
@@ -160,7 +187,7 @@ def persist_inspection(
     returns an S3 URL, and it is unavailable until a shared internal token is
     explicitly configured on both the frontend service and this API container.
     """
-    _require_persistence_token(x_inspection_persistence_token)
+    _require_internal_service_token(x_inspection_persistence_token)
     diagnosis = payload.provider.diagnosis or {}
     detected_crop = _clean(diagnosis.get("crop"), 160)
     probable_issue = _clean(diagnosis.get("probable_issue"), 180)
