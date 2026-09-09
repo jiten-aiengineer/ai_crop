@@ -147,7 +147,11 @@ export async function storeInspectionImages(inspectionId: string, images: Inspec
   const outcomes = await Promise.all(images.map(async (image) => {
     try {
       return { image: await uploadInspectionImage(inspectionId, image), failure: undefined };
-    } catch {
+    } catch (error) {
+      // Keep detailed storage diagnostics on the server only. Farmers receive
+      // the safe archive warning, while operators can resolve a failed upload.
+      const detail = error instanceof Error ? { name: error.name, message: error.message } : { name: 'UnknownError', message: 'No error details were available.' };
+      console.error('Private S3 inspection image upload failed.', { inspectionId, imageOrder: image.imageOrder, ...detail });
       return { image: undefined, failure: { imageOrder: image.imageOrder, code: 'upload_failed' as const } };
     }
   }));
