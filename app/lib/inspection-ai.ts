@@ -31,7 +31,7 @@ export async function geminiInspection(input: InspectionInput): Promise<Provider
     if (process.env.GEMINI_ENABLED === 'false' || !apiKey) throw new Error('Gemini is not configured or is disabled.');
     const request = () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST', headers: { 'Content-Type':'application/json', 'x-goog-api-key':apiKey }, signal: AbortSignal.timeout(45_000),
-      body: JSON.stringify({ contents:[{role:'user',parts:[...input.images.map((image) => ({inlineData:image})),{text:inspectionPrompt(input)}]}], generationConfig:{temperature:.15,maxOutputTokens:3072,responseMimeType:'application/json',responseJsonSchema:contract.schema} }),
+      body: JSON.stringify({ contents:[{role:'user',parts:[...input.images.map((image) => ({inlineData:image})),{text:inspectionPrompt(input)}]}], generationConfig:{temperature:.15,thinkingConfig:{thinkingLevel:'LOW'},maxOutputTokens:3072,responseMimeType:'application/json',responseJsonSchema:contract.schema} }),
     });
     let response: Response | null = null;
     for (let attempt = 0; attempt < 2; attempt += 1) {
