@@ -1,0 +1,17 @@
+[Unit]
+Description=Crop Life AI private administration frontend
+After=network.target crop-life-ai.service
+Requires=crop-life-ai.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/apps/ai_crop
+Environment=NODE_ENV=production
+EnvironmentFile=/home/ubuntu/apps/ai_crop/.env
+ExecStart=/usr/bin/npm start -- --hostname 127.0.0.1 --port 3100
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

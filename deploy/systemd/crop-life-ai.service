@@ -1,0 +1,17 @@
+[Unit]
+Description=Crop Life AI farmer-facing frontend
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/apps/ai_crop
+Environment=NODE_ENV=production
+EnvironmentFile=/home/ubuntu/apps/ai_crop/.env
+ExecStart=/usr/bin/npm start -- --hostname 127.0.0.1 --port 3000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
