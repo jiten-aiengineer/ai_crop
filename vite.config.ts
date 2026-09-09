@@ -46,6 +46,10 @@ export default defineConfig(async () => {
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
+    // The AWS SDK must run as Node's installed package on the EC2 service.
+    // Bundling it into Vinext's server output caused the S3 signer to fail at
+    // runtime even though the EC2 role itself had working S3 permissions.
+    ssr: { external: ['@aws-sdk/client-s3'] },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,

@@ -7,6 +7,7 @@ import './tools.css';
 import './dark-mode.css';
 import './admin-portal.css';
 import './admin-enhancements.css';
+import './admin-catalogue-enhancements.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

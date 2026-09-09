@@ -1,4 +1,9 @@
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { createRequire } from 'node:module';
+
+// Vinext's server bundle must leave the AWS implementation to Node. Loading
+// through Node's resolver avoids a bundled signer that fails at runtime on EC2.
+const nodeRequire = createRequire(import.meta.url);
+const s3 = nodeRequire('@aws-sdk/client-s3') as typeof import('@aws-sdk/client-s3');
 
 /** Server-only private S3 storage for the exact image bytes submitted for an inspection. */
 export const SUPPORTED_INSPECTION_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'] as const;
@@ -34,7 +39,7 @@ type S3StorageConfig = { region: string; bucket: string; prefix: string };
 
 const MAX_IMAGES_PER_INSPECTION = 5;
 const MAX_INSPECTION_BYTES = 4 * 1024 * 1024;
-let client: S3Client | undefined;
+let client: import('@aws-sdk/client-s3').S3Client | undefined;
 
 function trim(value: string | undefined) {
   return value?.trim() || '';
@@ -73,7 +78,7 @@ function isSupportedMimeType(value: string): value is InspectionImageMimeType {
 function clientFor(config: S3StorageConfig) {
   // Do not pass credentials here. On EC2 the AWS SDK obtains temporary
   // credentials from CropLifeAIAppRole via its default credential provider chain.
-  client ||= new S3Client({ region: config.region });
+  client ||= new s3.S3Client({ region: config.region });
   return client;
 }
 
@@ -98,7 +103,7 @@ export async function uploadInspectionImage(inspectionId: string, image: Inspect
   }
 
   const key = `${inspectionImageKey(config, inspectionId, image.imageOrder, now)}.${extensionFor(image.mimeType)}`;
-  await clientFor(config).send(new PutObjectCommand({
+  await clientFor(config).send(new s3.PutObjectCommand({
     Bucket: config.bucket,
     Key: key,
     Body: image.bytes,
@@ -113,7 +118,7 @@ export async function uploadInspectionImage(inspectionId: string, image: Inspect
 export async function deleteInspectionImage(image: Pick<StoredInspectionImage, 'bucket' | 'key'>) {
   const config = configuredStorage();
   if (!config || image.bucket !== config.bucket) throw new Error('Private S3 inspection storage is not configured.');
-  await clientFor(config).send(new DeleteObjectCommand({ Bucket: image.bucket, Key: image.key }));
+  await clientFor(config).send(new s3.DeleteObjectCommand({ Bucket: image.bucket, Key: image.key }));
 }
 
 /**
@@ -126,7 +131,7 @@ export async function readPrivateInspectionImage(image: Pick<StoredInspectionIma
     throw new Error('Private inspection image storage is not configured.');
   }
   if (!isSupportedMimeType(image.mimeType)) throw new Error('The stored inspection image type is not supported.');
-  const object = await clientFor(config).send(new GetObjectCommand({ Bucket: image.bucket, Key: image.key }));
+  const object = await clientFor(config).send(new s3.GetObjectCommand({ Bucket: image.bucket, Key: image.key }));
   if (!object.Body) throw new Error('The private inspection image could not be read.');
   const bytes = await object.Body.transformToByteArray();
   if (!bytes.byteLength || bytes.byteLength > MAX_INSPECTION_BYTES) throw new Error('The stored inspection image is invalid.');

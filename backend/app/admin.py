@@ -60,6 +60,9 @@ class CatalogueProductInput(BaseModel):
     image_path: str = Field(default="", max_length=500)
     source_page: int | None = Field(default=None, ge=1, le=10_000)
     catalogue_version: str = Field(default="Admin catalogue", max_length=160)
+    # Inactive products stay in the controlled catalogue, but the farmer-facing
+    # recommendation engine excludes them until they are reactivated and approved.
+    status: Literal["active", "inactive"] = "active"
 
     @field_validator("image_path")
     @classmethod
@@ -210,6 +213,7 @@ def overview(identity: AdminIdentity = Depends(_identity)):
         products = conn.execute(
             """
             SELECT count(*) FILTER (WHERE status = 'active' AND approval_status = 'approved') AS approved,
+                   count(*) FILTER (WHERE status = 'inactive' AND approval_status = 'approved') AS inactive,
                    count(*) FILTER (WHERE approval_status = 'pending') AS pending,
                    count(*) FILTER (WHERE status = 'draft') AS draft
             FROM products
@@ -383,14 +387,14 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
             product["formulation"] or None, product["dose"] or None, product["use_benefits"] or None,
             product["packing"] or None, product["application_method"] or None,
             product["safety_information"] or None, product["image_path"] or None,
-            product["source_page"], product["catalogue_version"] or "Admin catalogue", identity.id,
+            product["source_page"], product["catalogue_version"] or "Admin catalogue", product["status"], identity.id,
         )
         if previous:
             conn.execute(
                 """
                 UPDATE products SET name=%s, category_id=%s, common_name=%s, formulation=%s, dose=%s,
                     use_benefits=%s, packing=%s, application_method=%s, safety_information=%s,
-                    image_path=%s, source_page=%s, catalogue_version=%s, status='active',
+                    image_path=%s, source_page=%s, catalogue_version=%s, status=%s,
                     approval_status='approved', approved_by=%s, approved_at=now(), version=version+1, updated_at=now()
                 WHERE id=%s
                 """,
@@ -403,7 +407,7 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
                     packing, application_method, safety_information, image_path, source_page,
                     catalogue_version, status, approval_status, approved_by, approved_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        'active', 'approved', %s, now())
+                        %s, 'approved', %s, now())
                 """,
                 values,
             )

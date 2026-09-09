@@ -46,6 +46,8 @@ const HISTORY_KEY = 'crop-life-ai-inspections-v1';
 const PROFILE_KEY = 'crop-life-ai-profile-v1';
 const THEME_KEY = 'crop-life-ai-theme-v1';
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+const OPTIMISED_IMAGE_MAX_SIDE = 900;
+const OPTIMISED_IMAGE_MAX_BYTES = 420 * 1024;
 const DEFAULT_PROFILE: Profile = { name: 'Farmer', location: '', state: '', territory: '', city: '', language: 'en' };
 const salesContacts = salesContactData as SalesContact[];
 
@@ -84,13 +86,15 @@ async function optimiseImage(file: File) {
       image.onerror = () => reject(new Error('This photo could not be prepared.'));
     });
     const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
-    if (longestSide <= 1024 && file.size <= 550 * 1024) return file;
-    const scale = Math.min(1, 1024 / longestSide);
+    // The same prepared file is used for Gemini and private S3 storage. Keeping
+    // its edge and byte size modest reduces phone upload and analysis time.
+    if (longestSide <= OPTIMISED_IMAGE_MAX_SIDE && file.size <= OPTIMISED_IMAGE_MAX_BYTES) return file;
+    const scale = Math.min(1, OPTIMISED_IMAGE_MAX_SIDE / longestSide);
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
     canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', .68));
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', .62));
     if (!blob) return file;
     const name = file.name.replace(/\.[^.]+$/, '') || 'crop-photo';
     return new File([blob], `${name}.jpg`, { type: 'image/jpeg', lastModified: file.lastModified });
