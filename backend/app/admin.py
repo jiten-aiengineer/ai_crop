@@ -16,6 +16,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field, field_validator
 from psycopg.types.json import Jsonb
 
@@ -174,7 +175,7 @@ def _audit(conn, actor_id: UUID, action: str, entity_type: str, entity_key: str,
         INSERT INTO audit_logs(id, actor_employee_id, action, entity_type, entity_key, previous_data, new_data)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
         """,
-        (uuid4(), actor_id, action, entity_type, entity_key, Jsonb(previous) if previous is not None else None, Jsonb(new) if new is not None else None),
+        (uuid4(), actor_id, action, entity_type, entity_key, Jsonb(jsonable_encoder(previous)) if previous is not None else None, Jsonb(jsonable_encoder(new)) if new is not None else None),
     )
 
 
