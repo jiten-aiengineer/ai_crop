@@ -31,7 +31,18 @@
 .field-report-filters label { display:grid; gap:7px; font-size:12px; font-weight:600; color:#365347; }
 .field-report-filters input,.field-report-filters select,.field-link-input { width:100%; min-width:0; padding:12px; border:1px solid #d5e2da; border-radius:10px; background:#fff; color:#203b2d; }
 .field-link-input { margin:14px 0; }
-.field-identity-banner { margin:12px auto; padding:12px 18px; max-width:1240px; display:flex; gap:14px; align-items:center; justify-content:space-between; background:#e7f5ec; color:#24543b; border-radius:12px; font-size:13px; }
+.field-link-panel { margin-bottom:18px; border-left:4px solid #3f9564; }
+.field-link-panel>p { color:#60776b; font-size:11px; line-height:1.5; }
+.field-force-table { min-width:1500px; }
+.field-force-table .admin-badge { display:inline-flex; margin-top:7px; }
+.field-identity-banner { margin:12px auto; padding:12px 18px; max-width:1240px; display:flex; gap:14px; align-items:center; background:#e7f5ec; color:#24543b; border:1px solid #c8e5d2; border-radius:12px; font-size:13px; }
+.field-identity-banner .field-avatar { width:38px; height:38px; border-radius:50%; display:grid; place-items:center; flex:none; background:#1d704b; color:#fff; font-size:11px; font-weight:850; }
+.field-identity-banner div { min-width:0; }
+.field-identity-banner small,.field-identity-banner b,.field-identity-banner p { display:block; margin:0; }
+.field-identity-banner small { color:#478064; font-size:8px; font-weight:850; letter-spacing:.12em; }
+.field-identity-banner b { margin-top:2px; font-size:13px; }
+.field-identity-banner p { margin-top:2px; font-size:10px; color:#527565; }
+.field-identity-banner button { margin-left:auto; }
 .field-identity-banner button { white-space:nowrap; padding:7px 10px; border:1px solid #9abbab; border-radius:8px; background:transparent; color:inherit; }
 .admin-photo-grid img { object-fit:contain; max-height:330px; width:100%; }
 .admin-gate-card > label { display:grid; gap:8px; text-align:left; margin:18px 0; }
@@ -42,3 +53,24 @@
 @media (max-width: 780px) {
   .admin-catalogue-filters { grid-template-columns: 1fr; }
 }
+
+.field-photo-contract { margin:0 0 16px; padding:16px; border:1px solid #cfe2d5; border-radius:14px; background:#f6fbf7; }
+.field-photo-contract>header { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px; }
+.field-photo-contract>header small,.field-photo-contract>header b { display:block; }
+.field-photo-contract>header small { color:#3e7a59; font-size:8px; font-weight:850; letter-spacing:.12em; }
+.field-photo-contract>header b { margin-top:3px; font-size:13px; color:#1e4431; }
+.field-photo-contract>header>span { min-width:48px; padding:8px; border-radius:20px; text-align:center; background:#fff0c8; color:#8a6216; font-size:12px; font-weight:850; }
+.field-photo-contract>header>span.complete { background:#d8f2db; color:#27633b; }
+.field-photo-slots { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.field-photo-slots article { min-height:72px; display:grid; grid-template-columns:28px 1fr auto; gap:9px; align-items:center; padding:10px; border:1px dashed #b9cfc0; border-radius:10px; background:#fff; }
+.field-photo-slots article.filled { border-style:solid; border-color:#74b388; background:#eff8f1; }
+.field-photo-slots article>i { width:26px; height:26px; display:grid; place-items:center; border-radius:50%; background:#edf2ef; color:#537064; font-style:normal; font-size:10px; font-weight:850; }
+.field-photo-slots article.filled>i { background:#2b8458; color:#fff; }
+.field-photo-slots b,.field-photo-slots small { display:block; }
+.field-photo-slots b { color:#274735; font-size:10px; }
+.field-photo-slots small { margin-top:3px; color:#718479; font-size:8px; line-height:1.35; overflow:hidden; text-overflow:ellipsis; }
+.field-photo-slots button { border:0; background:transparent; color:#8c5a5a; font-size:17px; cursor:pointer; }
+.field-photo-contract>p { margin:11px 0 0; color:#557164; font-size:9px; }
+.photo-quality-message { margin:9px 0 15px; padding:9px 11px; border-radius:8px; background:#fff0dc; color:#875221; font-size:10px; }
+.photo-quality-message.passed { background:#e7f5ec; color:#286543; }
+@media(max-width:600px){.field-photo-slots{grid-template-columns:1fr}.field-identity-banner p{display:none}.field-identity-banner{border-radius:0;margin:0}.field-identity-banner button{font-size:9px;padding:6px}.field-photo-contract{padding:12px}}

@@ -13,13 +13,19 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   let employeeCode: string | undefined;
-  try { employeeCode = (await fieldIdentityFor(request))?.employee_code; }
+  let collectionMode: 'general_employee' | 'sales_officer' = 'general_employee';
+  try {
+    const identity = await fieldIdentityFor(request);
+    employeeCode = identity?.employee_code;
+    if (identity?.collection_mode === 'sales_officer') collectionMode = 'sales_officer';
+  }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Field access could not be verified.' }, { status: 401 }); }
   let form: FormData;
   try { form = await request.formData(); }
   catch { return NextResponse.json({error:'Send crop photos as form data.'},{status:400}); }
   const images = form.getAll('images').filter((value): value is File => value instanceof File);
   if (!images.length || images.length > 5) return NextResponse.json({error:'Please add between one and five crop photos.'},{status:400});
+  if (collectionMode === 'sales_officer' && images.length < 4) return NextResponse.json({error:'Sales Officer collection mode requires four photos: whole plant, affected part, symptom close-up and another angle.'},{status:400});
   if (images.some((image) => !['image/jpeg','image/png','image/webp','image/heic','image/heif'].includes(image.type) || !image.size) || images.reduce((sum,image) => sum+image.size,0)>4*1024*1024) return NextResponse.json({error:'Use JPG, PNG, WebP or HEIC photos totalling at most 4 MB.'},{status:400});
   const field = (key: string, max: number) => String(form.get(key)||'').slice(0,max);
   const preparedImages = await Promise.all(images.map(async (image, index) => {
@@ -54,7 +60,7 @@ export async function POST(request: Request) {
     ? await approvedCatalogueRecommendations(grounded)
     : { recommendations: [], source: 'catalogue_unavailable' as const };
   const recommendations = catalogue.recommendations;
-  const persistence = await persistInspection({ inspectionId, input, employeeCode, imageCount: images.length, storage, provider: gemini, recommendations });
+  const persistence = await persistInspection({ inspectionId, input, employeeCode, collectionMode, imageCount: images.length, storage, provider: gemini, recommendations });
   const storageMetadata = {
     inspection_id: inspectionId,
     comparison_status: comparison.status,

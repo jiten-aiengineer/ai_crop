@@ -1,5 +1,10 @@
 export const FIELD_COOKIE = 'clsl_field_access';
-export type FieldIdentity = { employee_code: string; full_name: string };
+export type FieldIdentity = {
+  employee_code: string; full_name: string; office_email?: string; office_mobile?: string;
+  designation?: string; department?: string; location?: string; state: string; territory: string;
+  collection_mode: 'sales_officer'; minimum_images: number;
+  daily_inspection_target_min: number; daily_inspection_target_max: number;
+};
 
 export async function resolveFieldToken(token: string): Promise<FieldIdentity> {
   const backend = (process.env.ADMIN_BACKEND_URL || '').replace(/\/$/, '');

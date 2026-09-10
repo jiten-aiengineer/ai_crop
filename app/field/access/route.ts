@@ -8,7 +8,9 @@ export async function GET(request: Request) {
     await resolveFieldToken(token);
     const origin = process.env.ADMIN_PORTAL_ORIGIN || new URL(request.url).origin;
     const response = NextResponse.redirect(new URL('/', origin));
-    response.cookies.set(FIELD_COOKIE, token, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 30 * 86400 });
+    // Browsers cap persistent cookies at roughly 400 days. The private link
+    // itself stays valid until an administrator explicitly rotates/revokes it.
+    response.cookies.set(FIELD_COOKIE, token, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 400 * 86400 });
     response.headers.set('Referrer-Policy', 'no-referrer');
     response.headers.set('Cache-Control', 'no-store');
     return response;

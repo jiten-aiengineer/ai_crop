@@ -1,8 +1,8 @@
-"""Seed the supplied sales-officer territory roster without creating people.
+"""Synchronise confirmed Sales Officers without creating employee records.
 
 The employee database remains the sole source for work contact fields. A
-territory record links only to an exact normalised employee name, so unmatched
-people are surfaced to HR in the portal instead of receiving made-up details.
+Roster spellings are discovery hints only. The visible identity and contact
+fields always come from the HR employee record linked by employee ID.
 """
 
 import json
@@ -31,6 +31,20 @@ def is_sales_employee(employee) -> bool:
     """Use the HR designation as corroboration; never alter the HR record."""
     role_text = normalise(f"{employee['department'] or ''} {employee['designation'] or ''}")
     return 'sales' in role_text or 'territory' in role_text
+
+
+def is_field_sales_officer(employee) -> bool:
+    department = normalise(employee['department'] or '')
+    designation = normalise(employee['designation'] or '')
+    if 'sales' not in department:
+        return False
+    return bool(re.search(r'(^|\s)(sales officer|sales executive|sales trainee|officer|executive)(\s|$)', designation))
+
+
+def territory_label(value: str) -> str:
+    text = re.sub(r'\([^)]*\)', '', value or '').strip()
+    text = re.sub(r'-(?:guj|m\.?p\.?|m\.?h\.?|u\.?p\.?|w\.?b\.?|bihar|patna|c\.?g\.?).*$', '', text, flags=re.I).strip()
+    return text or (value or '').strip() or 'Territory pending HR'
 
 
 def name_score(source_name: str, employee_name: str) -> float:
@@ -84,12 +98,14 @@ def main(seed_path: str) -> None:
     if not isinstance(rows, list):
         raise ValueError("Sales-officer seed must be a JSON array.")
     with connection() as conn:
-        employees = conn.execute("SELECT id, full_name, location, department, designation FROM employees").fetchall()
+        employees = conn.execute("""SELECT id, employee_code, full_name, location, department, designation,
+            payroll_group, source_row, status, hr_sync_state FROM employees WHERE status <> 'inactive'""").fetchall()
+        by_id = {employee['id']: employee for employee in employees}
         matched = 0
         for row in rows:
-            source_name = str(row["name"]).strip()
             employee_id = match_employee(row, employees)
             matched += int(employee_id is not None)
+            official_name = by_id[employee_id]['full_name'] if employee_id else str(row["name"]).strip()
             conn.execute(
                 """
                 INSERT INTO sales_officer_territories(source_row, source_name, state, territory, employee_id, status)
@@ -97,14 +113,38 @@ def main(seed_path: str) -> None:
                 ON CONFLICT (state, territory) DO UPDATE SET
                     source_row = EXCLUDED.source_row,
                     source_name = EXCLUDED.source_name,
-                    employee_id = CASE WHEN sales_officer_territories.match_locked THEN sales_officer_territories.employee_id ELSE EXCLUDED.employee_id END,
+                    employee_id = EXCLUDED.employee_id,
                     status = 'active',
                     updated_at = now()
                 """,
-                (int(row["row"]), source_name, str(row["state"]).strip(), str(row["territory"]).strip(), employee_id),
+                (int(row["row"]), official_name, str(row["state"]).strip(), str(row["territory"]).strip(), employee_id),
             )
+        # Future HR files can add clearly designated field-sales staff without
+        # inventing a second employee. Payroll group supplies the state and the
+        # HR location supplies the territory.
+        linked_ids = {row['employee_id'] for row in conn.execute("SELECT employee_id FROM sales_officer_territories WHERE employee_id IS NOT NULL").fetchall()}
+        roster_rows = conn.execute("SELECT id, employee_id, territory FROM sales_officer_territories").fetchall()
+        added = 0
+        for employee in employees:
+            if employee['id'] in linked_ids or employee['hr_sync_state'] != 'new' or not is_field_sales_officer(employee):
+                continue
+            location_key = city(employee['location'] or '')
+            same_territory = [roster for roster in roster_rows if city(roster['territory']) == location_key]
+            if same_territory:
+                # An occupied territory remains one confirmed assignment; HR can
+                # replace it automatically only when the prior employee is no
+                # longer present in the active employee snapshot.
+                continue
+            state = (employee['payroll_group'] or 'State pending HR').strip()
+            territory = territory_label(employee['location'] or '')
+            conn.execute("""
+                INSERT INTO sales_officer_territories(source_row, source_name, state, territory, employee_id, status, match_locked)
+                VALUES (%s, %s, %s, %s, %s, 'active', true)
+                ON CONFLICT (state, territory) DO NOTHING
+            """, (int(employee['source_row'] or 100000 + added), employee['full_name'], state, territory, employee['id']))
+            linked_ids.add(employee['id']); added += 1
         conn.commit()
-    print(f"Sales-officer roster seeded: {len(rows)} territories; {matched} matched to employee directory.")
+    print(f"Sales-officer roster synchronised: {len(rows)} confirmed territories; {matched} matched; {added} new HR-designated field officers added.")
 
 
 if __name__ == "__main__":

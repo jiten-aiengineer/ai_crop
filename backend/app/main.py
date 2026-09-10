@@ -19,6 +19,7 @@ app.include_router(admin_router)
 
 class InspectionContext(BaseModel):
     employee_code: str = Field(default='', max_length=32)
+    collection_mode: Literal['general_employee', 'sales_officer'] = 'general_employee'
     crop: str = Field(default="", max_length=160)
     plant: str = Field(default="", max_length=160)
     description: str = Field(default="", max_length=4000)
@@ -127,11 +128,25 @@ def field_identity(x_inspection_persistence_token: str | None = Header(default=N
     if not x_clsl_field_token or len(x_clsl_field_token) > 100:
         raise HTTPException(401, 'Open your personal field access link.')
     with connection() as conn:
-        employee = conn.execute("""SELECT e.employee_code, e.full_name FROM field_access_grants g
-            JOIN employees e ON e.id=g.employee_id WHERE g.token_hash=%s AND g.revoked_at IS NULL
-            AND g.expires_at > now() AND e.status='active'""", (hashlib.sha256(x_clsl_field_token.encode()).hexdigest(),)).fetchone()
+        token_hash = hashlib.sha256(x_clsl_field_token.encode()).hexdigest()
+        employee = conn.execute("""
+            SELECT e.employee_code, e.full_name, e.office_email, e.office_mobile,
+                   e.designation, e.department, e.location, roster.state, roster.territory,
+                   'sales_officer' AS collection_mode, 4 AS minimum_images,
+                   2 AS daily_inspection_target_min, 3 AS daily_inspection_target_max
+            FROM field_access_grants grant_record
+            JOIN employees e ON e.id=grant_record.employee_id
+            JOIN sales_officer_territories roster ON roster.employee_id=e.id AND roster.status='active'
+            WHERE grant_record.token_hash=%s AND grant_record.revoked_at IS NULL
+              AND (grant_record.expires_at IS NULL OR grant_record.expires_at > now())
+              AND e.status <> 'inactive'
+            LIMIT 1
+        """, (token_hash,)).fetchone()
+        if employee:
+            conn.execute("UPDATE field_access_grants SET last_used_at=now() WHERE token_hash=%s", (token_hash,))
+            conn.commit()
     if not employee:
-        raise HTTPException(401, 'Your field access has expired. Request a new link from your administrator.')
+        raise HTTPException(401, 'Your field access is invalid or has been revoked. Request a new link from your administrator.')
     return employee
 
 
@@ -192,6 +207,8 @@ def catalogue_recommendations(
 ):
     """Return recommendations from approved database catalogue records only."""
     _require_internal_service_token(x_inspection_persistence_token)
+    if payload.context.collection_mode == 'sales_officer' and payload.photo_count < 4:
+        raise HTTPException(422, 'Sales Officer inspections require all four structured crop photos.')
     with connection() as conn:
         items = recommend(conn, payload.model_dump())
     return {"items": items, "source": "approved_postgresql_catalogue"}
@@ -220,7 +237,7 @@ def persist_inspection(
         crop_id = _crop_id(conn, detected_crop or _clean(payload.context.crop, 160))
         employee_id = None
         if payload.context.employee_code:
-            employee = conn.execute("SELECT id FROM employees WHERE employee_code=%s AND status='active'", (payload.context.employee_code,)).fetchone()
+            employee = conn.execute("SELECT id FROM employees WHERE employee_code=%s AND status <> 'inactive'", (payload.context.employee_code,)).fetchone()
             if not employee:
                 raise HTTPException(422, 'The field employee is not active.')
             employee_id = employee['id']
@@ -229,10 +246,11 @@ def persist_inspection(
             INSERT INTO inspections(
                 id, employee_id, crop_id, farmer_crop_text, plant_text, symptom_notes,
                 location_text, preferred_language, status, photo_count, failure_message,
-                completed_at, image_storage_status, image_storage_failures
+                completed_at, image_storage_status, image_storage_failures,
+                collection_mode, photo_requirements_met, photo_guidance_version
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    CASE WHEN %s = 'completed' THEN now() ELSE NULL END, %s, %s)
+                    CASE WHEN %s = 'completed' THEN now() ELSE NULL END, %s, %s, %s, %s, %s)
             ON CONFLICT (id) DO UPDATE SET
                 employee_id = COALESCE(inspections.employee_id, EXCLUDED.employee_id),
                 crop_id = EXCLUDED.crop_id,
@@ -247,6 +265,9 @@ def persist_inspection(
                 completed_at = EXCLUDED.completed_at,
                 image_storage_status = EXCLUDED.image_storage_status,
                 image_storage_failures = EXCLUDED.image_storage_failures,
+                collection_mode = EXCLUDED.collection_mode,
+                photo_requirements_met = EXCLUDED.photo_requirements_met,
+                photo_guidance_version = EXCLUDED.photo_guidance_version,
                 updated_at = now()
             """,
             (
@@ -264,6 +285,9 @@ def persist_inspection(
                 inspection_status,
                 payload.storage.status,
                 Jsonb([failure.model_dump() for failure in payload.storage.failures]),
+                payload.context.collection_mode,
+                payload.photo_count >= (4 if payload.context.collection_mode == 'sales_officer' else 1),
+                'sales-field-v1' if payload.context.collection_mode == 'sales_officer' else None,
             ),
         )
 
@@ -273,14 +297,15 @@ def persist_inspection(
                 INSERT INTO inspection_images(
                     inspection_id, source, storage_provider, storage_bucket, storage_key,
                     original_filename, content_type, byte_size, image_order,
-                    retention_status, consent_for_training
+                    retention_status, consent_for_training, capture_role
                 )
-                VALUES (%s, 'upload', 's3', %s, %s, NULL, %s, %s, %s, 'retained', false)
+                VALUES (%s, 'upload', 's3', %s, %s, NULL, %s, %s, %s, 'retained', false, %s)
                 ON CONFLICT (storage_key) DO UPDATE SET
                     storage_bucket = EXCLUDED.storage_bucket,
                     content_type = EXCLUDED.content_type,
                     byte_size = EXCLUDED.byte_size,
                     image_order = EXCLUDED.image_order,
+                    capture_role = EXCLUDED.capture_role,
                     retention_status = 'retained',
                     deleted_at = NULL
                 """,
@@ -291,6 +316,8 @@ def persist_inspection(
                     image.mime_type,
                     image.file_size_bytes,
                     image.image_order,
+                    (['whole_plant', 'affected_part', 'symptom_closeup', 'alternate_angle', 'additional'][image.image_order - 1]
+                     if payload.context.collection_mode == 'sales_officer' else None),
                 ),
             )
 

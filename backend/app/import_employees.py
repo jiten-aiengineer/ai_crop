@@ -36,12 +36,15 @@ def main(path_value: str):
     if not rows:
         raise ValueError("Employee import file is empty.")
 
+    import_batch_id = uuid.uuid4()
+    seen_codes: set[str] = set()
     with connection() as conn:
         for row in rows:
             employee_code = clean(row.get("employee_code"))
             full_name = clean(row.get("full_name"))
             if not employee_code or not full_name:
                 continue
+            seen_codes.add(employee_code)
 
             office_email = clean(row.get("office_email"))
             if employee_code.upper() == INITIAL_ADMIN_EMPLOYEE_CODE.upper():
@@ -63,11 +66,37 @@ def main(path_value: str):
                     id, employee_code, full_name, gender, date_of_birth, date_joined,
                     reporting_manager_name, location, department, designation,
                     payroll_group, office_mobile, office_email, personal_mobile,
-                    personal_email, microsoft_upn, status, source_row
+                    personal_email, microsoft_upn, status, source_row,
+                    hr_sync_state, hr_first_seen_at, hr_last_seen_at, hr_last_changed_at, hr_import_batch_id
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s)
+                        %s, %s, %s, %s, %s, %s,
+                        'new', now(), now(), now(), %s)
                 ON CONFLICT (employee_code) DO UPDATE SET
+                    hr_sync_state = CASE WHEN
+                        employees.full_name IS DISTINCT FROM EXCLUDED.full_name OR
+                        employees.reporting_manager_name IS DISTINCT FROM EXCLUDED.reporting_manager_name OR
+                        employees.location IS DISTINCT FROM EXCLUDED.location OR
+                        employees.department IS DISTINCT FROM EXCLUDED.department OR
+                        employees.designation IS DISTINCT FROM EXCLUDED.designation OR
+                        employees.office_mobile IS DISTINCT FROM EXCLUDED.office_mobile OR
+                        employees.office_email IS DISTINCT FROM EXCLUDED.office_email OR
+                        employees.personal_mobile IS DISTINCT FROM EXCLUDED.personal_mobile OR
+                        employees.personal_email IS DISTINCT FROM EXCLUDED.personal_email OR
+                        employees.status IS DISTINCT FROM EXCLUDED.status
+                    THEN 'updated' ELSE 'existing' END,
+                    hr_last_changed_at = CASE WHEN
+                        employees.full_name IS DISTINCT FROM EXCLUDED.full_name OR
+                        employees.reporting_manager_name IS DISTINCT FROM EXCLUDED.reporting_manager_name OR
+                        employees.location IS DISTINCT FROM EXCLUDED.location OR
+                        employees.department IS DISTINCT FROM EXCLUDED.department OR
+                        employees.designation IS DISTINCT FROM EXCLUDED.designation OR
+                        employees.office_mobile IS DISTINCT FROM EXCLUDED.office_mobile OR
+                        employees.office_email IS DISTINCT FROM EXCLUDED.office_email OR
+                        employees.personal_mobile IS DISTINCT FROM EXCLUDED.personal_mobile OR
+                        employees.personal_email IS DISTINCT FROM EXCLUDED.personal_email OR
+                        employees.status IS DISTINCT FROM EXCLUDED.status
+                    THEN now() ELSE employees.hr_last_changed_at END,
                     full_name = EXCLUDED.full_name,
                     gender = EXCLUDED.gender,
                     date_of_birth = EXCLUDED.date_of_birth,
@@ -84,6 +113,8 @@ def main(path_value: str):
                     microsoft_upn = EXCLUDED.microsoft_upn,
                     status = EXCLUDED.status,
                     source_row = EXCLUDED.source_row,
+                    hr_last_seen_at = now(),
+                    hr_import_batch_id = EXCLUDED.hr_import_batch_id,
                     updated_at = now()
                 """,
                 (
@@ -105,8 +136,19 @@ def main(path_value: str):
                     office_email,
                     status,
                     int(row["source_row"]) if clean(row.get("source_row")) else None,
+                    import_batch_id,
                 ),
             )
+
+        # The HR file is a full employee snapshot. Missing previously imported
+        # employees remain in history but are marked inactive instead of deleted.
+        conn.execute(
+            """UPDATE employees SET status='inactive', hr_sync_state='inactive',
+               hr_last_changed_at=CASE WHEN status <> 'inactive' THEN now() ELSE hr_last_changed_at END,
+               updated_at=now()
+               WHERE source_row IS NOT NULL AND employee_code <> ALL(%s) AND employee_code <> %s""",
+            (list(seen_codes), INITIAL_ADMIN_EMPLOYEE_CODE),
+        )
 
         employees = conn.execute(
             "SELECT id, employee_code, full_name, reporting_manager_name FROM employees"
@@ -134,15 +176,11 @@ def main(path_value: str):
         if not admin:
             raise RuntimeError("Initial administrator was not present in the employee import.")
 
-        placeholders = ", ".join(["%s"] * len(ELEVATED_ROLES))
-        conn.execute(
-            f"DELETE FROM employee_roles WHERE role_code IN ({placeholders}) AND employee_id <> %s",
-            (*ELEVATED_ROLES, admin["id"]),
-        )
+        # HR synchronisation never resets manually approved portal roles.
         conn.execute(
             """
             INSERT INTO employee_roles(employee_id, role_code, granted_by)
-            SELECT id, 'field_employee', %s FROM employees
+            SELECT id, 'field_employee', %s FROM employees WHERE status <> 'inactive'
             ON CONFLICT (employee_id, role_code) DO NOTHING
             """,
             (admin["id"],),
@@ -190,6 +228,10 @@ def main(path_value: str):
         f"{totals['pending']} are pending an office email; "
         f"resolved {resolved} reporting-manager relationships."
     )
+    # Re-evaluate the confirmed roster after HR changes. The sales synchroniser
+    # links by employee ID and never writes employee names or contact fields.
+    from .import_sales_officers import main as sync_sales_officers
+    sync_sales_officers(str(Path(__file__).resolve().parent / 'data' / 'sales_officers.json'))
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ import { FIELD_COOKIE, fieldIdentityFor } from '../../../lib/field-access';
 export const runtime = 'nodejs';
 export async function GET(request: Request) {
   try { return NextResponse.json({ employee: await fieldIdentityFor(request) }, { headers: { 'Cache-Control': 'no-store' } }); }
-  catch { return NextResponse.json({ employee: null, error: 'Field access expired. Request a new access link.' }, { status: 401, headers: { 'Cache-Control': 'no-store' } }); }
+  catch { return NextResponse.json({ employee: null, error: 'Field access was revoked or is unavailable. Request a new access link.' }, { status: 401, headers: { 'Cache-Control': 'no-store' } }); }
 }
 export async function POST(request: Request) {
   const origin = request.headers.get('origin');

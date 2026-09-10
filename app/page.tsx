@@ -8,6 +8,7 @@ import { FarmTools } from './components/FarmTools';
 import { WeatherAdvisory } from './components/WeatherAdvisory';
 import { PwaInstall } from './components/PwaInstall';
 import salesContactData from './data/sales-contacts.json';
+import type { FieldIdentity } from './lib/field-access';
 
 type View = 'home' | 'inspect' | 'assistant' | 'products' | 'tools' | 'history';
 type Diagnosis = {
@@ -141,6 +142,14 @@ export default function Home() {
   const [approvedCatalogue, setApprovedCatalogue] = useState<CatalogProduct[] | null>(null);
   const [approvedCrops, setApprovedCrops] = useState<string[]>([]);
   const [catalogueUnavailable, setCatalogueUnavailable] = useState(false);
+  const [fieldSession, setFieldSession] = useState<{ employee: FieldIdentity | null; error?: string }>({ employee: null });
+
+  useEffect(() => {
+    fetch('/api/field/session', { cache: 'no-store' })
+      .then(async (response) => ({ response, body: await response.json() as { employee?: FieldIdentity | null; error?: string } }))
+      .then(({ response, body }) => setFieldSession({ employee: body.employee || null, error: response.status === 401 ? body.error : undefined }))
+      .catch(() => setFieldSession({ employee: null }));
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -227,6 +236,10 @@ export default function Home() {
     } finally { setMascotPreparing(false); }
   };
   const analyse = async (form: HTMLFormElement) => {
+    if (fieldSession.employee?.collection_mode === 'sales_officer' && files.length < 4) {
+      setError('Complete all four required field photo positions before submitting this inspection.');
+      return;
+    }
     const uploadBytes = files.reduce((total, file) => total + file.size, 0);
     if (uploadBytes > MAX_UPLOAD_BYTES) {
       setError(language === 'en' ? 'These photos are too large together. Please select fewer photos or use JPG images.' : t.safety);
@@ -250,11 +263,11 @@ export default function Home() {
 
   return <main className="app-shell">
     <Header view={view} nav={nav} profile={profile} onProfile={() => setProfileOpen(true)} language={language} changeLanguage={changeLanguage} theme={theme} toggleTheme={toggleTheme} t={t} />
-    <FieldIdentityBanner />
+    <FieldIdentityBanner employee={fieldSession.employee} error={fieldSession.error} />
     <TopWeatherBar location={profile.city || profile.location} openProfile={() => setProfileOpen(true)} t={t} />
     <div className="mascot-file-inputs" aria-hidden="true"><input ref={mascotCameraRef} tabIndex={-1} type="file" accept="image/*" capture="environment" onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /><input ref={mascotUploadRef} tabIndex={-1} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /></div>
     {view === 'home' && <HomeView nav={nav} t={t} language={language} location={profile.city || profile.location} mascotPreparing={mascotPreparing} takePhoto={() => mascotCameraRef.current?.click()} uploadPhotos={() => mascotUploadRef.current?.click()} />}
-    {view === 'inspect' && <section className="workspace"><PageTitle eyebrow={t.doctor} title={t.inspectHeading} text={t.inspectIntro} /><div className="inspection-layout"><div className="inspect-card large"><InspectionForm inputRef={inputRef} files={files} crops={approvedCrops} setFiles={setFiles} onAnalyse={analyse} loading={loading} analysisProgress={analysisProgress} error={error} t={t} /></div><Tips t={t} /></div>{result && <Result result={result} profile={profile} onClose={() => setResult(null)} openProfile={() => setProfileOpen(true)} openProducts={openProducts} openProduct={setSelectedProduct} nav={nav} t={t} />}</section>}
+    {view === 'inspect' && <section className="workspace"><PageTitle eyebrow={t.doctor} title={t.inspectHeading} text={t.inspectIntro} /><div className="inspection-layout"><div className="inspect-card large"><InspectionForm inputRef={inputRef} files={files} crops={approvedCrops} setFiles={setFiles} onAnalyse={analyse} loading={loading} analysisProgress={analysisProgress} error={error} t={t} fieldIdentity={fieldSession.employee} /></div><Tips t={t} /></div>{result && <Result result={result} profile={profile} onClose={() => setResult(null)} openProfile={() => setProfileOpen(true)} openProducts={openProducts} openProduct={setSelectedProduct} nav={nav} t={t} />}</section>}
     {view === 'assistant' && <Assistant openProduct={setSelectedProduct} language={language} t={t} />}
     {view === 'products' && <Products products={approvedCatalogue || []} loading={approvedCatalogue === null} unavailable={catalogueUnavailable} initialQuery={productQuery} onQuery={setProductQuery} openProduct={setSelectedProduct} t={t} />}
     {view === 'tools' && <FarmTools language={language} />}
@@ -313,20 +326,84 @@ function MascotGuide({ t, preparing, takePhoto, uploadPhotos, ask }: { t: Copy; 
 function Quick(props: { featured?: boolean; icon: string; label: string; title: string; text: string; onClick: () => void }) { return <button onClick={props.onClick} className={`quick-card ${props.featured ? 'featured' : ''}`}><span className="quick-icon">{props.icon}</span><div><small>{props.label}</small><h3>{props.title}</h3><p>{props.text}</p></div><b>→</b></button>; }
 function PageTitle({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) { return <div className="page-title"><p className="eyebrow"><span />{eyebrow}</p><h1>{title}</h1><p>{text}</p></div>; }
 
-function InspectionForm({ inputRef, files, crops, setFiles, onAnalyse, loading, analysisProgress, error, t }: { inputRef: RefObject<HTMLInputElement | null>; files: File[]; crops: string[]; setFiles: (files: File[]) => void; onAnalyse: (form: HTMLFormElement) => Promise<void>; loading: boolean; analysisProgress: number; error: string; t: Copy }) {
+const fieldPhotoRoles = [
+  { title: 'Whole crop / plant', help: 'Show the complete plant and nearby crop area.' },
+  { title: 'Affected plant part', help: 'Show where the symptom appears on the plant.' },
+  { title: 'Symptom or pest close-up', help: 'Take a clear close photo of the lesion, pest or damage.' },
+  { title: 'Different angle / leaf underside', help: 'Show another affected part or the underside of a leaf.' },
+];
+
+async function photoQuality(file: File) {
+  if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) return { signature: `${file.size}:${file.lastModified}`, warning: '' };
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image(); image.src = url;
+    await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('The selected image could not be read.')); });
+    if (Math.min(image.naturalWidth, image.naturalHeight) < 360 || Math.max(image.naturalWidth, image.naturalHeight) < 640) throw new Error('This photo is too small. Take a clearer photo from the required position.');
+    const canvas = document.createElement('canvas'); canvas.width = 96; canvas.height = 96;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) return { signature: `${file.size}:${file.lastModified}`, warning: '' };
+    context.drawImage(image, 0, 0, 96, 96);
+    const pixels = context.getImageData(0, 0, 96, 96).data;
+    const luminance: number[] = []; let total = 0; let greenPixels = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      const red = pixels[index]; const green = pixels[index + 1]; const blue = pixels[index + 2];
+      const light = .299 * red + .587 * green + .114 * blue; luminance.push(light); total += light;
+      if (green > red * 1.04 && green > blue * 1.06 && green > 38) greenPixels += 1;
+    }
+    const mean = total / luminance.length;
+    if (mean < 22) throw new Error('This photo is too dark. Retake it in better light.');
+    if (mean > 244) throw new Error('This photo is overexposed. Retake it without glare.');
+    let edge = 0; let comparisons = 0;
+    for (let y = 0; y < 95; y += 1) for (let x = 0; x < 95; x += 1) {
+      const at = y * 96 + x; edge += Math.abs(luminance[at] - luminance[at + 1]) + Math.abs(luminance[at] - luminance[at + 96]); comparisons += 2;
+    }
+    if (edge / comparisons < 4.2) throw new Error('This photo appears blurred. Hold the phone steady and retake it.');
+    const hashCanvas = document.createElement('canvas'); hashCanvas.width = 8; hashCanvas.height = 8;
+    const hashContext = hashCanvas.getContext('2d', { willReadFrequently: true });
+    hashContext?.drawImage(image, 0, 0, 8, 8);
+    const hashPixels = hashContext?.getImageData(0, 0, 8, 8).data;
+    const values = hashPixels ? Array.from({ length: 64 }, (_, index) => .299 * hashPixels[index * 4] + .587 * hashPixels[index * 4 + 1] + .114 * hashPixels[index * 4 + 2]) : [];
+    const average = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+    const signature = values.map((value) => value >= average ? '1' : '0').join('');
+    const warning = greenPixels / luminance.length < .004 ? 'Limited green vegetation detected—confirm that the crop or affected plant part is clearly visible.' : '';
+    return { signature, warning };
+  } finally { URL.revokeObjectURL(url); }
+}
+
+function signatureDistance(first: string, second: string) {
+  if (first.length !== 64 || second.length !== 64) return first === second ? 0 : 64;
+  return Array.from(first).reduce((distance, bit, index) => distance + Number(bit !== second[index]), 0);
+}
+
+function InspectionForm({ inputRef, files, crops, setFiles, onAnalyse, loading, analysisProgress, error, t, fieldIdentity }: { inputRef: RefObject<HTMLInputElement | null>; files: File[]; crops: string[]; setFiles: (files: File[]) => void; onAnalyse: (form: HTMLFormElement) => Promise<void>; loading: boolean; analysisProgress: number; error: string; t: Copy; fieldIdentity: FieldIdentity | null }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const [preparing, setPreparing] = useState(false);
+  const [qualityMessage, setQualityMessage] = useState('');
+  const salesMode = fieldIdentity?.collection_mode === 'sales_officer';
+  const minimumImages = salesMode ? 4 : 1;
   const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void onAnalyse(event.currentTarget); };
   const chooseFiles = async (selected: File[]) => {
-    const picked = [...files, ...selected].slice(0, 5);
-    if (!picked.length) return;
-    setPreparing(true);
-    try { setFiles(await Promise.all(picked.map(optimiseImage))); }
+    const available = selected.slice(0, Math.max(0, 5 - files.length));
+    if (!available.length) return;
+    setPreparing(true); setQualityMessage('');
+    try {
+      const accepted = [...files];
+      const signatures = (await Promise.all(files.map(photoQuality))).map((result) => result.signature);
+      const warnings: string[] = [];
+      for (const original of available) {
+        const quality = await photoQuality(original);
+        if (signatures.some((signature) => signatureDistance(signature, quality.signature) <= 4)) throw new Error('This photo is the same or almost the same as one already added. Take a different angle.');
+        signatures.push(quality.signature); accepted.push(await optimiseImage(original));
+        if (quality.warning) warnings.push(quality.warning);
+      }
+      setFiles(accepted); setQualityMessage(warnings[0] || 'Photo quality check passed.');
+    } catch (reason) { setQualityMessage(reason instanceof Error ? reason.message : 'This photo did not pass the quality check.'); }
     finally { setPreparing(false); }
   };
   const stage = analysisProgress < 28 ? t.stageIdentify : analysisProgress < 56 ? t.stageClassify : analysisProgress < 82 ? t.stageMatch : t.stageFinal;
   const inputChange = (event: ChangeEvent<HTMLInputElement>) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseFiles(selected); };
-  return <form onSubmit={submit}><div className="card-heading"><span className="step-badge">01</span><div><h2>{t.addPhotos}</h2><p>{t.upToFive}</p></div></div><div className={`upload-zone ${files.length ? 'has-files' : ''}`}><input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={inputChange} /><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={inputChange} /><span className="upload-icon">⌾</span><strong>{preparing ? t.preparing : files.length ? `${files.length} ${t.ready}` : t.upload}</strong><small>{preparing ? t.faster : files.length ? files.map((file) => file.name).join(' · ') : t.photoSourceHelp}</small><div className="photo-source-actions"><button type="button" onClick={() => cameraRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">⌾</span>{t.takeNewPhoto}</button><button type="button" className="gallery" onClick={() => inputRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">▧</span>{t.chooseGallery}</button></div></div>{files.length > 0 && <div className="file-list">{files.map((file, index) => <span key={`${file.name}-${index}`}>{index + 1}. {file.name}<button type="button" onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button></span>)}</div>}<div className="form-row"><label><span>{t.crop} <small>CIB&RC crop map</small></span><select name="crop" defaultValue=""><option value="">{t.identify}</option>{crops.map((crop) => <option key={crop}>{crop}</option>)}</select></label><label><span>{t.location} <small>{t.optional}</small></span><input name="location" placeholder="Ahmedabad, Gujarat" /></label></div><label className="full-field"><span>{t.notice} <small>{t.optional}</small></span><textarea name="description" placeholder={t.noticePlaceholder} /></label>{error && <p className="form-error">{error}</p>}{loading && <div className="analysis-progress" role="status" aria-live="polite"><div><span>{t.detailedAnalysis}</span><b>{analysisProgress}%</b></div><div className="analysis-track"><i style={{ width: `${analysisProgress}%` }} /></div><div className="analysis-mascot"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><p><b>{t.mascotAnalysing}</b><span>{stage}</span></p></div></div>}<button className="primary-button" disabled={!files.length || loading || preparing}>{loading ? `${t.analysing} ${analysisProgress}%` : preparing ? t.preparing : t.analyse} <span>{loading || preparing ? '◌' : '→'}</span></button><p className="safety-note">{t.safety}</p></form>;
+  return <form onSubmit={submit}><div className="card-heading"><span className="step-badge">01</span><div><h2>{salesMode ? 'Complete the four field photos' : t.addPhotos}</h2><p>{salesMode ? `${fieldIdentity?.full_name} · ${files.length}/4 required positions completed` : t.upToFive}</p></div></div>{salesMode && <section className="field-photo-contract"><header><div><small>STRUCTURED DATA COLLECTION</small><b>Four different views of the same crop problem</b></div><span className={files.length >= 4 ? 'complete' : ''}>{Math.min(files.length, 4)}/4</span></header><div className="field-photo-slots">{fieldPhotoRoles.map((role, index) => <article key={role.title} className={files[index] ? 'filled' : ''}><i>{files[index] ? '✓' : index + 1}</i><div><b>{role.title}</b><small>{files[index]?.name || role.help}</small></div>{files[index] && <button type="button" aria-label={`Remove ${role.title}`} onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button>}</article>)}</div><p>Daily target: 2–3 complete inspections, approximately 8–12 useful images.</p></section>}<div className={`upload-zone ${files.length ? 'has-files' : ''}`}><input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={inputChange} /><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={inputChange} /><span className="upload-icon">⌾</span><strong>{preparing ? 'Checking photo quality…' : files.length ? `${files.length} ${t.ready}` : t.upload}</strong><small>{preparing ? 'Checking clarity, light and duplicate angles' : salesMode ? `Next: ${fieldPhotoRoles[Math.min(files.length, 3)].title}` : files.length ? files.map((file) => file.name).join(' · ') : t.photoSourceHelp}</small><div className="photo-source-actions"><button type="button" onClick={() => cameraRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">⌾</span>{t.takeNewPhoto}</button><button type="button" className="gallery" onClick={() => inputRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">▧</span>{t.chooseGallery}</button></div></div>{qualityMessage && <p className={`photo-quality-message ${qualityMessage.includes('passed') ? 'passed' : ''}`}>{qualityMessage}</p>}{!salesMode && files.length > 0 && <div className="file-list">{files.map((file, index) => <span key={`${file.name}-${index}`}>{index + 1}. {file.name}<button type="button" onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button></span>)}</div>}<div className="form-row"><label><span>{t.crop} <small>CIB&RC crop map</small></span><select name="crop" defaultValue=""><option value="">{t.identify}</option>{crops.map((crop) => <option key={crop}>{crop}</option>)}</select></label><label><span>{t.location} <small>{salesMode ? 'Official territory' : t.optional}</small></span><input name="location" defaultValue={salesMode ? `${fieldIdentity?.territory}, ${fieldIdentity?.state}` : ''} placeholder="Ahmedabad, Gujarat" readOnly={salesMode} /></label></div><label className="full-field"><span>{t.notice} <small>{t.optional}</small></span><textarea name="description" placeholder={t.noticePlaceholder} /></label>{error && <p className="form-error">{error}</p>}{loading && <div className="analysis-progress" role="status" aria-live="polite"><div><span>{t.detailedAnalysis}</span><b>{analysisProgress}%</b></div><div className="analysis-track"><i style={{ width: `${analysisProgress}%` }} /></div><div className="analysis-mascot"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><p><b>{t.mascotAnalysing}</b><span>{stage}</span></p></div></div>}<button className="primary-button" disabled={files.length < minimumImages || loading || preparing}>{loading ? `${t.analysing} ${analysisProgress}%` : preparing ? 'Checking photos…' : salesMode && files.length < 4 ? `Add ${4 - files.length} more required photo${4 - files.length === 1 ? '' : 's'}` : t.analyse} <span>{loading || preparing ? '◌' : '→'}</span></button><p className="safety-note">{salesMode ? 'Only clear, different-angle photos will count toward your daily field report. ' : ''}{t.safety}</p></form>;
 }
 function Tips({ t }: { t: Copy }) { return <aside className="tips"><h3>{t.tips}</h3><ol><li><b>{t.wholePlant}</b><span>{t.wholePlantHelp}</span></li><li><b>{t.affectedArea}</b><span>{t.affectedHelp}</span></li><li><b>{t.underside}</b><span>{t.undersideHelp}</span></li></ol><div className="privacy-box"><b>{t.cropData}</b><p>{t.privacy}</p></div><div className="source-seal"><b>{t.catalogGrounded}</b><span>{t.catalogLimit}</span></div></aside>; }
 

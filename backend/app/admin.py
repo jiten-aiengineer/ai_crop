@@ -117,11 +117,6 @@ class EmployeeRoleAssignment(BaseModel):
         return cleaned
 
 
-class RosterEmployeeMatch(BaseModel):
-    employee_code: str = Field(max_length=32)
-
-
-
 def _identity(
     x_clsl_admin_email: Annotated[str | None, Header()] = None,
     x_clsl_admin_gateway_token: Annotated[str | None, Header()] = None,
@@ -492,6 +487,8 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
         rows = conn.execute(
             """
             SELECT i.id, i.created_at, i.status, i.farmer_crop_text, i.location_text, i.photo_count,
+                   i.collection_mode, i.photo_requirements_met, i.photo_guidance_version,
+                   employee.full_name AS employee_name, employee.employee_code,
                    i.image_storage_status, i.image_storage_failures, i.failure_message,
                    count(DISTINCT ii.id) FILTER (WHERE ii.retention_status = 'retained') AS retained_images,
                    (SELECT COALESCE(sum(img.byte_size), 0) FROM inspection_images img WHERE img.inspection_id=i.id AND img.retention_status='retained') AS retained_bytes,
@@ -503,6 +500,7 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
                    prediction.confidence AS confidence, prediction.summary AS summary,
                    prediction.recommended_next_action AS recommended_next_action
             FROM inspections i
+            LEFT JOIN employees employee ON employee.id=i.employee_id
             LEFT JOIN inspection_images ii ON ii.inspection_id = i.id
             LEFT JOIN ai_provider_results apr ON apr.inspection_id = i.id
             LEFT JOIN inspection_recommendations ir ON ir.inspection_id = i.id
@@ -513,7 +511,7 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
                 ORDER BY prediction.created_at DESC
                 LIMIT 1
             ) prediction ON true
-            GROUP BY i.id, prediction.crop_text, prediction.issue_name, prediction.issue_type,
+            GROUP BY i.id, employee.id, prediction.crop_text, prediction.issue_name, prediction.issue_type,
                      prediction.severity, prediction.confidence, prediction.summary, prediction.recommended_next_action
             ORDER BY i.created_at DESC LIMIT 200
             """
@@ -547,7 +545,8 @@ def inspection_image_gallery(offset: int = Query(default=0, ge=0), limit: int = 
     _require(identity, INSPECTION_REVIEW_ROLES)
     with connection() as conn:
         total = conn.execute("SELECT count(*) AS total FROM inspection_images WHERE storage_provider='s3' AND retention_status='retained'").fetchone()['total']
-        rows = conn.execute("""SELECT ii.inspection_id, ii.image_order, ii.byte_size, i.created_at, i.farmer_crop_text, i.location_text,
+        rows = conn.execute("""SELECT ii.inspection_id, ii.image_order, ii.byte_size, ii.capture_role,
+            i.created_at, i.farmer_crop_text, i.location_text, i.collection_mode, i.photo_requirements_met,
             e.full_name AS employee_name FROM inspection_images ii JOIN inspections i ON i.id=ii.inspection_id
             LEFT JOIN employees e ON e.id=i.employee_id WHERE ii.storage_provider='s3' AND ii.retention_status='retained'
             ORDER BY i.created_at DESC, ii.inspection_id, ii.image_order LIMIT %s OFFSET %s""", (limit, offset)).fetchall()
@@ -620,22 +619,52 @@ def sales_officer_activity(
             ), activity AS (
                 SELECT i.employee_id,
                        count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day) AS day_uploads,
+                       COALESCE(sum(i.photo_count) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day), 0) AS day_images,
+                       count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND i.photo_count >= 4 AND i.photo_requirements_met) AS day_complete_sets,
+                       count(DISTINCT COALESCE(c.name, NULLIF(i.farmer_crop_text, ''))) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day) AS day_distinct_crops,
+                       count(DISTINCT prediction.issue_name) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day) AS day_distinct_problems,
+                       count(DISTINCT i.id) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND review.review_status IN ('verified','corrected') AND review.dataset_eligible) AS day_expert_approved,
+                       count(DISTINCT i.id) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND review.review_status = 'rejected') AS day_rejected,
                        count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 6 AND selected.report_day) AS week_uploads,
+                       count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 6 AND selected.report_day AND i.photo_count >= 4 AND i.photo_requirements_met) AS week_complete_sets,
+                       count(DISTINCT (i.created_at AT TIME ZONE 'Asia/Kolkata')::date) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 6 AND selected.report_day AND i.photo_count >= 4 AND i.photo_requirements_met) AS active_days_7,
                        max(i.created_at) AS last_upload_at
                 FROM inspections i CROSS JOIN selected
+                LEFT JOIN crops c ON c.id=i.crop_id
+                LEFT JOIN LATERAL (SELECT issue_name FROM ai_predictions p WHERE p.inspection_id=i.id AND p.provider='gemini' ORDER BY p.created_at DESC LIMIT 1) prediction ON true
+                LEFT JOIN LATERAL (SELECT review_status, dataset_eligible FROM expert_reviews r WHERE r.inspection_id=i.id ORDER BY r.created_at DESC LIMIT 1) review ON true
                 GROUP BY i.employee_id
             )
-            SELECT sot.id, sot.source_row, sot.state, sot.territory, sot.source_name,
+            SELECT sot.id, sot.state, sot.territory,
                    e.id AS employee_id, e.employee_code, e.full_name, e.office_email,
                    e.office_mobile, e.personal_mobile, e.personal_email, e.department, e.designation, e.location,
-                   e.reporting_manager_name,
+                   e.reporting_manager_name, e.hr_sync_state, e.status AS employee_status,
                    COALESCE(a.day_uploads, 0) AS day_uploads,
-                   COALESCE(a.week_uploads, 0) AS week_uploads, a.last_upload_at,
+                   COALESCE(a.day_images, 0) AS day_images,
+                   COALESCE(a.day_complete_sets, 0) AS day_complete_sets,
+                   COALESCE(a.day_distinct_crops, 0) AS day_distinct_crops,
+                   COALESCE(a.day_distinct_problems, 0) AS day_distinct_problems,
+                   COALESCE(a.day_expert_approved, 0) AS day_expert_approved,
+                   COALESCE(a.day_rejected, 0) AS day_rejected,
+                   COALESCE(a.week_uploads, 0) AS week_uploads,
+                   COALESCE(a.week_complete_sets, 0) AS week_complete_sets,
+                   COALESCE(a.active_days_7, 0) AS active_days_7,
+                   a.last_upload_at,
                    (e.id IS NOT NULL) AS employee_matched,
+                   (access_grant.id IS NOT NULL) AS has_access_link,
+                   access_grant.created_at AS access_link_created_at,
+                   access_grant.last_used_at AS access_link_last_used_at,
                    COALESCE((SELECT array_agg(er.role_code) FROM employee_roles er WHERE er.employee_id=e.id), '{}') AS roles
             FROM sales_officer_territories sot
             LEFT JOIN employees e ON e.id = sot.employee_id
             LEFT JOIN activity a ON a.employee_id = e.id
+            LEFT JOIN LATERAL (
+                SELECT grant_record.id, grant_record.created_at, grant_record.last_used_at
+                FROM field_access_grants grant_record
+                WHERE grant_record.employee_id=e.id AND grant_record.revoked_at IS NULL
+                  AND (grant_record.expires_at IS NULL OR grant_record.expires_at > now())
+                ORDER BY grant_record.created_at DESC LIMIT 1
+            ) access_grant ON true
             WHERE (%s = '' OR sot.state = %s)
               AND (%s = '' OR sot.territory = %s)
             ORDER BY sot.state, sot.territory
@@ -694,6 +723,7 @@ def employee_access(identity: AdminIdentity = Depends(_identity)):
             """
             SELECT e.id, e.employee_code, e.full_name, e.office_email, e.microsoft_upn, e.department,
                    e.designation, e.location, e.status, e.reporting_manager_name,
+                   e.hr_sync_state, e.hr_first_seen_at, e.hr_last_seen_at, e.hr_last_changed_at,
                    COALESCE(array_agg(er.role_code) FILTER (WHERE er.role_code IS NOT NULL), '{}') AS roles
             FROM employees e
             LEFT JOIN employee_roles er ON er.employee_id = e.id
@@ -727,22 +757,6 @@ def set_employee_roles(employee_id: UUID, payload: EmployeeRoleAssignment, ident
     return {"id": str(employee_id), "employee_code": employee["employee_code"], "roles": [row["role_code"] for row in new_roles]}
 
 
-@router.put('/sales-officers/{roster_id}/employee')
-def match_sales_officer(roster_id: UUID, payload: RosterEmployeeMatch, identity: AdminIdentity = Depends(_identity)):
-    _require(identity, {'super_admin'})
-    with connection() as conn:
-        roster = conn.execute('SELECT id, employee_id FROM sales_officer_territories WHERE id=%s FOR UPDATE', (roster_id,)).fetchone()
-        if not roster:
-            raise HTTPException(404, 'Sales officer not found.')
-        employee = conn.execute("SELECT id FROM employees WHERE employee_code=%s AND department IS DISTINCT FROM 'Demonstration'", (payload.employee_code.strip(),)).fetchone()
-        if not employee:
-            raise HTTPException(422, 'Choose an existing employee code from the directory.')
-        conn.execute('UPDATE sales_officer_territories SET employee_id=%s, match_locked=true, updated_at=now() WHERE id=%s', (employee['id'], roster_id))
-        _audit(conn, identity, 'match_sales_officer', 'sales_officer', str(roster_id), {'employee_id': str(roster['employee_id']) if roster['employee_id'] else None}, {'employee_id': str(employee['id'])})
-        conn.commit()
-    return {'matched': True}
-
-
 @router.post('/sales-officers/{roster_id}/access')
 def issue_field_access(roster_id: UUID, identity: AdminIdentity = Depends(_identity)):
     _require(identity, {'super_admin'})
@@ -751,11 +765,11 @@ def issue_field_access(roster_id: UUID, identity: AdminIdentity = Depends(_ident
         raise HTTPException(403, 'A real Super Administrator employee identity is required.')
     token = secrets.token_urlsafe(32)
     with connection() as conn:
-        employee = conn.execute("SELECT e.id, e.full_name FROM sales_officer_territories s JOIN employees e ON e.id=s.employee_id WHERE s.id=%s AND e.status='active'", (roster_id,)).fetchone()
+        employee = conn.execute("SELECT e.id, e.full_name FROM sales_officer_territories s JOIN employees e ON e.id=s.employee_id WHERE s.id=%s AND e.status <> 'inactive'", (roster_id,)).fetchone()
         if not employee:
             raise HTTPException(422, 'Match this officer to an active employee first.')
         conn.execute('UPDATE field_access_grants SET revoked_at=now() WHERE employee_id=%s AND revoked_at IS NULL', (employee['id'],))
-        grant = conn.execute("INSERT INTO field_access_grants(employee_id, token_hash, issued_by, expires_at) VALUES (%s,%s,%s,now()+interval '30 days') RETURNING expires_at", (employee['id'], hashlib.sha256(token.encode()).hexdigest(), issuer_id)).fetchone()
-        _audit(conn, identity, 'issue_field_access', 'employee', str(employee['id']), None, {'expires_at': grant['expires_at'].isoformat()})
+        grant = conn.execute("INSERT INTO field_access_grants(employee_id, token_hash, issued_by, expires_at) VALUES (%s,%s,%s,NULL) RETURNING created_at", (employee['id'], hashlib.sha256(token.encode()).hexdigest(), issuer_id)).fetchone()
+        _audit(conn, identity, 'issue_field_access', 'employee', str(employee['id']), None, {'permanent_until_revoked': True, 'created_at': grant['created_at'].isoformat()})
         conn.commit()
-    return {'token': token, 'expires_at': grant['expires_at'], 'name': employee['full_name']}
+    return {'token': token, 'permanent_until_revoked': True, 'name': employee['full_name']}
