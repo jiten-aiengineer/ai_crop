@@ -207,8 +207,6 @@ def catalogue_recommendations(
 ):
     """Return recommendations from approved database catalogue records only."""
     _require_internal_service_token(x_inspection_persistence_token)
-    if payload.context.collection_mode == 'sales_officer' and payload.photo_count < 4:
-        raise HTTPException(422, 'Sales Officer inspections require all four structured crop photos.')
     with connection() as conn:
         items = recommend(conn, payload.model_dump())
     return {"items": items, "source": "approved_postgresql_catalogue"}
@@ -226,6 +224,8 @@ def persist_inspection(
     explicitly configured on both the frontend service and this API container.
     """
     _require_internal_service_token(x_inspection_persistence_token)
+    if payload.context.collection_mode == 'sales_officer' and payload.photo_count < 4:
+        raise HTTPException(422, 'Sales Officer inspections require all four structured crop photos.')
     diagnosis = payload.provider.diagnosis or {}
     detected_crop = _clean(diagnosis.get("crop"), 160)
     probable_issue = _clean(diagnosis.get("probable_issue"), 180)
