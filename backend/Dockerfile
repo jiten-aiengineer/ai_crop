@@ -14,4 +14,4 @@ COPY app/data/products.json /seed/products.json
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python -m app.migrate && python -m app.import_products /seed/products.json && python -m app.import_catalog_knowledge /seed/products.json && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "python -m app.migrate && python -m app.bootstrap_catalogue /seed/products.json && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
