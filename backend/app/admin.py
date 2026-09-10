@@ -53,6 +53,7 @@ class AdminIdentity(BaseModel):
     full_name: str
     email: str
     roles: list[str]
+    is_test_identity: bool = False
 
 
 class CatalogueProductInput(BaseModel):
@@ -144,19 +145,25 @@ def _identity(
             """,
             (email, email),
         ).fetchone()
-        if not employee:
-            raise HTTPException(status_code=403, detail="This Microsoft account is not an active Crop Life employee.")
-        roles = conn.execute(
-            "SELECT role_code FROM employee_roles WHERE employee_id = %s ORDER BY role_code",
-            (employee["id"],),
-        ).fetchall()
-    return AdminIdentity(
-        id=employee["id"],
-        employee_code=employee["employee_code"],
-        full_name=employee["full_name"],
-        email=employee["email"],
-        roles=[row["role_code"] for row in roles],
-    )
+        if employee:
+            roles = conn.execute(
+                "SELECT role_code FROM employee_roles WHERE employee_id = %s ORDER BY role_code",
+                (employee["id"],),
+            ).fetchall()
+            identity = AdminIdentity(
+                id=employee["id"], employee_code=employee["employee_code"],
+                full_name=employee["full_name"], email=employee["email"],
+                roles=[row["role_code"] for row in roles],
+            )
+        else:
+            portal_identity = conn.execute(
+                "SELECT id, employee_code, full_name, email, roles FROM portal_test_identities WHERE lower(email)=%s AND active",
+                (email,),
+            ).fetchone()
+            if not portal_identity:
+                raise HTTPException(status_code=403, detail="This Microsoft account is not an active Crop Life employee.")
+            identity = AdminIdentity(**portal_identity, is_test_identity=True)
+    return identity
 
 
 def _can(identity: AdminIdentity, roles: set[str]) -> bool:
@@ -169,13 +176,23 @@ def _require(identity: AdminIdentity, roles: set[str]) -> AdminIdentity:
     return identity
 
 
-def _audit(conn, actor_id: UUID, action: str, entity_type: str, entity_key: str, previous: Any, new: Any):
+def _employee_actor_id(identity: AdminIdentity) -> UUID | None:
+    return None if identity.is_test_identity else identity.id
+
+
+def _portal_actor_id(identity: AdminIdentity) -> UUID | None:
+    return identity.id if identity.is_test_identity else None
+
+
+def _audit(conn, identity: AdminIdentity, action: str, entity_type: str, entity_key: str, previous: Any, new: Any):
     conn.execute(
         """
-        INSERT INTO audit_logs(id, actor_employee_id, action, entity_type, entity_key, previous_data, new_data)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO audit_logs(id, actor_employee_id, actor_portal_identity_id, action, entity_type, entity_key, previous_data, new_data)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """,
-        (uuid4(), actor_id, action, entity_type, entity_key, Jsonb(jsonable_encoder(previous)) if previous is not None else None, Jsonb(jsonable_encoder(new)) if new is not None else None),
+        (uuid4(), _employee_actor_id(identity), _portal_actor_id(identity), action, entity_type, entity_key,
+         Jsonb(jsonable_encoder(previous)) if previous is not None else None,
+         Jsonb(jsonable_encoder(new)) if new is not None else None),
     )
 
 
@@ -296,12 +313,16 @@ def submit_catalogue_change(payload: CatalogueChangeRequest, identity: AdminIden
         request_id = uuid4()
         conn.execute(
             """
-            INSERT INTO approval_requests(id, entity_type, entity_key, requested_action, proposed_data, status, review_stage, requested_by)
-            VALUES (%s, 'product_catalogue', %s, %s, %s, 'pending', 'senior_manager', %s)
+            INSERT INTO approval_requests(
+                id, entity_type, entity_key, requested_action, proposed_data, status,
+                review_stage, requested_by, requested_by_portal_identity
+            )
+            VALUES (%s, 'product_catalogue', %s, %s, %s, 'pending', 'senior_manager', %s, %s)
             """,
-            (request_id, product["product_id"], action, Jsonb(proposed), identity.id),
+            (request_id, product["product_id"], action, Jsonb(proposed),
+             _employee_actor_id(identity), _portal_actor_id(identity)),
         )
-        _audit(conn, identity.id, "submit_catalogue_change", "approval_request", str(request_id), None, proposed)
+        _audit(conn, identity, "submit_catalogue_change", "approval_request", str(request_id), None, proposed)
         conn.commit()
     return {"id": str(request_id), "status": "pending", "message": "Catalogue change submitted for approval."}
 
@@ -317,11 +338,14 @@ def approval_requests(
             """
             SELECT ar.id, ar.entity_key, ar.requested_action, ar.proposed_data, ar.status, ar.review_stage,
                    ar.decision_note, ar.requested_at, ar.decided_at,
-                   requestor.full_name AS requested_by_name, requestor.office_email AS requested_by_email,
-                   decider.full_name AS decided_by_name
+                   COALESCE(requestor.full_name, portal_requestor.full_name) AS requested_by_name,
+                   COALESCE(requestor.office_email, portal_requestor.email) AS requested_by_email,
+                   COALESCE(decider.full_name, portal_decider.full_name) AS decided_by_name
             FROM approval_requests ar
             LEFT JOIN employees requestor ON requestor.id = ar.requested_by
+            LEFT JOIN portal_test_identities portal_requestor ON portal_requestor.id = ar.requested_by_portal_identity
             LEFT JOIN employees decider ON decider.id = ar.decided_by
+            LEFT JOIN portal_test_identities portal_decider ON portal_decider.id = ar.decided_by_portal_identity
             WHERE ar.entity_type = 'product_catalogue' AND ar.status = %s
             ORDER BY ar.requested_at DESC
             LIMIT 200
@@ -358,7 +382,7 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
                 "UPDATE approval_requests SET review_stage = 'final_publisher', decision_note = %s WHERE id = %s",
                 (note, request_id),
             )
-            _audit(conn, identity.id, "send_catalogue_change_to_final_release", "approval_request", str(request_id), {"review_stage": review_stage}, {"review_stage": "final_publisher", "note": note})
+            _audit(conn, identity, "send_catalogue_change_to_final_release", "approval_request", str(request_id), {"review_stage": review_stage}, {"review_stage": "final_publisher", "note": note})
             conn.commit()
             return {"id": str(request_id), "status": "pending", "review_stage": "final_publisher"}
 
@@ -374,7 +398,11 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
         else:
             raise HTTPException(status_code=409, detail="This approval has an unsupported review stage.")
 
-        if request["requested_by"] == identity.id and review_stage == "senior_manager":
+        same_requestor = (
+            (not identity.is_test_identity and request["requested_by"] == identity.id)
+            or (identity.is_test_identity and request["requested_by_portal_identity"] == identity.id)
+        )
+        if same_requestor and review_stage == "senior_manager":
             raise HTTPException(status_code=403, detail="A separate Senior Catalogue Manager must review your own change.")
 
         proposed = request["proposed_data"]
@@ -393,10 +421,11 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
 
         if decision.decision == "rejected":
             conn.execute(
-                "UPDATE approval_requests SET status = 'rejected', decided_by = %s, decision_note = %s, decided_at = now() WHERE id = %s",
-                (identity.id, decision.note.strip() or None, request_id),
+                """UPDATE approval_requests SET status = 'rejected', decided_by = %s,
+                   decided_by_portal_identity = %s, decision_note = %s, decided_at = now() WHERE id = %s""",
+                (_employee_actor_id(identity), _portal_actor_id(identity), decision.note.strip() or None, request_id),
             )
-            _audit(conn, identity.id, "reject_catalogue_change", "approval_request", str(request_id), proposed, {"note": decision.note.strip()})
+            _audit(conn, identity, "reject_catalogue_change", "approval_request", str(request_id), proposed, {"note": decision.note.strip()})
             conn.commit()
             return {"id": str(request_id), "status": "rejected"}
 
@@ -411,7 +440,7 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
             product["formulation"] or None, product["dose"] or None, product["use_benefits"] or None,
             product["packing"] or None, product["application_method"] or None,
             product["safety_information"] or None, product["image_path"] or None,
-            product["source_page"], product["catalogue_version"] or "Admin catalogue", product["status"], identity.id,
+            product["source_page"], product["catalogue_version"] or "Admin catalogue", product["status"], _employee_actor_id(identity),
         )
         if previous:
             conn.execute(
@@ -444,13 +473,14 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
                     INSERT INTO product_crop_mappings(product_id, crop_id, approval_status, submitted_by, approved_by, approved_at)
                     VALUES (%s, %s, 'approved', %s, %s, now())
                     """,
-                    (product["product_id"], crop["id"], request["requested_by"], identity.id),
+                    (product["product_id"], crop["id"], request["requested_by"], _employee_actor_id(identity)),
                 )
         conn.execute(
-            "UPDATE approval_requests SET status = 'approved', decided_by = %s, decision_note = %s, decided_at = now() WHERE id = %s",
-            (identity.id, decision.note.strip() or None, request_id),
+            """UPDATE approval_requests SET status = 'approved', decided_by = %s,
+               decided_by_portal_identity = %s, decision_note = %s, decided_at = now() WHERE id = %s""",
+            (_employee_actor_id(identity), _portal_actor_id(identity), decision.note.strip() or None, request_id),
         )
-        _audit(conn, identity.id, "approve_catalogue_change", "product_catalogue", product["product_id"], previous, proposed)
+        _audit(conn, identity, "approve_catalogue_change", "product_catalogue", product["product_id"], previous, proposed)
         conn.commit()
     return {"id": str(request_id), "status": "approved", "product_id": product["product_id"]}
 
@@ -557,7 +587,7 @@ def delete_inspection(inspection_id: UUID, identity: AdminIdentity = Depends(_id
         # All dependent tables use ON DELETE CASCADE or SET NULL. S3 objects are
         # deliberately removed first by the authenticated Node BFF, not by the DB.
         conn.execute("DELETE FROM inspections WHERE id = %s", (inspection_id,))
-        _audit(conn, identity.id, "delete_inspection", "inspection", str(inspection_id),
+        _audit(conn, identity, "delete_inspection", "inspection", str(inspection_id),
                {"id": str(existing["id"]), "status": existing["status"], "photo_count": existing["photo_count"]},
                {"s3_evidence_deleted": True})
         conn.commit()
@@ -692,7 +722,7 @@ def set_employee_roles(employee_id: UUID, payload: EmployeeRoleAssignment, ident
                 (employee_id, role),
             )
         new_roles = conn.execute("SELECT role_code FROM employee_roles WHERE employee_id = %s ORDER BY role_code", (employee_id,)).fetchall()
-        _audit(conn, identity.id, "update_employee_roles", "employee", employee["employee_code"], {"roles": old_roles}, {"roles": [row["role_code"] for row in new_roles]})
+        _audit(conn, identity, "update_employee_roles", "employee", employee["employee_code"], {"roles": old_roles}, {"roles": [row["role_code"] for row in new_roles]})
         conn.commit()
     return {"id": str(employee_id), "employee_code": employee["employee_code"], "roles": [row["role_code"] for row in new_roles]}
 
@@ -708,7 +738,7 @@ def match_sales_officer(roster_id: UUID, payload: RosterEmployeeMatch, identity:
         if not employee:
             raise HTTPException(422, 'Choose an existing employee code from the directory.')
         conn.execute('UPDATE sales_officer_territories SET employee_id=%s, match_locked=true, updated_at=now() WHERE id=%s', (employee['id'], roster_id))
-        _audit(conn, identity.id, 'match_sales_officer', 'sales_officer', str(roster_id), {'employee_id': str(roster['employee_id']) if roster['employee_id'] else None}, {'employee_id': str(employee['id'])})
+        _audit(conn, identity, 'match_sales_officer', 'sales_officer', str(roster_id), {'employee_id': str(roster['employee_id']) if roster['employee_id'] else None}, {'employee_id': str(employee['id'])})
         conn.commit()
     return {'matched': True}
 
@@ -716,13 +746,16 @@ def match_sales_officer(roster_id: UUID, payload: RosterEmployeeMatch, identity:
 @router.post('/sales-officers/{roster_id}/access')
 def issue_field_access(roster_id: UUID, identity: AdminIdentity = Depends(_identity)):
     _require(identity, {'super_admin'})
+    issuer_id = _employee_actor_id(identity)
+    if issuer_id is None:
+        raise HTTPException(403, 'A real Super Administrator employee identity is required.')
     token = secrets.token_urlsafe(32)
     with connection() as conn:
         employee = conn.execute("SELECT e.id, e.full_name FROM sales_officer_territories s JOIN employees e ON e.id=s.employee_id WHERE s.id=%s AND e.status='active'", (roster_id,)).fetchone()
         if not employee:
             raise HTTPException(422, 'Match this officer to an active employee first.')
         conn.execute('UPDATE field_access_grants SET revoked_at=now() WHERE employee_id=%s AND revoked_at IS NULL', (employee['id'],))
-        grant = conn.execute("INSERT INTO field_access_grants(employee_id, token_hash, issued_by, expires_at) VALUES (%s,%s,%s,now()+interval '30 days') RETURNING expires_at", (employee['id'], hashlib.sha256(token.encode()).hexdigest(), identity.id)).fetchone()
-        _audit(conn, identity.id, 'issue_field_access', 'employee', str(employee['id']), None, {'expires_at': grant['expires_at'].isoformat()})
+        grant = conn.execute("INSERT INTO field_access_grants(employee_id, token_hash, issued_by, expires_at) VALUES (%s,%s,%s,now()+interval '30 days') RETURNING expires_at", (employee['id'], hashlib.sha256(token.encode()).hexdigest(), issuer_id)).fetchone()
+        _audit(conn, identity, 'issue_field_access', 'employee', str(employee['id']), None, {'expires_at': grant['expires_at'].isoformat()})
         conn.commit()
     return {'token': token, 'expires_at': grant['expires_at'], 'name': employee['full_name']}
