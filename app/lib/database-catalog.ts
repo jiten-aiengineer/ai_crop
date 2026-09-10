@@ -99,7 +99,7 @@ export async function approvedCatalogueRecommendations(diagnosis: DiagnosisForCa
     });
     if (!response.ok) return { recommendations: [], source: 'catalogue_unavailable' };
     const data = await response.json() as { items?: CatalogProduct[] };
-    return { recommendations: Array.isArray(data.items) ? data.items : [], source: 'approved_postgresql_catalogue' };
+    return { recommendations: Array.isArray(data.items) ? data.items.map((item) => ({ ...item, image: item.image?.startsWith('s3:') ? `/api/catalogue/product-image/${encodeURIComponent(item.id)}` : item.image })) : [], source: 'approved_postgresql_catalogue' };
   } catch {
     // Never silently use stale data once a production database is configured.
     return { recommendations: [], source: 'catalogue_unavailable' };

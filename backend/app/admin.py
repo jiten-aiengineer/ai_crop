@@ -7,7 +7,11 @@ until an authorised employee approves them.
 """
 
 import hmac
+import hashlib
+import secrets
 import re
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
@@ -109,6 +113,11 @@ class EmployeeRoleAssignment(BaseModel):
         if unknown:
             raise ValueError(f"Unknown or protected roles: {', '.join(unknown)}")
         return cleaned
+
+
+class RosterEmployeeMatch(BaseModel):
+    employee_code: str = Field(max_length=32)
+
 
 
 def _identity(
@@ -453,8 +462,8 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
             """
             SELECT i.id, i.created_at, i.status, i.farmer_crop_text, i.location_text, i.photo_count,
                    i.image_storage_status, i.image_storage_failures, i.failure_message,
-                   count(ii.id) FILTER (WHERE ii.retention_status = 'retained') AS retained_images,
-                   COALESCE(sum(ii.byte_size) FILTER (WHERE ii.retention_status = 'retained'), 0) AS retained_bytes,
+                   count(DISTINCT ii.id) FILTER (WHERE ii.retention_status = 'retained') AS retained_images,
+                   (SELECT COALESCE(sum(img.byte_size), 0) FROM inspection_images img WHERE img.inspection_id=i.id AND img.retention_status='retained') AS retained_bytes,
                    COALESCE(array_agg(DISTINCT ii.image_order) FILTER (WHERE ii.retention_status = 'retained' AND ii.storage_provider = 's3'), '{}') AS image_orders,
                    COALESCE(jsonb_agg(DISTINCT apr.provider) FILTER (WHERE apr.provider IS NOT NULL), '[]'::jsonb) AS providers,
                    COALESCE(jsonb_agg(DISTINCT ir.product_id) FILTER (WHERE ir.product_id IS NOT NULL), '[]'::jsonb) AS suggested_product_ids,
@@ -502,6 +511,18 @@ def inspection_image_metadata(inspection_id: UUID, image_order: int, identity: A
     return {"bucket": image["storage_bucket"], "key": image["storage_key"], "mime_type": image["content_type"], "byte_size": image["byte_size"], "image_order": image["image_order"]}
 
 
+@router.get('/images')
+def inspection_image_gallery(offset: int = Query(default=0, ge=0), limit: int = Query(default=48, ge=1, le=100), identity: AdminIdentity = Depends(_identity)):
+    _require(identity, INSPECTION_REVIEW_ROLES)
+    with connection() as conn:
+        total = conn.execute("SELECT count(*) AS total FROM inspection_images WHERE storage_provider='s3' AND retention_status='retained'").fetchone()['total']
+        rows = conn.execute("""SELECT ii.inspection_id, ii.image_order, ii.byte_size, i.created_at, i.farmer_crop_text, i.location_text,
+            e.full_name AS employee_name FROM inspection_images ii JOIN inspections i ON i.id=ii.inspection_id
+            LEFT JOIN employees e ON e.id=i.employee_id WHERE ii.storage_provider='s3' AND ii.retention_status='retained'
+            ORDER BY i.created_at DESC, ii.inspection_id, ii.image_order LIMIT %s OFFSET %s""", (limit, offset)).fetchall()
+    return {'items': rows, 'total': total, 'offset': offset, 'limit': limit}
+
+
 @router.get("/inspections/{inspection_id}/deletion")
 def inspection_deletion_metadata(inspection_id: UUID, identity: AdminIdentity = Depends(_identity)):
     """Return exact private objects before a super admin deletes an inspection."""
@@ -519,7 +540,9 @@ def inspection_deletion_metadata(inspection_id: UUID, identity: AdminIdentity = 
             """,
             (inspection_id,),
         ).fetchall()
-    return {"inspection_id": str(inspection_id), "images": images}
+    return {"inspection_id": str(inspection_id), "images": [
+        {"bucket": image["storage_bucket"], "key": image["storage_key"]} for image in images
+    ]}
 
 
 @router.delete("/inspections/{inspection_id}")
@@ -533,7 +556,9 @@ def delete_inspection(inspection_id: UUID, identity: AdminIdentity = Depends(_id
         # All dependent tables use ON DELETE CASCADE or SET NULL. S3 objects are
         # deliberately removed first by the authenticated Node BFF, not by the DB.
         conn.execute("DELETE FROM inspections WHERE id = %s", (inspection_id,))
-        _audit(conn, identity.id, "delete_inspection", "inspection", str(inspection_id), dict(existing), {"s3_evidence_deleted": True})
+        _audit(conn, identity.id, "delete_inspection", "inspection", str(inspection_id),
+               {"id": str(existing["id"]), "status": existing["status"], "photo_count": existing["photo_count"]},
+               {"s3_evidence_deleted": True})
         conn.commit()
     return {"id": str(inspection_id), "deleted": True}
 
@@ -552,7 +577,10 @@ def sales_officer_activity(
     and never guessed onto an employee record.
     """
     _require(identity, SALES_ACTIVITY_ROLES)
-    selected_day = day or None
+    try:
+        selected_day = date.fromisoformat(day) if day else datetime.now(ZoneInfo('Asia/Kolkata')).date()
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Choose a valid calendar date.")
     with connection() as conn:
         rows = conn.execute(
             """
@@ -561,17 +589,19 @@ def sales_officer_activity(
             ), activity AS (
                 SELECT i.employee_id,
                        count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day) AS day_uploads,
-                       count(*) FILTER (WHERE i.created_at >= now() - interval '7 days') AS week_uploads,
+                       count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 6 AND selected.report_day) AS week_uploads,
                        max(i.created_at) AS last_upload_at
                 FROM inspections i CROSS JOIN selected
                 GROUP BY i.employee_id
             )
             SELECT sot.id, sot.source_row, sot.state, sot.territory, sot.source_name,
                    e.id AS employee_id, e.employee_code, e.full_name, e.office_email,
-                   e.office_mobile, e.personal_mobile, e.department, e.designation, e.location,
+                   e.office_mobile, e.personal_mobile, e.personal_email, e.department, e.designation, e.location,
+                   e.reporting_manager_name,
                    COALESCE(a.day_uploads, 0) AS day_uploads,
                    COALESCE(a.week_uploads, 0) AS week_uploads, a.last_upload_at,
-                   (e.id IS NOT NULL) AS employee_matched
+                   (e.id IS NOT NULL) AS employee_matched,
+                   COALESCE((SELECT array_agg(er.role_code) FROM employee_roles er WHERE er.employee_id=e.id), '{}') AS roles
             FROM sales_officer_territories sot
             LEFT JOIN employees e ON e.id = sot.employee_id
             LEFT JOIN activity a ON a.employee_id = e.id
@@ -664,3 +694,34 @@ def set_employee_roles(employee_id: UUID, payload: EmployeeRoleAssignment, ident
         _audit(conn, identity.id, "update_employee_roles", "employee", employee["employee_code"], {"roles": old_roles}, {"roles": [row["role_code"] for row in new_roles]})
         conn.commit()
     return {"id": str(employee_id), "employee_code": employee["employee_code"], "roles": [row["role_code"] for row in new_roles]}
+
+
+@router.put('/sales-officers/{roster_id}/employee')
+def match_sales_officer(roster_id: UUID, payload: RosterEmployeeMatch, identity: AdminIdentity = Depends(_identity)):
+    _require(identity, {'super_admin'})
+    with connection() as conn:
+        roster = conn.execute('SELECT id, employee_id FROM sales_officer_territories WHERE id=%s FOR UPDATE', (roster_id,)).fetchone()
+        if not roster:
+            raise HTTPException(404, 'Sales officer not found.')
+        employee = conn.execute("SELECT id FROM employees WHERE employee_code=%s AND department IS DISTINCT FROM 'Demonstration'", (payload.employee_code.strip(),)).fetchone()
+        if not employee:
+            raise HTTPException(422, 'Choose an existing employee code from the directory.')
+        conn.execute('UPDATE sales_officer_territories SET employee_id=%s, match_locked=true, updated_at=now() WHERE id=%s', (employee['id'], roster_id))
+        _audit(conn, identity.id, 'match_sales_officer', 'sales_officer', str(roster_id), {'employee_id': str(roster['employee_id']) if roster['employee_id'] else None}, {'employee_id': str(employee['id'])})
+        conn.commit()
+    return {'matched': True}
+
+
+@router.post('/sales-officers/{roster_id}/access')
+def issue_field_access(roster_id: UUID, identity: AdminIdentity = Depends(_identity)):
+    _require(identity, {'super_admin'})
+    token = secrets.token_urlsafe(32)
+    with connection() as conn:
+        employee = conn.execute("SELECT e.id, e.full_name FROM sales_officer_territories s JOIN employees e ON e.id=s.employee_id WHERE s.id=%s AND e.status='active'", (roster_id,)).fetchone()
+        if not employee:
+            raise HTTPException(422, 'Match this officer to an active employee first.')
+        conn.execute('UPDATE field_access_grants SET revoked_at=now() WHERE employee_id=%s AND revoked_at IS NULL', (employee['id'],))
+        grant = conn.execute("INSERT INTO field_access_grants(employee_id, token_hash, issued_by, expires_at) VALUES (%s,%s,%s,now()+interval '30 days') RETURNING expires_at", (employee['id'], hashlib.sha256(token.encode()).hexdigest(), identity.id)).fetchone()
+        _audit(conn, identity.id, 'issue_field_access', 'employee', str(employee['id']), None, {'expires_at': grant['expires_at'].isoformat()})
+        conn.commit()
+    return {'token': token, 'expires_at': grant['expires_at'], 'name': employee['full_name']}

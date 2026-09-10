@@ -26,6 +26,7 @@ export async function POST(request: Request) {
     const productId = typeof form.get('product_id') === 'string' ? String(form.get('product_id')).trim() : '';
     const image = form.get('image');
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]{1,98}$/.test(productId) || !(image instanceof File)) return NextResponse.json({ error: 'Choose a valid product ID and package image.' }, { status: 422 });
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(image.type) || !image.size || image.size > 5 * 1024 * 1024) return NextResponse.json({ error: 'Use a JPG, PNG or WebP package image up to 5 MB.' }, { status: 422 });
     const stored = await storeProductImage(productId, { bytes: new Uint8Array(await image.arrayBuffer()), mimeType: image.type });
     return NextResponse.json({ image_path: stored.imagePath, bytes: stored.fileSizeBytes }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {

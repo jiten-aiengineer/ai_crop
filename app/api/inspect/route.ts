@@ -4,6 +4,7 @@ import { approvedCatalogueRecommendations } from '../../lib/database-catalog';
 import { geminiInspection, legacyDiagnosis, queueShadow, InspectionInput } from '../../lib/inspection-ai';
 import { persistInspection } from '../../lib/inspection-persistence';
 import { storeInspectionImages } from '../../lib/s3-storage';
+import { fieldIdentityFor } from '../../lib/field-access';
 
 // S3 uses the AWS SDK default credential chain, including the EC2 instance role.
 // It must run only on the server, never in the browser or an edge isolate.
@@ -11,6 +12,9 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  let employeeCode: string | undefined;
+  try { employeeCode = (await fieldIdentityFor(request))?.employee_code; }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Field access could not be verified.' }, { status: 401 }); }
   let form: FormData;
   try { form = await request.formData(); }
   catch { return NextResponse.json({error:'Send crop photos as form data.'},{status:400}); }
@@ -50,7 +54,7 @@ export async function POST(request: Request) {
     ? await approvedCatalogueRecommendations(grounded)
     : { recommendations: [], source: 'catalogue_unavailable' as const };
   const recommendations = catalogue.recommendations;
-  const persistence = await persistInspection({ inspectionId, input, imageCount: images.length, storage, provider: gemini, recommendations });
+  const persistence = await persistInspection({ inspectionId, input, employeeCode, imageCount: images.length, storage, provider: gemini, recommendations });
   const storageMetadata = {
     inspection_id: inspectionId,
     comparison_status: comparison.status,

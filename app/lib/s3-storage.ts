@@ -135,7 +135,7 @@ export async function uploadInspectionImage(inspectionId: string, image: Inspect
 
 export async function deleteInspectionImage(image: Pick<StoredInspectionImage, 'bucket' | 'key'>) {
   const config = configuredStorage();
-  if (!config || image.bucket !== config.bucket) throw new Error('Private S3 inspection storage is not configured.');
+  if (!config || image.bucket !== config.bucket || !image.key?.startsWith(`${config.prefix}/`)) throw new Error('Private S3 inspection storage is not configured.');
   await clientFor(config).send(new s3.DeleteObjectCommand({ Bucket: image.bucket, Key: image.key }));
 }
 

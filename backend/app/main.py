@@ -1,4 +1,5 @@
 import hmac
+import hashlib
 from typing import Any, Literal
 from uuid import UUID
 
@@ -17,6 +18,7 @@ app.include_router(admin_router)
 
 
 class InspectionContext(BaseModel):
+    employee_code: str = Field(default='', max_length=32)
     crop: str = Field(default="", max_length=160)
     plant: str = Field(default="", max_length=160)
     description: str = Field(default="", max_length=4000)
@@ -119,6 +121,20 @@ def health():
     return {"status": "ok", "database": row["database"]}
 
 
+@app.get('/api/v1/field/identity')
+def field_identity(x_inspection_persistence_token: str | None = Header(default=None), x_clsl_field_token: str | None = Header(default=None)):
+    _require_internal_service_token(x_inspection_persistence_token)
+    if not x_clsl_field_token or len(x_clsl_field_token) > 100:
+        raise HTTPException(401, 'Open your personal field access link.')
+    with connection() as conn:
+        employee = conn.execute("""SELECT e.employee_code, e.full_name FROM field_access_grants g
+            JOIN employees e ON e.id=g.employee_id WHERE g.token_hash=%s AND g.revoked_at IS NULL
+            AND g.expires_at > now() AND e.status='active'""", (hashlib.sha256(x_clsl_field_token.encode()).hexdigest(),)).fetchone()
+    if not employee:
+        raise HTTPException(401, 'Your field access has expired. Request a new link from your administrator.')
+    return employee
+
+
 @app.get("/api/v1/catalog/products")
 def list_products(
     search: str = Query(default="", max_length=120),
@@ -202,6 +218,12 @@ def persist_inspection(
 
     with connection() as conn:
         crop_id = _crop_id(conn, detected_crop or _clean(payload.context.crop, 160))
+        employee_id = None
+        if payload.context.employee_code:
+            employee = conn.execute("SELECT id FROM employees WHERE employee_code=%s AND status='active'", (payload.context.employee_code,)).fetchone()
+            if not employee:
+                raise HTTPException(422, 'The field employee is not active.')
+            employee_id = employee['id']
         conn.execute(
             """
             INSERT INTO inspections(
@@ -209,9 +231,10 @@ def persist_inspection(
                 location_text, preferred_language, status, photo_count, failure_message,
                 completed_at, image_storage_status, image_storage_failures
             )
-            VALUES (%s, NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     CASE WHEN %s = 'completed' THEN now() ELSE NULL END, %s, %s)
             ON CONFLICT (id) DO UPDATE SET
+                employee_id = COALESCE(inspections.employee_id, EXCLUDED.employee_id),
                 crop_id = EXCLUDED.crop_id,
                 farmer_crop_text = EXCLUDED.farmer_crop_text,
                 plant_text = EXCLUDED.plant_text,
@@ -228,6 +251,7 @@ def persist_inspection(
             """,
             (
                 payload.inspection_id,
+                employee_id,
                 crop_id,
                 _clean(payload.context.crop, 160),
                 _clean(payload.context.plant, 160),
