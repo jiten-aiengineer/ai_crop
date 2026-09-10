@@ -32,7 +32,9 @@ CATALOGUE_READ_ROLES = CATALOGUE_MANAGER_ROLES | {
     "mapping_approver", "expert_review_approver", "employee_access_approver"
 }
 ADMIN_READ_ROLES = CATALOGUE_READ_ROLES | {"super_admin"}
-INSPECTION_REVIEW_ROLES = {"manager", "expert_review_approver"}
+INSPECTION_REVIEW_ROLES = {"manager", "expert_review_approver", "senior_catalogue_manager", "managing_director"}
+INSPECTION_DELETE_ROLES = {"super_admin"}
+SALES_ACTIVITY_ROLES = {"manager", "senior_catalogue_manager", "managing_director"}
 ASSIGNABLE_ROLE_CODES = {
     "field_employee", "manager", "catalog_editor", "catalogue_manager",
     "senior_catalogue_manager", "managing_director", "product_approver",
@@ -70,8 +72,9 @@ class CatalogueProductInput(BaseModel):
     @classmethod
     def trusted_product_image_path(cls, value: str) -> str:
         value = value.strip()
-        if value and not re.fullmatch(r"/products/[A-Za-z0-9._-]+\.(?:jpg|jpeg|png|webp)", value, re.IGNORECASE):
-            raise ValueError("Use an approved application image path such as /products/product-name.jpg.")
+        if value and not (re.fullmatch(r"/products/[A-Za-z0-9._-]+\.(?:jpg|jpeg|png|webp)", value, re.IGNORECASE)
+                          or re.fullmatch(r"s3:product-images/[A-Za-z0-9][A-Za-z0-9._/-]*\.(?:jpg|jpeg|png|webp)", value, re.IGNORECASE)):
+            raise ValueError("Use an approved package image or a private product image uploaded through this portal.")
         return value
 
 
@@ -201,6 +204,8 @@ def current_admin(identity: AdminIdentity = Depends(_identity)):
             "send_catalogue_changes_to_final_publisher": _can(identity, SENIOR_CATALOGUE_MANAGER_ROLES),
             "finalise_catalogue_release": _can(identity, FINAL_CATALOGUE_PUBLISHER_ROLES),
             "view_inspections": _can(identity, INSPECTION_REVIEW_ROLES),
+            "delete_inspections": _can(identity, INSPECTION_DELETE_ROLES),
+            "view_sales_officer_activity": _can(identity, SALES_ACTIVITY_ROLES),
             "view_model_observability": _can(identity, INSPECTION_REVIEW_ROLES),
             "view_employee_access": _can(identity, {"employee_access_approver"}),
             "manage_employee_roles": _can(identity, {"super_admin"}),
@@ -495,6 +500,96 @@ def inspection_image_metadata(inspection_id: UUID, image_order: int, identity: A
     if not image or not image["storage_bucket"] or not image["storage_key"]:
         raise HTTPException(status_code=404, detail="Retained inspection image not found.")
     return {"bucket": image["storage_bucket"], "key": image["storage_key"], "mime_type": image["content_type"], "byte_size": image["byte_size"], "image_order": image["image_order"]}
+
+
+@router.get("/inspections/{inspection_id}/deletion")
+def inspection_deletion_metadata(inspection_id: UUID, identity: AdminIdentity = Depends(_identity)):
+    """Return exact private objects before a super admin deletes an inspection."""
+    _require(identity, INSPECTION_DELETE_ROLES)
+    with connection() as conn:
+        inspection = conn.execute("SELECT id FROM inspections WHERE id = %s", (inspection_id,)).fetchone()
+        if not inspection:
+            raise HTTPException(status_code=404, detail="Inspection not found.")
+        images = conn.execute(
+            """
+            SELECT storage_bucket, storage_key, content_type, byte_size, image_order
+            FROM inspection_images
+            WHERE inspection_id = %s AND storage_provider = 's3' AND retention_status = 'retained'
+            ORDER BY image_order
+            """,
+            (inspection_id,),
+        ).fetchall()
+    return {"inspection_id": str(inspection_id), "images": images}
+
+
+@router.delete("/inspections/{inspection_id}")
+def delete_inspection(inspection_id: UUID, identity: AdminIdentity = Depends(_identity)):
+    """Delete persisted inspection metadata after the BFF has removed S3 evidence."""
+    _require(identity, INSPECTION_DELETE_ROLES)
+    with connection() as conn:
+        existing = conn.execute("SELECT id, status, photo_count FROM inspections WHERE id = %s FOR UPDATE", (inspection_id,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Inspection not found.")
+        # All dependent tables use ON DELETE CASCADE or SET NULL. S3 objects are
+        # deliberately removed first by the authenticated Node BFF, not by the DB.
+        conn.execute("DELETE FROM inspections WHERE id = %s", (inspection_id,))
+        _audit(conn, identity.id, "delete_inspection", "inspection", str(inspection_id), dict(existing), {"s3_evidence_deleted": True})
+        conn.commit()
+    return {"id": str(inspection_id), "deleted": True}
+
+
+@router.get("/sales-officers")
+def sales_officer_activity(
+    day: str = Query(default="", pattern=r"^$|^\d{4}-\d{2}-\d{2}$"),
+    state: str = Query(default="", max_length=120),
+    territory: str = Query(default="", max_length=160),
+    identity: AdminIdentity = Depends(_identity),
+):
+    """Roster plus attributable inspection counts for the selected India day.
+
+    The selected officer is attached only when an inspection contains a real
+    employee_id. Existing anonymous farmer inspections are reported separately
+    and never guessed onto an employee record.
+    """
+    _require(identity, SALES_ACTIVITY_ROLES)
+    selected_day = day or None
+    with connection() as conn:
+        rows = conn.execute(
+            """
+            WITH selected AS (
+                SELECT COALESCE(%s::date, (now() AT TIME ZONE 'Asia/Kolkata')::date) AS report_day
+            ), activity AS (
+                SELECT i.employee_id,
+                       count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day) AS day_uploads,
+                       count(*) FILTER (WHERE i.created_at >= now() - interval '7 days') AS week_uploads,
+                       max(i.created_at) AS last_upload_at
+                FROM inspections i CROSS JOIN selected
+                GROUP BY i.employee_id
+            )
+            SELECT sot.id, sot.source_row, sot.state, sot.territory, sot.source_name,
+                   e.id AS employee_id, e.employee_code, e.full_name, e.office_email,
+                   e.office_mobile, e.personal_mobile, e.department, e.designation, e.location,
+                   COALESCE(a.day_uploads, 0) AS day_uploads,
+                   COALESCE(a.week_uploads, 0) AS week_uploads, a.last_upload_at,
+                   (e.id IS NOT NULL) AS employee_matched
+            FROM sales_officer_territories sot
+            LEFT JOIN employees e ON e.id = sot.employee_id
+            LEFT JOIN activity a ON a.employee_id = e.id
+            WHERE (%s = '' OR sot.state = %s)
+              AND (%s = '' OR sot.territory = %s)
+            ORDER BY sot.state, sot.territory
+            """,
+            (selected_day, state, state, territory, territory),
+        ).fetchall()
+        anonymous = conn.execute(
+            """
+            SELECT count(*) AS day_uploads
+            FROM inspections CROSS JOIN (SELECT COALESCE(%s::date, (now() AT TIME ZONE 'Asia/Kolkata')::date) AS report_day) selected
+            WHERE employee_id IS NULL AND (created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day
+            """,
+            (selected_day,),
+        ).fetchone()
+    return {"items": rows, "report_day": selected_day, "anonymous_day_uploads": anonymous["day_uploads"]}
 
 
 @router.get("/models")

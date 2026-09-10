@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 
 // Vinext's server bundle must leave the AWS implementation to Node. Loading
@@ -8,6 +9,8 @@ const s3 = nodeRequire('@aws-sdk/client-s3') as typeof import('@aws-sdk/client-s
 /** Server-only private S3 storage for the exact image bytes submitted for an inspection. */
 export const SUPPORTED_INSPECTION_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'] as const;
 export type InspectionImageMimeType = typeof SUPPORTED_INSPECTION_IMAGE_TYPES[number];
+export const SUPPORTED_PRODUCT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export type ProductImageMimeType = typeof SUPPORTED_PRODUCT_IMAGE_TYPES[number];
 export type InspectionImageStorageStatus = 'not_configured' | 'stored' | 'partial_failure' | 'failed';
 
 export type InspectionImageUpload = {
@@ -35,10 +38,11 @@ export type InspectionImageStorageResult = {
   failures: InspectionImageStorageFailure[];
 };
 
-type S3StorageConfig = { region: string; bucket: string; prefix: string };
+type S3StorageConfig = { region: string; bucket: string; prefix: string; productPrefix: string };
 
 const MAX_IMAGES_PER_INSPECTION = 5;
 const MAX_INSPECTION_BYTES = 4 * 1024 * 1024;
+const MAX_PRODUCT_IMAGE_BYTES = 5 * 1024 * 1024;
 let client: import('@aws-sdk/client-s3').S3Client | undefined;
 
 function trim(value: string | undefined) {
@@ -52,7 +56,9 @@ function configuredStorage(): S3StorageConfig | null {
 
   const prefix = (trim(process.env.S3_INSPECTIONS_PREFIX) || 'inspections').replace(/^\/+|\/+$/g, '');
   if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(prefix)) throw new Error('S3 inspection prefix is invalid.');
-  return { region, bucket, prefix };
+  const productPrefix = (trim(process.env.S3_PRODUCT_IMAGES_PREFIX) || 'product-images').replace(/^\/+|\/+$/g, '');
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(productPrefix)) throw new Error('S3 product image prefix is invalid.');
+  return { region, bucket, prefix, productPrefix };
 }
 
 function extensionFor(mimeType: InspectionImageMimeType) {
@@ -65,6 +71,10 @@ function extensionFor(mimeType: InspectionImageMimeType) {
   } as const)[mimeType];
 }
 
+function productExtensionFor(mimeType: ProductImageMimeType) {
+  return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' } as const)[mimeType];
+}
+
 function assertInspectionId(value: string) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
     throw new Error('Inspection identifier is invalid.');
@@ -73,6 +83,14 @@ function assertInspectionId(value: string) {
 
 function isSupportedMimeType(value: string): value is InspectionImageMimeType {
   return (SUPPORTED_INSPECTION_IMAGE_TYPES as readonly string[]).includes(value);
+}
+
+function isSupportedProductMimeType(value: string): value is ProductImageMimeType {
+  return (SUPPORTED_PRODUCT_IMAGE_TYPES as readonly string[]).includes(value);
+}
+
+function assertProductId(value: string) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{1,98}$/.test(value)) throw new Error('Product identifier is invalid.');
 }
 
 function clientFor(config: S3StorageConfig) {
@@ -119,6 +137,40 @@ export async function deleteInspectionImage(image: Pick<StoredInspectionImage, '
   const config = configuredStorage();
   if (!config || image.bucket !== config.bucket) throw new Error('Private S3 inspection storage is not configured.');
   await clientFor(config).send(new s3.DeleteObjectCommand({ Bucket: image.bucket, Key: image.key }));
+}
+
+/** Upload a product package image privately. It is served through an approved
+ * product route only after that product has completed the release workflow. */
+export async function storeProductImage(productId: string, image: { bytes: Uint8Array; mimeType: string }) {
+  const config = configuredStorage();
+  if (!config) throw new Error('Private S3 product image storage is not configured.');
+  assertProductId(productId);
+  if (!isSupportedProductMimeType(image.mimeType) || !image.bytes.byteLength || image.bytes.byteLength > MAX_PRODUCT_IMAGE_BYTES) {
+    throw new Error('Use a JPG, PNG or WebP product image up to 5 MB.');
+  }
+  const key = `${config.productPrefix}/${productId}/${randomUUID()}.${productExtensionFor(image.mimeType)}`;
+  await clientFor(config).send(new s3.PutObjectCommand({
+    Bucket: config.bucket, Key: key, Body: image.bytes, ContentType: image.mimeType,
+    ServerSideEncryption: 'AES256', Metadata: { 'product-id': productId },
+  }));
+  return { imagePath: `s3:${key}`, key, mimeType: image.mimeType, fileSizeBytes: image.bytes.byteLength };
+}
+
+/** Read an authorised product image without issuing a public S3 link. */
+export async function readPrivateProductImage(imagePath: string) {
+  const config = configuredStorage();
+  const key = imagePath.startsWith('s3:') ? imagePath.slice(3) : '';
+  if (!config || !key || !key.startsWith(`${config.productPrefix}/`) || !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(key)) {
+    throw new Error('Private product image storage is not configured.');
+  }
+  const object = await clientFor(config).send(new s3.GetObjectCommand({ Bucket: config.bucket, Key: key }));
+  if (!object.Body) throw new Error('The private product image could not be read.');
+  const bytes = await object.Body.transformToByteArray();
+  const mimeType = object.ContentType || '';
+  if (!bytes.byteLength || bytes.byteLength > MAX_PRODUCT_IMAGE_BYTES || !isSupportedProductMimeType(mimeType)) {
+    throw new Error('The stored product image is invalid.');
+  }
+  return { bytes, mimeType };
 }
 
 /**

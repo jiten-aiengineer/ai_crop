@@ -44,21 +44,23 @@ function asCrops(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())) : [];
 }
 
-function toCatalogProduct(row: ApiProduct): CatalogProduct | null {
+function toCatalogProduct(row: ApiProduct, revealPrivateImageReference = false): CatalogProduct | null {
   const id = asText(row.id); const name = asText(row.name); const category = asText(row.category);
   if (!id || !name || !category) return null;
+  const imagePath = asText(row.image_path);
   return {
     id, name, category,
     commonName: asText(row.common_name), formulation: asText(row.formulation),
     dose: asText(row.dose), useBenefits: asText(row.use_benefits), packing: asText(row.packing),
     applicationMethod: asText(row.application_method), safetyInformation: asText(row.safety_information),
-    image: asText(row.image_path), sourcePage: typeof row.source_page === 'number' ? row.source_page : 0,
+    image: imagePath.startsWith('s3:') && !revealPrivateImageReference ? `/api/catalogue/product-image/${encodeURIComponent(id)}` : imagePath,
+    sourcePage: typeof row.source_page === 'number' ? row.source_page : 0,
     approvedCrops: asCrops(row.approved_crops), cropMappingSource: 'Approved live CLSL catalogue',
   };
 }
 
 /** Product information used by the farmer product screen and Gemini chatbot. */
-export async function approvedCatalogueProducts(): Promise<{
+export async function approvedCatalogueProducts(options: { revealPrivateImageReference?: boolean } = {}): Promise<{
   products: CatalogProduct[];
   source: 'approved_postgresql_catalogue' | 'catalogue_unavailable';
 }> {
@@ -74,7 +76,7 @@ export async function approvedCatalogueProducts(): Promise<{
     });
     if (!response.ok) return { products: [], source: 'catalogue_unavailable' };
     const data = await response.json() as { items?: ApiProduct[] };
-    const products = Array.isArray(data.items) ? data.items.map(toCatalogProduct).filter((item): item is CatalogProduct => Boolean(item)) : [];
+    const products = Array.isArray(data.items) ? data.items.map((item) => toCatalogProduct(item, Boolean(options.revealPrivateImageReference))).filter((item): item is CatalogProduct => Boolean(item)) : [];
     return { products, source: 'approved_postgresql_catalogue' };
   } catch { return { products: [], source: 'catalogue_unavailable' }; }
 }

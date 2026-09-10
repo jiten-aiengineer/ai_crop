@@ -10,8 +10,46 @@ const passwordAttempts = new Map<string, { count: number; until: number }>();
 type SignedPayload = Record<string, unknown> & { exp: number };
 export type AdminSession = { email: string; name: string; exp: number };
 type AuthMode = 'password' | 'microsoft' | 'none';
+type TemporaryAccount = { username: string; email: string; name: string; passwordHash: string };
 
 function environment(name: string) { return (process.env[name] || '').trim(); }
+
+function temporaryAccounts() {
+  const legacy: TemporaryAccount[] = [];
+  const legacyUsername = environment('TEMP_ADMIN_USERNAME').toLowerCase();
+  const legacyEmail = environment('TEMP_ADMIN_EMAIL').toLowerCase();
+  const legacyPasswordHash = environment('TEMP_ADMIN_PASSWORD_HASH');
+  if (legacyUsername && legacyEmail && legacyPasswordHash) {
+    legacy.push({ username: legacyUsername, email: legacyEmail, name: 'Jiten Advani', passwordHash: legacyPasswordHash });
+  }
+
+  const configured = environment('TEMP_DEMO_ACCOUNTS_JSON');
+  if (!configured) return legacy;
+  try {
+    const parsed = JSON.parse(configured) as unknown;
+    if (!Array.isArray(parsed)) return legacy;
+    const demos = parsed.flatMap((item): TemporaryAccount[] => {
+      if (!item || typeof item !== 'object') return [];
+      const value = item as Record<string, unknown>;
+      const username = typeof value.username === 'string' ? value.username.trim().toLowerCase() : '';
+      const email = typeof value.email === 'string' ? value.email.trim().toLowerCase() : '';
+      const name = typeof value.name === 'string' ? value.name.trim().slice(0, 180) : '';
+      const passwordHash = typeof value.passwordHash === 'string' ? value.passwordHash.trim() : '';
+      if (!/^[a-z0-9._-]{2,64}$/.test(username) || !/^[-a-z0-9._+]+@[-a-z0-9.]+\.[a-z]{2,}$/i.test(email) || !name || !passwordHash.startsWith('scrypt$')) return [];
+      return [{ username, email, name, passwordHash }];
+    });
+    const seen = new Set(legacy.map((account) => account.username));
+    const uniqueDemos: TemporaryAccount[] = [];
+    for (const account of demos) {
+      if (seen.has(account.username)) continue;
+      seen.add(account.username);
+      uniqueDemos.push(account);
+    }
+    return [...legacy, ...uniqueDemos];
+  } catch {
+    return legacy;
+  }
+}
 
 export function adminConfiguration() {
   const hostname = environment('ADMIN_PORTAL_HOSTNAME').toLowerCase();
@@ -22,16 +60,14 @@ export function adminConfiguration() {
   const sessionSecret = environment('ADMIN_PORTAL_SESSION_SECRET');
   const backendUrl = environment('ADMIN_BACKEND_URL').replace(/\/$/, '');
   const gatewayToken = environment('ADMIN_GATEWAY_TOKEN');
-  const tempAdminUsername = environment('TEMP_ADMIN_USERNAME').toLowerCase();
-  const tempAdminEmail = environment('TEMP_ADMIN_EMAIL').toLowerCase();
-  const tempAdminPasswordHash = environment('TEMP_ADMIN_PASSWORD_HASH');
+  const tempAccounts = temporaryAccounts();
   const baseConfigured = Boolean(hostname && origin && sessionSecret.length >= 32 && backendUrl && gatewayToken);
   const microsoftConfigured = Boolean(baseConfigured && tenantId && clientId && clientSecret);
-  const temporaryPasswordConfigured = Boolean(baseConfigured && tempAdminUsername && tempAdminEmail && tempAdminPasswordHash);
+  const temporaryPasswordConfigured = Boolean(baseConfigured && tempAccounts.length);
   const authMode: AuthMode = microsoftConfigured ? 'microsoft' : temporaryPasswordConfigured ? 'password' : 'none';
   return {
     hostname, origin, tenantId, clientId, clientSecret, sessionSecret, backendUrl, gatewayToken,
-    tempAdminUsername, tempAdminEmail, tempAdminPasswordHash,
+    tempAccounts,
     microsoftConfigured, temporaryPasswordConfigured, authMode, configured: authMode !== 'none',
   };
 }
@@ -142,11 +178,12 @@ export function passwordLoginResponse(request: Request, username: string, passwo
   if (!configuration.temporaryPasswordConfigured) return NextResponse.json({ error: 'Temporary password sign-in is not configured.' }, { status: 503 });
   if (!requestIsHttps(request)) return NextResponse.json({ error: 'Password sign-in requires the secure HTTPS address.' }, { status: 400 });
   if (passwordRateLimited(key)) return NextResponse.json({ error: 'Too many unsuccessful attempts. Please wait 15 minutes and try again.' }, { status: 429 });
-  const valid = equalText(username.trim().toLowerCase(), configuration.tempAdminUsername) && verifyTemporaryPassword(password, configuration.tempAdminPasswordHash);
+  const account = configuration.tempAccounts.find((candidate) => equalText(username.trim().toLowerCase(), candidate.username));
+  const valid = Boolean(account && verifyTemporaryPassword(password, account.passwordHash));
   if (!valid) { registerFailedPasswordAttempt(key); return NextResponse.json({ error: 'The username or password is incorrect.' }, { status: 401 }); }
   passwordAttempts.delete(key);
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(SESSION_COOKIE, sign({ email: configuration.tempAdminEmail, name: 'Jiten Advani', exp: Math.floor(Date.now() / 1000) + 8 * 60 * 60 }), cookieOptions(8 * 60 * 60));
+  response.cookies.set(SESSION_COOKIE, sign({ email: account!.email, name: account!.name, exp: Math.floor(Date.now() / 1000) + 8 * 60 * 60 }), cookieOptions(8 * 60 * 60));
   return response;
 }
 
