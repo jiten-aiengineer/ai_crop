@@ -35,6 +35,13 @@ services:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       ADMIN_GATEWAY_TOKEN: ${ADMIN_GATEWAY_TOKEN:-}
       ADMIN_ALLOWED_EMAIL_DOMAIN: ${ADMIN_ALLOWED_EMAIL_DOMAIN:-croplifescience.com}
+      PORTAL_INVITE_EMAIL_FROM: ${PORTAL_INVITE_EMAIL_FROM:-aiengineer.2@croplifescience.com}
+      PORTAL_INVITE_URL: ${PORTAL_INVITE_URL:-https://croplifescience.duckdns.org/admin/portal}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
     depends_on:
       db:
         condition: service_healthy

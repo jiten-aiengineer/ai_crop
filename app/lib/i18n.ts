@@ -70,9 +70,72 @@ const mascotTranslations: Partial<Record<LanguageCode, Record<string, string>>> 
   },
 };
 
+const fieldCollectionTranslations: Record<LanguageCode, Record<string, string>> = {
+  en: {
+    fieldPersonalMode: 'PERSONAL SALES OFFICER MODE', fieldSalesOfficer: 'Sales Officer', fieldFourRequested: 'Four crop photos requested',
+    fieldCompleteFour: 'Add four crop photos', fieldPhotosAdded: 'photos added', fieldStructuredCollection: 'FIELD DATA COLLECTION', fieldFourPhotoRequest: 'Add any four useful photos of the crop problem',
+    fieldWholeCrop: 'Crop / plant photo', fieldWholeCropHelp: 'A full plant or field view is helpful.', fieldAffectedPart: 'Affected crop photo', fieldAffectedPartHelp: 'Add any photo showing the affected area.',
+    fieldCloseup: 'Problem photo', fieldCloseupHelp: 'A closer photo can help the AI.', fieldAnotherPhoto: 'Additional crop photo', fieldAnotherPhotoHelp: 'Any other angle or crop photo is accepted.',
+    fieldRemovePhoto: 'Remove photo', fieldDailyTarget: 'Daily target: 2–3 complete inspections. Monthly target: at least 20 active field days.', fieldNextPhoto: 'Suggested next photo',
+    fieldPhotosAccepted: 'Photos accepted. Clear crop photos can improve the probable assessment.', fieldPhotoPrepareError: 'One or more photos could not be prepared. Please select them again.',
+    fieldOfficialTerritory: 'Official territory', fieldFourRequired: 'Add four photos to continue', fieldAnyPhotoAccepted: 'Any selected crop-photo angle is accepted.',
+    fieldOfficerProfile: 'Sales Officer profile', fieldProfileStored: 'Your official field identity and territory are saved with this personal app link.', fieldOfficialIdentity: 'OFFICIAL FIELD IDENTITY',
+  },
+  hi: {
+    fieldPersonalMode: 'व्यक्तिगत बिक्री अधिकारी मोड', fieldSalesOfficer: 'बिक्री अधिकारी', fieldFourRequested: 'फसल की चार फोटो जोड़ें',
+    fieldCompleteFour: 'फसल की चार फोटो जोड़ें', fieldPhotosAdded: 'फोटो जोड़ी गईं', fieldStructuredCollection: 'फील्ड डेटा संग्रह', fieldFourPhotoRequest: 'फसल की समस्या की कोई भी चार उपयोगी फोटो जोड़ें',
+    fieldWholeCrop: 'फसल / पौधे की फोटो', fieldWholeCropHelp: 'पूरा पौधा या खेत दिखाना उपयोगी है।', fieldAffectedPart: 'प्रभावित फसल की फोटो', fieldAffectedPartHelp: 'प्रभावित भाग दिखाने वाली कोई भी फोटो जोड़ें।',
+    fieldCloseup: 'समस्या की फोटो', fieldCloseupHelp: 'पास की फोटो AI की मदद कर सकती है।', fieldAnotherPhoto: 'फसल की अतिरिक्त फोटो', fieldAnotherPhotoHelp: 'कोई भी दूसरा एंगल या फसल की फोटो स्वीकार होगी।',
+    fieldRemovePhoto: 'फोटो हटाएँ', fieldDailyTarget: 'दैनिक लक्ष्य: 2–3 पूरी जाँच। मासिक लक्ष्य: कम से कम 20 सक्रिय फील्ड दिन।', fieldNextPhoto: 'अगली सुझाई गई फोटो',
+    fieldPhotosAccepted: 'फोटो स्वीकार हो गईं। साफ फसल फोटो संभावित जाँच को बेहतर बना सकती हैं।', fieldPhotoPrepareError: 'एक या अधिक फोटो तैयार नहीं हो सकीं। कृपया फिर चुनें।',
+    fieldOfficialTerritory: 'आधिकारिक क्षेत्र', fieldFourRequired: 'आगे बढ़ने के लिए चार फोटो जोड़ें', fieldAnyPhotoAccepted: 'चुनी गई फसल फोटो का कोई भी एंगल स्वीकार है।',
+    fieldOfficerProfile: 'बिक्री अधिकारी प्रोफाइल', fieldProfileStored: 'आपकी आधिकारिक फील्ड पहचान और क्षेत्र इस व्यक्तिगत ऐप लिंक में सहेजे गए हैं।', fieldOfficialIdentity: 'आधिकारिक फील्ड पहचान',
+  },
+  gu: {
+    fieldPersonalMode: 'વ્યક્તિગત સેલ્સ ઓફિસર મોડ', fieldSalesOfficer: 'સેલ્સ ઓફિસર', fieldFourRequested: 'પાકના ચાર ફોટા ઉમેરો',
+    fieldCompleteFour: 'પાકના ચાર ફોટા ઉમેરો', fieldPhotosAdded: 'ફોટા ઉમેરાયા', fieldStructuredCollection: 'ફીલ્ડ ડેટા સંગ્રહ', fieldFourPhotoRequest: 'પાકની સમસ્યાના કોઈપણ ચાર ઉપયોગી ફોટા ઉમેરો',
+    fieldWholeCrop: 'પાક / છોડનો ફોટો', fieldWholeCropHelp: 'આખો છોડ અથવા ખેતરનો દેખાવ ઉપયોગી છે.', fieldAffectedPart: 'અસરગ્રસ્ત પાકનો ફોટો', fieldAffectedPartHelp: 'અસરગ્રસ્ત ભાગ દર્શાવતો કોઈપણ ફોટો ઉમેરો.',
+    fieldCloseup: 'સમસ્યાનો ફોટો', fieldCloseupHelp: 'નજીકનો ફોટો AIને મદદ કરી શકે છે.', fieldAnotherPhoto: 'પાકનો વધારાનો ફોટો', fieldAnotherPhotoHelp: 'કોઈપણ બીજો એંગલ અથવા પાકનો ફોટો સ્વીકારાશે.',
+    fieldRemovePhoto: 'ફોટો દૂર કરો', fieldDailyTarget: 'દૈનિક લક્ષ્ય: 2–3 સંપૂર્ણ તપાસ. માસિક લક્ષ્ય: ઓછામાં ઓછા 20 સક્રિય ફીલ્ડ દિવસ.', fieldNextPhoto: 'આગળનો સૂચિત ફોટો',
+    fieldPhotosAccepted: 'ફોટા સ્વીકારાયા. સ્પષ્ટ પાકના ફોટા સંભવિત તપાસને વધુ સારી બનાવી શકે છે.', fieldPhotoPrepareError: 'એક અથવા વધુ ફોટા તૈયાર થઈ શક્યા નથી. ફરી પસંદ કરો.',
+    fieldOfficialTerritory: 'સત્તાવાર વિસ્તાર', fieldFourRequired: 'આગળ વધવા ચાર ફોટા ઉમેરો', fieldAnyPhotoAccepted: 'પસંદ કરેલા પાકના ફોટાનો કોઈપણ એંગલ સ્વીકારાશે.',
+    fieldOfficerProfile: 'સેલ્સ ઓફિસર પ્રોફાઇલ', fieldProfileStored: 'તમારી સત્તાવાર ફીલ્ડ ઓળખ અને વિસ્તાર આ વ્યક્તિગત એપ લિંક સાથે સાચવેલા છે.', fieldOfficialIdentity: 'સત્તાવાર ફીલ્ડ ઓળખ',
+  },
+  mr: {
+    fieldPersonalMode: 'वैयक्तिक विक्री अधिकारी मोड', fieldSalesOfficer: 'विक्री अधिकारी', fieldFourRequested: 'पिकाचे चार फोटो जोडा',
+    fieldCompleteFour: 'पिकाचे चार फोटो जोडा', fieldPhotosAdded: 'फोटो जोडले', fieldStructuredCollection: 'फील्ड डेटा संकलन', fieldFourPhotoRequest: 'पिकाच्या समस्येचे कोणतेही चार उपयुक्त फोटो जोडा',
+    fieldWholeCrop: 'पीक / रोपाचा फोटो', fieldWholeCropHelp: 'संपूर्ण रोप किंवा शेताचा फोटो उपयुक्त आहे.', fieldAffectedPart: 'बाधित पिकाचा फोटो', fieldAffectedPartHelp: 'बाधित भाग दिसणारा कोणताही फोटो जोडा.',
+    fieldCloseup: 'समस्येचा फोटो', fieldCloseupHelp: 'जवळचा फोटो AI ला मदत करू शकतो.', fieldAnotherPhoto: 'पिकाचा अतिरिक्त फोटो', fieldAnotherPhotoHelp: 'दुसऱ्या कोणत्याही कोनातील किंवा पिकाचा फोटो स्वीकारला जाईल.',
+    fieldRemovePhoto: 'फोटो काढा', fieldDailyTarget: 'दैनिक लक्ष्य: 2–3 पूर्ण तपासण्या. मासिक लक्ष्य: किमान 20 सक्रिय फील्ड दिवस.', fieldNextPhoto: 'पुढील सुचवलेला फोटो',
+    fieldPhotosAccepted: 'फोटो स्वीकारले. स्पष्ट पिकाचे फोटो संभाव्य तपासणी सुधारू शकतात.', fieldPhotoPrepareError: 'एक किंवा अधिक फोटो तयार करता आले नाहीत. पुन्हा निवडा.',
+    fieldOfficialTerritory: 'अधिकृत क्षेत्र', fieldFourRequired: 'पुढे जाण्यासाठी चार फोटो जोडा', fieldAnyPhotoAccepted: 'निवडलेल्या पिकाच्या फोटोचा कोणताही कोन स्वीकारला जाईल.',
+    fieldOfficerProfile: 'विक्री अधिकारी प्रोफाइल', fieldProfileStored: 'तुमची अधिकृत फील्ड ओळख आणि क्षेत्र या वैयक्तिक अॅप लिंकसोबत जतन केले आहे.', fieldOfficialIdentity: 'अधिकृत फील्ड ओळख',
+  },
+  bn: {
+    fieldPersonalMode: 'ব্যক্তিগত সেলস অফিসার মোড', fieldSalesOfficer: 'সেলস অফিসার', fieldFourRequested: 'ফসলের চারটি ছবি যোগ করুন',
+    fieldCompleteFour: 'ফসলের চারটি ছবি যোগ করুন', fieldPhotosAdded: 'টি ছবি যোগ হয়েছে', fieldStructuredCollection: 'ফিল্ড ডেটা সংগ্রহ', fieldFourPhotoRequest: 'ফসলের সমস্যার যেকোনো চারটি উপযোগী ছবি যোগ করুন',
+    fieldWholeCrop: 'ফসল / গাছের ছবি', fieldWholeCropHelp: 'সম্পূর্ণ গাছ বা ক্ষেতের ছবি উপযোগী।', fieldAffectedPart: 'আক্রান্ত ফসলের ছবি', fieldAffectedPartHelp: 'আক্রান্ত অংশ দেখা যায় এমন যেকোনো ছবি দিন।',
+    fieldCloseup: 'সমস্যার ছবি', fieldCloseupHelp: 'কাছ থেকে তোলা ছবি AI-কে সাহায্য করতে পারে।', fieldAnotherPhoto: 'ফসলের অতিরিক্ত ছবি', fieldAnotherPhotoHelp: 'অন্য যেকোনো কোণ বা ফসলের ছবি গ্রহণ করা হবে।',
+    fieldRemovePhoto: 'ছবি সরান', fieldDailyTarget: 'দৈনিক লক্ষ্য: ২–৩টি সম্পূর্ণ পরীক্ষা। মাসিক লক্ষ্য: অন্তত ২০টি সক্রিয় ফিল্ড দিন।', fieldNextPhoto: 'পরবর্তী প্রস্তাবিত ছবি',
+    fieldPhotosAccepted: 'ছবি গ্রহণ করা হয়েছে। পরিষ্কার ফসলের ছবি সম্ভাব্য পরীক্ষা উন্নত করতে পারে।', fieldPhotoPrepareError: 'এক বা একাধিক ছবি প্রস্তুত করা যায়নি। আবার নির্বাচন করুন।',
+    fieldOfficialTerritory: 'অফিসিয়াল এলাকা', fieldFourRequired: 'এগিয়ে যেতে চারটি ছবি যোগ করুন', fieldAnyPhotoAccepted: 'নির্বাচিত ফসলের ছবির যেকোনো কোণ গ্রহণ করা হবে।',
+    fieldOfficerProfile: 'সেলস অফিসার প্রোফাইল', fieldProfileStored: 'আপনার অফিসিয়াল ফিল্ড পরিচয় ও এলাকা এই ব্যক্তিগত অ্যাপ লিংকে সংরক্ষিত।', fieldOfficialIdentity: 'অফিসিয়াল ফিল্ড পরিচয়',
+  },
+  bho: {
+    fieldPersonalMode: 'निजी सेल्स ऑफिसर मोड', fieldSalesOfficer: 'सेल्स ऑफिसर', fieldFourRequested: 'फसल के चार फोटो जोड़ीं',
+    fieldCompleteFour: 'फसल के चार फोटो जोड़ीं', fieldPhotosAdded: 'फोटो जोड़ाइल', fieldStructuredCollection: 'फील्ड डेटा जमा', fieldFourPhotoRequest: 'फसल के समस्या के कवनो चार काम के फोटो जोड़ीं',
+    fieldWholeCrop: 'फसल / पौधा के फोटो', fieldWholeCropHelp: 'पूरा पौधा भा खेत के फोटो काम के बा।', fieldAffectedPart: 'खराब फसल के फोटो', fieldAffectedPartHelp: 'खराब हिस्सा देखावत कवनो फोटो जोड़ीं।',
+    fieldCloseup: 'समस्या के फोटो', fieldCloseupHelp: 'नजदीक के फोटो AI के मदद कर सकेला।', fieldAnotherPhoto: 'फसल के अउरी फोटो', fieldAnotherPhotoHelp: 'दूसर कवनो एंगल भा फसल के फोटो स्वीकार होई।',
+    fieldRemovePhoto: 'फोटो हटाईं', fieldDailyTarget: 'रोज के लक्ष्य: 2–3 पूरा जाँच। महीना के लक्ष्य: कम से कम 20 दिन फील्ड में सक्रिय।', fieldNextPhoto: 'अगिला सुझावल फोटो',
+    fieldPhotosAccepted: 'फोटो स्वीकार हो गइल। साफ फसल फोटो संभावित जाँच बेहतर कर सकेला।', fieldPhotoPrepareError: 'एक भा अधिक फोटो तैयार ना हो पवल। फेर से चुनीं।',
+    fieldOfficialTerritory: 'आधिकारिक इलाका', fieldFourRequired: 'आगे बढ़े खातिर चार फोटो जोड़ीं', fieldAnyPhotoAccepted: 'चुनल फसल फोटो के कवनो एंगल स्वीकार बा।',
+    fieldOfficerProfile: 'सेल्स ऑफिसर प्रोफाइल', fieldProfileStored: 'रउआ आधिकारिक फील्ड पहचान आ इलाका एह निजी ऐप लिंक में सेव बा।', fieldOfficialIdentity: 'आधिकारिक फील्ड पहचान',
+  },
+};
+
 export function getLanguage(value?: string): LanguageCode {
   const aliases: Record<string, LanguageCode> = { English:'en', Hindi:'hi', Gujarati:'gu', Marathi:'mr', Bengali:'bn', Bhojpuri:'bho' };
   return value && (languages.some((item) => item.code === value) ? value as LanguageCode : aliases[value]) || 'en';
 }
 
-export function getCopy(language: LanguageCode) { return { ...en, ...translations[language], ...(mascotTranslations[language] || {}) }; }
+export function getCopy(language: LanguageCode) { return { ...en, ...translations[language], ...(mascotTranslations[language] || {}), ...fieldCollectionTranslations[language] }; }

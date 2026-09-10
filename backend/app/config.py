@@ -19,3 +19,14 @@ INTERNAL_SERVICE_TOKEN = os.getenv("INTERNAL_SERVICE_TOKEN", INSPECTION_PERSISTE
 # the Next.js admin BFF after it has completed Microsoft Entra sign-in.
 ADMIN_GATEWAY_TOKEN = os.getenv("ADMIN_GATEWAY_TOKEN", "")
 ADMIN_ALLOWED_EMAIL_DOMAIN = os.getenv("ADMIN_ALLOWED_EMAIL_DOMAIN", "croplifescience.com").strip().lower()
+
+# Optional company SMTP delivery for administrator invitations. When it is not
+# configured, the one-time password is returned only to the authenticated Super
+# Administrator so it can be shared through an approved internal channel.
+PORTAL_INVITE_EMAIL_FROM = os.getenv("PORTAL_INVITE_EMAIL_FROM", INITIAL_ADMIN_EMAIL).strip()
+PORTAL_INVITE_URL = os.getenv("PORTAL_INVITE_URL", "https://croplifescience.duckdns.org/admin/portal").strip()
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").strip().lower() not in {"0", "false", "no"}

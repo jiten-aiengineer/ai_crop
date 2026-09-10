@@ -173,17 +173,30 @@ export function loginResponse(request: Request) {
   return response;
 }
 
-export function passwordLoginResponse(request: Request, username: string, password: string) {
+export async function passwordLoginResponse(request: Request, username: string, password: string) {
   const configuration = assertAdminHost(request); const key = passwordAttemptKey(request);
   if (!configuration.temporaryPasswordConfigured) return NextResponse.json({ error: 'Temporary password sign-in is not configured.' }, { status: 503 });
   if (!requestIsHttps(request)) return NextResponse.json({ error: 'Password sign-in requires the secure HTTPS address.' }, { status: 400 });
   if (passwordRateLimited(key)) return NextResponse.json({ error: 'Too many unsuccessful attempts. Please wait 15 minutes and try again.' }, { status: 429 });
-  const account = configuration.tempAccounts.find((candidate) => equalText(username.trim().toLowerCase(), candidate.username));
-  const valid = Boolean(account && verifyTemporaryPassword(password, account.passwordHash));
-  if (!valid) { registerFailedPasswordAttempt(key); return NextResponse.json({ error: 'The username or password is incorrect.' }, { status: 401 }); }
+  const login = username.trim().toLowerCase();
+  const account = configuration.tempAccounts.find((candidate) => equalText(login, candidate.username) || equalText(login, candidate.email));
+  let authenticated = account && verifyTemporaryPassword(password, account.passwordHash)
+    ? { email: account.email, name: account.name }
+    : null;
+  if (!authenticated) {
+    try {
+      const backend = await fetch(`${configuration.backendUrl}/api/v1/admin/auth/password`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CLSL-Admin-Gateway-Token': configuration.gatewayToken },
+        body: JSON.stringify({ email: login, password }), cache: 'no-store', signal: AbortSignal.timeout(8_000),
+      });
+      const body = await backend.json().catch(() => ({})) as { email?: string; name?: string };
+      if (backend.ok && body.email && body.name) authenticated = { email: body.email, name: body.name };
+    } catch { /* A failed private lookup is handled as an invalid login. */ }
+  }
+  if (!authenticated) { registerFailedPasswordAttempt(key); return NextResponse.json({ error: 'The email or password is incorrect.' }, { status: 401 }); }
   passwordAttempts.delete(key);
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(SESSION_COOKIE, sign({ email: account!.email, name: account!.name, exp: Math.floor(Date.now() / 1000) + 8 * 60 * 60 }), cookieOptions(8 * 60 * 60));
+  response.cookies.set(SESSION_COOKIE, sign({ email: authenticated.email, name: authenticated.name, exp: Math.floor(Date.now() / 1000) + 8 * 60 * 60 }), cookieOptions(8 * 60 * 60));
   return response;
 }
 

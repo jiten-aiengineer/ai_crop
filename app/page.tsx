@@ -152,6 +152,23 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const employee = fieldSession.employee;
+    if (!employee) return;
+    setProfile((current) => {
+      const saved = {
+        ...current,
+        name: employee.full_name,
+        state: employee.state,
+        territory: employee.territory,
+        city: employee.territory,
+        location: employee.location || [employee.territory, employee.state].filter(Boolean).join(', '),
+      };
+      try { localStorage.setItem(PROFILE_KEY, JSON.stringify(saved)); } catch { /* device storage may be unavailable */ }
+      return saved;
+    });
+  }, [fieldSession.employee]);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
         const storedHistory = localStorage.getItem(HISTORY_KEY);
@@ -237,7 +254,7 @@ export default function Home() {
   };
   const analyse = async (form: HTMLFormElement) => {
     if (fieldSession.employee?.collection_mode === 'sales_officer' && files.length < 4) {
-      setError('Complete all four required field photo positions before submitting this inspection.');
+      setError(t.fieldFourRequired);
       return;
     }
     const uploadBytes = files.reduce((total, file) => total + file.size, 0);
@@ -263,7 +280,7 @@ export default function Home() {
 
   return <main className="app-shell">
     <Header view={view} nav={nav} profile={profile} onProfile={() => setProfileOpen(true)} language={language} changeLanguage={changeLanguage} theme={theme} toggleTheme={toggleTheme} t={t} />
-    <FieldIdentityBanner employee={fieldSession.employee} error={fieldSession.error} />
+    <FieldIdentityBanner employee={fieldSession.employee} error={fieldSession.error} t={t} />
     <TopWeatherBar location={profile.city || profile.location} openProfile={() => setProfileOpen(true)} t={t} />
     <div className="mascot-file-inputs" aria-hidden="true"><input ref={mascotCameraRef} tabIndex={-1} type="file" accept="image/*" capture="environment" onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /><input ref={mascotUploadRef} tabIndex={-1} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /></div>
     {view === 'home' && <HomeView nav={nav} t={t} language={language} location={profile.city || profile.location} mascotPreparing={mascotPreparing} takePhoto={() => mascotCameraRef.current?.click()} uploadPhotos={() => mascotUploadRef.current?.click()} />}
@@ -276,7 +293,7 @@ export default function Home() {
     <PwaInstall label={t.installApp} iosHelp={t.iosInstallHelp} />
     <footer><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><div><b>{t.productOf}</b><p>{t.catalogProducts} · {t.catalogOnly}</p></div><button onClick={() => nav('home')}>{t.home} ↑</button></footer>
     {selectedProduct && <ProductModal product={selectedProduct} close={() => setSelectedProduct(null)} nav={nav} t={t} />}
-    {profileOpen && <ProfileModal profile={profile} save={saveProfile} close={() => setProfileOpen(false)} t={t} />}
+    {profileOpen && <ProfileModal profile={profile} save={saveProfile} close={() => setProfileOpen(false)} t={t} fieldIdentity={fieldSession.employee} />}
   </main>;
 }
 
@@ -326,55 +343,12 @@ function MascotGuide({ t, preparing, takePhoto, uploadPhotos, ask }: { t: Copy; 
 function Quick(props: { featured?: boolean; icon: string; label: string; title: string; text: string; onClick: () => void }) { return <button onClick={props.onClick} className={`quick-card ${props.featured ? 'featured' : ''}`}><span className="quick-icon">{props.icon}</span><div><small>{props.label}</small><h3>{props.title}</h3><p>{props.text}</p></div><b>→</b></button>; }
 function PageTitle({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) { return <div className="page-title"><p className="eyebrow"><span />{eyebrow}</p><h1>{title}</h1><p>{text}</p></div>; }
 
-const fieldPhotoRoles = [
-  { title: 'Whole crop / plant', help: 'Show the complete plant and nearby crop area.' },
-  { title: 'Affected plant part', help: 'Show where the symptom appears on the plant.' },
-  { title: 'Symptom or pest close-up', help: 'Take a clear close photo of the lesion, pest or damage.' },
-  { title: 'Different angle / leaf underside', help: 'Show another affected part or the underside of a leaf.' },
+const fieldPhotoRoles = (t: Copy) => [
+  { title: t.fieldWholeCrop, help: t.fieldWholeCropHelp },
+  { title: t.fieldAffectedPart, help: t.fieldAffectedPartHelp },
+  { title: t.fieldCloseup, help: t.fieldCloseupHelp },
+  { title: t.fieldAnotherPhoto, help: t.fieldAnotherPhotoHelp },
 ];
-
-async function photoQuality(file: File) {
-  if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) return { signature: `${file.size}:${file.lastModified}`, warning: '' };
-  const url = URL.createObjectURL(file);
-  try {
-    const image = new Image(); image.src = url;
-    await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('The selected image could not be read.')); });
-    if (Math.min(image.naturalWidth, image.naturalHeight) < 360 || Math.max(image.naturalWidth, image.naturalHeight) < 640) throw new Error('This photo is too small. Take a clearer photo from the required position.');
-    const canvas = document.createElement('canvas'); canvas.width = 96; canvas.height = 96;
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-    if (!context) return { signature: `${file.size}:${file.lastModified}`, warning: '' };
-    context.drawImage(image, 0, 0, 96, 96);
-    const pixels = context.getImageData(0, 0, 96, 96).data;
-    const luminance: number[] = []; let total = 0; let greenPixels = 0;
-    for (let index = 0; index < pixels.length; index += 4) {
-      const red = pixels[index]; const green = pixels[index + 1]; const blue = pixels[index + 2];
-      const light = .299 * red + .587 * green + .114 * blue; luminance.push(light); total += light;
-      if (green > red * 1.04 && green > blue * 1.06 && green > 38) greenPixels += 1;
-    }
-    const mean = total / luminance.length;
-    if (mean < 22) throw new Error('This photo is too dark. Retake it in better light.');
-    if (mean > 244) throw new Error('This photo is overexposed. Retake it without glare.');
-    let edge = 0; let comparisons = 0;
-    for (let y = 0; y < 95; y += 1) for (let x = 0; x < 95; x += 1) {
-      const at = y * 96 + x; edge += Math.abs(luminance[at] - luminance[at + 1]) + Math.abs(luminance[at] - luminance[at + 96]); comparisons += 2;
-    }
-    if (edge / comparisons < 4.2) throw new Error('This photo appears blurred. Hold the phone steady and retake it.');
-    const hashCanvas = document.createElement('canvas'); hashCanvas.width = 8; hashCanvas.height = 8;
-    const hashContext = hashCanvas.getContext('2d', { willReadFrequently: true });
-    hashContext?.drawImage(image, 0, 0, 8, 8);
-    const hashPixels = hashContext?.getImageData(0, 0, 8, 8).data;
-    const values = hashPixels ? Array.from({ length: 64 }, (_, index) => .299 * hashPixels[index * 4] + .587 * hashPixels[index * 4 + 1] + .114 * hashPixels[index * 4 + 2]) : [];
-    const average = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
-    const signature = values.map((value) => value >= average ? '1' : '0').join('');
-    const warning = greenPixels / luminance.length < .004 ? 'Limited green vegetation detected—confirm that the crop or affected plant part is clearly visible.' : '';
-    return { signature, warning };
-  } finally { URL.revokeObjectURL(url); }
-}
-
-function signatureDistance(first: string, second: string) {
-  if (first.length !== 64 || second.length !== 64) return first === second ? 0 : 64;
-  return Array.from(first).reduce((distance, bit, index) => distance + Number(bit !== second[index]), 0);
-}
 
 function InspectionForm({ inputRef, files, crops, setFiles, onAnalyse, loading, analysisProgress, error, t, fieldIdentity }: { inputRef: RefObject<HTMLInputElement | null>; files: File[]; crops: string[]; setFiles: (files: File[]) => void; onAnalyse: (form: HTMLFormElement) => Promise<void>; loading: boolean; analysisProgress: number; error: string; t: Copy; fieldIdentity: FieldIdentity | null }) {
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -388,22 +362,16 @@ function InspectionForm({ inputRef, files, crops, setFiles, onAnalyse, loading, 
     if (!available.length) return;
     setPreparing(true); setQualityMessage('');
     try {
-      const accepted = [...files];
-      const signatures = (await Promise.all(files.map(photoQuality))).map((result) => result.signature);
-      const warnings: string[] = [];
-      for (const original of available) {
-        const quality = await photoQuality(original);
-        if (signatures.some((signature) => signatureDistance(signature, quality.signature) <= 4)) throw new Error('This photo is the same or almost the same as one already added. Take a different angle.');
-        signatures.push(quality.signature); accepted.push(await optimiseImage(original));
-        if (quality.warning) warnings.push(quality.warning);
-      }
-      setFiles(accepted); setQualityMessage(warnings[0] || 'Photo quality check passed.');
-    } catch (reason) { setQualityMessage(reason instanceof Error ? reason.message : 'This photo did not pass the quality check.'); }
+      const prepared = await Promise.all(available.map(optimiseImage));
+      setFiles([...files, ...prepared]);
+      setQualityMessage(t.fieldPhotosAccepted);
+    } catch { setQualityMessage(t.fieldPhotoPrepareError); }
     finally { setPreparing(false); }
   };
   const stage = analysisProgress < 28 ? t.stageIdentify : analysisProgress < 56 ? t.stageClassify : analysisProgress < 82 ? t.stageMatch : t.stageFinal;
   const inputChange = (event: ChangeEvent<HTMLInputElement>) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseFiles(selected); };
-  return <form onSubmit={submit}><div className="card-heading"><span className="step-badge">01</span><div><h2>{salesMode ? 'Complete the four field photos' : t.addPhotos}</h2><p>{salesMode ? `${fieldIdentity?.full_name} · ${files.length}/4 required positions completed` : t.upToFive}</p></div></div>{salesMode && <section className="field-photo-contract"><header><div><small>STRUCTURED DATA COLLECTION</small><b>Four different views of the same crop problem</b></div><span className={files.length >= 4 ? 'complete' : ''}>{Math.min(files.length, 4)}/4</span></header><div className="field-photo-slots">{fieldPhotoRoles.map((role, index) => <article key={role.title} className={files[index] ? 'filled' : ''}><i>{files[index] ? '✓' : index + 1}</i><div><b>{role.title}</b><small>{files[index]?.name || role.help}</small></div>{files[index] && <button type="button" aria-label={`Remove ${role.title}`} onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button>}</article>)}</div><p>Daily target: 2–3 complete inspections, approximately 8–12 useful images.</p></section>}<div className={`upload-zone ${files.length ? 'has-files' : ''}`}><input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={inputChange} /><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={inputChange} /><span className="upload-icon">⌾</span><strong>{preparing ? 'Checking photo quality…' : files.length ? `${files.length} ${t.ready}` : t.upload}</strong><small>{preparing ? 'Checking clarity, light and duplicate angles' : salesMode ? `Next: ${fieldPhotoRoles[Math.min(files.length, 3)].title}` : files.length ? files.map((file) => file.name).join(' · ') : t.photoSourceHelp}</small><div className="photo-source-actions"><button type="button" onClick={() => cameraRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">⌾</span>{t.takeNewPhoto}</button><button type="button" className="gallery" onClick={() => inputRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">▧</span>{t.chooseGallery}</button></div></div>{qualityMessage && <p className={`photo-quality-message ${qualityMessage.includes('passed') ? 'passed' : ''}`}>{qualityMessage}</p>}{!salesMode && files.length > 0 && <div className="file-list">{files.map((file, index) => <span key={`${file.name}-${index}`}>{index + 1}. {file.name}<button type="button" onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button></span>)}</div>}<div className="form-row"><label><span>{t.crop} <small>CIB&RC crop map</small></span><select name="crop" defaultValue=""><option value="">{t.identify}</option>{crops.map((crop) => <option key={crop}>{crop}</option>)}</select></label><label><span>{t.location} <small>{salesMode ? 'Official territory' : t.optional}</small></span><input name="location" defaultValue={salesMode ? `${fieldIdentity?.territory}, ${fieldIdentity?.state}` : ''} placeholder="Ahmedabad, Gujarat" readOnly={salesMode} /></label></div><label className="full-field"><span>{t.notice} <small>{t.optional}</small></span><textarea name="description" placeholder={t.noticePlaceholder} /></label>{error && <p className="form-error">{error}</p>}{loading && <div className="analysis-progress" role="status" aria-live="polite"><div><span>{t.detailedAnalysis}</span><b>{analysisProgress}%</b></div><div className="analysis-track"><i style={{ width: `${analysisProgress}%` }} /></div><div className="analysis-mascot"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><p><b>{t.mascotAnalysing}</b><span>{stage}</span></p></div></div>}<button className="primary-button" disabled={files.length < minimumImages || loading || preparing}>{loading ? `${t.analysing} ${analysisProgress}%` : preparing ? 'Checking photos…' : salesMode && files.length < 4 ? `Add ${4 - files.length} more required photo${4 - files.length === 1 ? '' : 's'}` : t.analyse} <span>{loading || preparing ? '◌' : '→'}</span></button><p className="safety-note">{salesMode ? 'Only clear, different-angle photos will count toward your daily field report. ' : ''}{t.safety}</p></form>;
+  const roles = fieldPhotoRoles(t);
+  return <form onSubmit={submit}><div className="card-heading"><span className="step-badge">01</span><div><h2>{salesMode ? t.fieldCompleteFour : t.addPhotos}</h2><p>{salesMode ? `${fieldIdentity?.full_name} · ${files.length}/4 ${t.fieldPhotosAdded}` : t.upToFive}</p></div></div>{salesMode && <section className="field-photo-contract"><header><div><small>{t.fieldStructuredCollection}</small><b>{t.fieldFourPhotoRequest}</b></div><span className={files.length >= 4 ? 'complete' : ''}>{Math.min(files.length, 4)}/4</span></header><div className="field-photo-slots">{roles.map((role, index) => <article key={role.title} className={files[index] ? 'filled' : ''}><i>{files[index] ? '✓' : index + 1}</i><div><b>{role.title}</b><small>{files[index]?.name || role.help}</small></div>{files[index] && <button type="button" aria-label={`${t.fieldRemovePhoto} ${index + 1}`} onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button>}</article>)}</div><p>{t.fieldDailyTarget}</p></section>}<div className={`upload-zone ${files.length ? 'has-files' : ''}`}><input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={inputChange} /><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={inputChange} /><span className="upload-icon">⌾</span><strong>{preparing ? t.preparing : files.length ? `${files.length} ${t.ready}` : t.upload}</strong><small>{preparing ? t.faster : salesMode ? `${t.fieldNextPhoto}: ${roles[Math.min(files.length, 3)].title}` : files.length ? files.map((file) => file.name).join(' · ') : t.photoSourceHelp}</small><div className="photo-source-actions"><button type="button" onClick={() => cameraRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">⌾</span>{t.takeNewPhoto}</button><button type="button" className="gallery" onClick={() => inputRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">▧</span>{t.chooseGallery}</button></div></div>{qualityMessage && <p className="photo-quality-message passed">{qualityMessage}</p>}{!salesMode && files.length > 0 && <div className="file-list">{files.map((file, index) => <span key={`${file.name}-${index}`}>{index + 1}. {file.name}<button type="button" onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button></span>)}</div>}<div className="form-row"><label><span>{t.crop} <small>CIB&RC</small></span><select name="crop" defaultValue=""><option value="">{t.identify}</option>{crops.map((crop) => <option key={crop}>{crop}</option>)}</select></label><label><span>{t.location} <small>{salesMode ? t.fieldOfficialTerritory : t.optional}</small></span><input name="location" defaultValue={salesMode ? `${fieldIdentity?.territory}, ${fieldIdentity?.state}` : ''} placeholder="Ahmedabad, Gujarat" readOnly={salesMode} /></label></div><label className="full-field"><span>{t.notice} <small>{t.optional}</small></span><textarea name="description" placeholder={t.noticePlaceholder} /></label>{error && <p className="form-error">{error}</p>}{loading && <div className="analysis-progress" role="status" aria-live="polite"><div><span>{t.detailedAnalysis}</span><b>{analysisProgress}%</b></div><div className="analysis-track"><i style={{ width: `${analysisProgress}%` }} /></div><div className="analysis-mascot"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><p><b>{t.mascotAnalysing}</b><span>{stage}</span></p></div></div>}<button className="primary-button" disabled={files.length < minimumImages || loading || preparing}>{loading ? `${t.analysing} ${analysisProgress}%` : preparing ? t.preparing : salesMode && files.length < 4 ? t.fieldFourRequired : t.analyse} <span>{loading || preparing ? '◌' : '→'}</span></button><p className="safety-note">{salesMode ? `${t.fieldAnyPhotoAccepted} ` : ''}{t.safety}</p></form>;
 }
 function Tips({ t }: { t: Copy }) { return <aside className="tips"><h3>{t.tips}</h3><ol><li><b>{t.wholePlant}</b><span>{t.wholePlantHelp}</span></li><li><b>{t.affectedArea}</b><span>{t.affectedHelp}</span></li><li><b>{t.underside}</b><span>{t.undersideHelp}</span></li></ol><div className="privacy-box"><b>{t.cropData}</b><p>{t.privacy}</p></div><div className="source-seal"><b>{t.catalogGrounded}</b><span>{t.catalogLimit}</span></div></aside>; }
 
@@ -480,7 +448,7 @@ function ProductModal({ product, close, nav, t }: { product: CatalogProduct; clo
 
 function HistoryView({ history, openResult, nav, clear, t }: { history: StoredInspection[]; openResult: (result: Diagnosis) => void; nav: (view: View) => void; clear: () => void; t: Copy }) { return <section className="workspace"><PageTitle eyebrow={t.savedDevice} title={t.historyHeading} text={t.historyIntro} />{history.length ? <><div className="history-tools"><span>{history.length}</span><button onClick={clear}>{t.clearHistory}</button></div><div className="history-list">{history.map((item) => <article className="history-item" key={item.id}><div className="history-date">{new Date(item.createdAt).toLocaleDateString()}</div><span className="crop-avatar">⌁</span><div><small>{item.crop}</small><h3>{item.issue}</h3><p>{item.summary}</p></div><span className="history-confidence">{Math.round(item.confidence * 100)}%</span><button onClick={() => openResult(item.result)}>{t.open} →</button></article>)}</div></> : <div className="empty-state history-empty"><span>⌁</span><h3>{t.noInspections}</h3><p>{t.historyEmpty}</p><button onClick={() => nav('inspect')}>{t.startInspection}</button></div>}</section>; }
 
-function ProfileModal({ profile, save, close, t }: { profile: Profile; save: (profile: Profile) => void; close: () => void; t: Copy }) {
+function ProfileModal({ profile, save, close, t, fieldIdentity }: { profile: Profile; save: (profile: Profile) => void; close: () => void; t: Copy; fieldIdentity: FieldIdentity | null }) {
   const [draft, setDraft] = useState(profile);
   const states = Array.from(new Set(salesContacts.map((contact) => contact.state))).sort();
   const stateContacts = salesContacts.filter((contact) => !draft.state || contact.state === draft.state);
@@ -492,7 +460,7 @@ function ProfileModal({ profile, save, close, t }: { profile: Profile; save: (pr
     const first = salesContacts.find((contact) => contact.state === draft.state && contact.territory === territory);
     setDraft({ ...draft, territory, city: first?.city || '' });
   };
-  return <div className="modal-backdrop" role="dialog" aria-modal="true"><form className="profile-modal contact-profile" onSubmit={(event) => { event.preventDefault(); save(draft); }}><button type="button" className="modal-close" onClick={close}>×</button><span className="profile-avatar">{initials(draft.name)}</span><h2>{t.profile}</h2><p>{t.profilePrivacy}</p><div className="profile-fields"><label>{t.name}<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label><label>{t.preferredLanguage}<select value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value as LanguageCode })}>{languages.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label></div><section className="contact-directory"><div className="contact-title"><span>☎</span><div><small>{t.contactSales}</small><h3>{t.areaContact}</h3><p>{t.contactHelp}</p></div></div><div className="contact-location-grid"><label>{t.state}<select value={draft.state} onChange={(event) => setDraft({ ...draft, state: event.target.value, territory: '', city: '' })}><option value="">{t.chooseState}</option>{states.map((state) => <option key={state}>{state}</option>)}</select></label><label>{t.territory}<select value={draft.territory} disabled={!draft.state} onChange={(event) => changeTerritory(event.target.value)}><option value="">{t.chooseTerritory}</option>{territories.map((territory) => <option key={territory}>{territory}</option>)}</select></label><label>{t.city}<select value={draft.city} disabled={!draft.territory} onChange={(event) => setDraft({ ...draft, city: event.target.value })}><option value="">{t.chooseCity}</option>{cities.map((city) => <option key={city}>{city}</option>)}</select></label></div>{draft.state && draft.territory ? <div className="contact-results">{matches.map((contact) => <article key={`${contact.email}-${contact.territory}`}><span className="contact-avatar">{initials(contact.name)}</span><div><small>{t.officialContact}</small><b>{contact.name}</b><p>{contact.designation} · {contact.territory}</p></div><ContactButtons contact={contact} message={`${t.whatsappGreeting} ${draft.city || draft.territory}. ${t.whatsappHelp}`} t={t} /></article>)}</div> : <p className="no-area-contact">{t.noAreaContact}</p>}<p className="directory-privacy">✓ {t.directoryPrivacy}</p></section><button className="primary-button">{t.saveProfile}</button></form></div>;
+  return <div className="modal-backdrop" role="dialog" aria-modal="true"><form className="profile-modal contact-profile" onSubmit={(event) => { event.preventDefault(); save(draft); }}><button type="button" className="modal-close" onClick={close}>×</button><span className="profile-avatar">{initials(draft.name)}</span><h2>{fieldIdentity ? t.fieldOfficerProfile : t.profile}</h2><p>{fieldIdentity ? t.fieldProfileStored : t.profilePrivacy}</p>{fieldIdentity && <section className="field-profile-card"><small>{t.fieldOfficialIdentity}</small><b>{fieldIdentity.full_name} · {fieldIdentity.employee_code}</b><p>{fieldIdentity.designation || t.fieldSalesOfficer} · {fieldIdentity.department || 'CLSL'}</p><dl><div><dt>{t.territory}</dt><dd>{fieldIdentity.territory}, {fieldIdentity.state}</dd></div><div><dt>{t.officialContact}</dt><dd>{fieldIdentity.office_email || fieldIdentity.office_mobile || '—'}</dd></div></dl></section>}<div className="profile-fields"><label>{t.name}<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required readOnly={Boolean(fieldIdentity)} /></label><label>{t.preferredLanguage}<select value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value as LanguageCode })}>{languages.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label></div><section className="contact-directory"><div className="contact-title"><span>☎</span><div><small>{t.contactSales}</small><h3>{t.areaContact}</h3><p>{t.contactHelp}</p></div></div><div className="contact-location-grid"><label>{t.state}<select value={draft.state} disabled={Boolean(fieldIdentity)} onChange={(event) => setDraft({ ...draft, state: event.target.value, territory: '', city: '' })}><option value="">{t.chooseState}</option>{states.map((state) => <option key={state}>{state}</option>)}</select></label><label>{t.territory}<select value={draft.territory} disabled={Boolean(fieldIdentity) || !draft.state} onChange={(event) => changeTerritory(event.target.value)}><option value="">{t.chooseTerritory}</option>{territories.map((territory) => <option key={territory}>{territory}</option>)}</select></label><label>{t.city}<select value={draft.city} disabled={Boolean(fieldIdentity) || !draft.territory} onChange={(event) => setDraft({ ...draft, city: event.target.value })}><option value="">{t.chooseCity}</option>{cities.map((city) => <option key={city}>{city}</option>)}</select></label></div>{draft.state && draft.territory ? <div className="contact-results">{matches.map((contact) => <article key={`${contact.email}-${contact.territory}`}><span className="contact-avatar">{initials(contact.name)}</span><div><small>{t.officialContact}</small><b>{contact.name}</b><p>{contact.designation} · {contact.territory}</p></div><ContactButtons contact={contact} message={`${t.whatsappGreeting} ${draft.city || draft.territory}. ${t.whatsappHelp}`} t={t} /></article>)}</div> : <p className="no-area-contact">{t.noAreaContact}</p>}<p className="directory-privacy">✓ {t.directoryPrivacy}</p></section><button className="primary-button">{t.saveProfile}</button></form></div>;
 }
 
 function MobileNav({ view, nav, t }: { view: View; nav: (view: View) => void; t: Copy }) { return <nav className="mobile-nav" aria-label="Mobile navigation"><button className={view === 'home' ? 'active' : ''} onClick={() => nav('home')}><span>⌂</span>{t.home}</button><button className={view === 'assistant' ? 'active' : ''} onClick={() => nav('assistant')}><span>✦</span>{t.assistant}</button><button className="camera" onClick={() => nav('inspect')} aria-label={t.navInspect}><span>＋</span></button><button className={view === 'products' ? 'active' : ''} onClick={() => nav('products')}><span>◫</span>{t.navProducts}</button><button className={view === 'history' ? 'active' : ''} onClick={() => nav('history')}><span>◎</span>{t.history}</button></nav>; }

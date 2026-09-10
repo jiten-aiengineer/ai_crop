@@ -8,8 +8,11 @@ until an authorised employee approves them.
 
 import hmac
 import hashlib
+import base64
+import smtplib
 import secrets
 import re
+from email.message import EmailMessage
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 from typing import Annotated, Any, Literal
@@ -20,7 +23,11 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field, field_validator
 from psycopg.types.json import Jsonb
 
-from .config import ADMIN_ALLOWED_EMAIL_DOMAIN, ADMIN_GATEWAY_TOKEN
+from .config import (
+    ADMIN_ALLOWED_EMAIL_DOMAIN, ADMIN_GATEWAY_TOKEN, PORTAL_INVITE_EMAIL_FROM,
+    PORTAL_INVITE_URL, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USERNAME,
+    SMTP_USE_TLS,
+)
 from .db import connection
 
 
@@ -115,6 +122,98 @@ class EmployeeRoleAssignment(BaseModel):
         if unknown:
             raise ValueError(f"Unknown or protected roles: {', '.join(unknown)}")
         return cleaned
+
+
+class PortalInvitation(EmployeeRoleAssignment):
+    pass
+
+
+class PortalPasswordLogin(BaseModel):
+    email: str = Field(min_length=5, max_length=254)
+    password: str = Field(min_length=8, max_length=200)
+
+
+def _password_hash(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    derived = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1, dklen=32)
+    return "scrypt$16384$8$1$%s$%s" % (
+        base64.urlsafe_b64encode(salt).decode().rstrip("="),
+        base64.urlsafe_b64encode(derived).decode().rstrip("="),
+    )
+
+
+def _password_matches(password: str, encoded: str) -> bool:
+    try:
+        scheme, n, r, p, salt_text, expected_text = encoded.split("$")
+        if scheme != "scrypt" or (n, r, p) != ("16384", "8", "1"):
+            return False
+        salt = base64.urlsafe_b64decode(salt_text + "=" * (-len(salt_text) % 4))
+        expected = base64.urlsafe_b64decode(expected_text + "=" * (-len(expected_text) % 4))
+        actual = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1, dklen=len(expected))
+        return hmac.compare_digest(actual, expected)
+    except (ValueError, TypeError):
+        return False
+
+
+def _send_portal_invitation(email: str, name: str, temporary_password: str, roles: list[str]) -> tuple[bool, str]:
+    if not SMTP_HOST or not PORTAL_INVITE_EMAIL_FROM:
+        return False, "Company email delivery is not configured on the server."
+    message = EmailMessage()
+    message["From"] = PORTAL_INVITE_EMAIL_FROM
+    message["To"] = email
+    message["Subject"] = "Your Crop Life AI administration access"
+    role_names = ", ".join(role.replace("_", " ") for role in roles) or "read-only employee access"
+    message.set_content(
+        f"Hello {name},\n\n"
+        "You have been invited to the Crop Life AI operations portal.\n\n"
+        f"Portal: {PORTAL_INVITE_URL}\n"
+        f"Email: {email}\n"
+        f"Temporary password: {temporary_password}\n"
+        f"Assigned access: {role_names}\n\n"
+        "Keep this password private. Contact the Crop Life AI administrator if you did not expect this invitation.\n"
+    )
+    try:
+        if SMTP_PORT == 465:
+            client = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=10)
+        else:
+            client = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10)
+        with client:
+            if SMTP_USE_TLS and SMTP_PORT != 465:
+                client.starttls()
+            if SMTP_USERNAME:
+                client.login(SMTP_USERNAME, SMTP_PASSWORD)
+            client.send_message(message)
+        return True, "Invitation email sent."
+    except (OSError, smtplib.SMTPException) as error:
+        return False, f"Email delivery failed: {type(error).__name__}."
+
+
+@router.post("/auth/password")
+def portal_password_login(
+    payload: PortalPasswordLogin,
+    x_clsl_admin_gateway_token: Annotated[str | None, Header()] = None,
+):
+    """Validate an official employee invitation for the trusted Next.js BFF."""
+    if not ADMIN_GATEWAY_TOKEN or not x_clsl_admin_gateway_token or not hmac.compare_digest(x_clsl_admin_gateway_token, ADMIN_GATEWAY_TOKEN):
+        raise HTTPException(status_code=401, detail="Administration gateway authentication failed.")
+    email = payload.email.strip().lower()
+    with connection() as conn:
+        account = conn.execute(
+            """
+            SELECT account.employee_id, account.password_hash, e.full_name,
+                   COALESCE(e.office_email, e.microsoft_upn) AS email
+            FROM portal_password_accounts account
+            JOIN employees e ON e.id=account.employee_id
+            WHERE lower(account.email)=%s AND account.active AND e.status='active'
+            LIMIT 1
+            """,
+            (email,),
+        ).fetchone()
+        if not account or not _password_matches(payload.password, account["password_hash"]):
+            raise HTTPException(status_code=401, detail="The email or password is incorrect.")
+        conn.execute("UPDATE portal_password_accounts SET last_login_at=now() WHERE employee_id=%s", (account["employee_id"],))
+        conn.commit()
+    return {"email": account["email"], "name": account["full_name"]}
 
 
 def _identity(
@@ -625,9 +724,10 @@ def sales_officer_activity(
                        count(DISTINCT prediction.issue_name) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day) AS day_distinct_problems,
                        count(DISTINCT i.id) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND review.review_status IN ('verified','corrected') AND review.dataset_eligible) AS day_expert_approved,
                        count(DISTINCT i.id) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND review.review_status = 'rejected') AS day_rejected,
-                       count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 6 AND selected.report_day) AS week_uploads,
-                       count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 6 AND selected.report_day AND i.photo_count >= 4 AND i.photo_requirements_met) AS week_complete_sets,
-                       count(DISTINCT (i.created_at AT TIME ZONE 'Asia/Kolkata')::date) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 6 AND selected.report_day AND i.photo_count >= 4 AND i.photo_requirements_met) AS active_days_7,
+                       count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 29 AND selected.report_day) AS month_uploads,
+                       COALESCE(sum(i.photo_count) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 29 AND selected.report_day), 0) AS month_images,
+                       count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 29 AND selected.report_day AND i.photo_count >= 4 AND i.photo_requirements_met) AS month_complete_sets,
+                       count(DISTINCT (i.created_at AT TIME ZONE 'Asia/Kolkata')::date) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 29 AND selected.report_day AND i.photo_count >= 4 AND i.photo_requirements_met) AS active_days_30,
                        max(i.created_at) AS last_upload_at
                 FROM inspections i CROSS JOIN selected
                 LEFT JOIN crops c ON c.id=i.crop_id
@@ -646,9 +746,10 @@ def sales_officer_activity(
                    COALESCE(a.day_distinct_problems, 0) AS day_distinct_problems,
                    COALESCE(a.day_expert_approved, 0) AS day_expert_approved,
                    COALESCE(a.day_rejected, 0) AS day_rejected,
-                   COALESCE(a.week_uploads, 0) AS week_uploads,
-                   COALESCE(a.week_complete_sets, 0) AS week_complete_sets,
-                   COALESCE(a.active_days_7, 0) AS active_days_7,
+                   COALESCE(a.month_uploads, 0) AS month_uploads,
+                   COALESCE(a.month_images, 0) AS month_images,
+                   COALESCE(a.month_complete_sets, 0) AS month_complete_sets,
+                   COALESCE(a.active_days_30, 0) AS active_days_30,
                    a.last_upload_at,
                    (e.id IS NOT NULL) AS employee_matched,
                    (access_grant.id IS NOT NULL) AS has_access_link,
@@ -724,9 +825,14 @@ def employee_access(identity: AdminIdentity = Depends(_identity)):
             SELECT e.id, e.employee_code, e.full_name, e.office_email, e.microsoft_upn, e.department,
                    e.designation, e.location, e.status, e.reporting_manager_name,
                    e.hr_sync_state, e.hr_first_seen_at, e.hr_last_seen_at, e.hr_last_changed_at,
+                   max(portal.email) AS portal_access_email,
+                   bool_or(COALESCE(portal.active, false)) AS portal_access_active,
+                   max(portal.invited_at) AS portal_invited_at,
+                   max(portal.last_login_at) AS portal_last_login_at,
                    COALESCE(array_agg(er.role_code) FILTER (WHERE er.role_code IS NOT NULL), '{}') AS roles
             FROM employees e
             LEFT JOIN employee_roles er ON er.employee_id = e.id
+            LEFT JOIN portal_password_accounts portal ON portal.employee_id = e.id
             GROUP BY e.id
             ORDER BY e.full_name
             """
@@ -755,6 +861,54 @@ def set_employee_roles(employee_id: UUID, payload: EmployeeRoleAssignment, ident
         _audit(conn, identity, "update_employee_roles", "employee", employee["employee_code"], {"roles": old_roles}, {"roles": [row["role_code"] for row in new_roles]})
         conn.commit()
     return {"id": str(employee_id), "employee_code": employee["employee_code"], "roles": [row["role_code"] for row in new_roles]}
+
+
+@router.post("/access/employees/{employee_id}/invite")
+def invite_employee_to_portal(employee_id: UUID, payload: PortalInvitation, identity: AdminIdentity = Depends(_identity)):
+    """Assign the chosen profile and issue a password to one official email."""
+    _require(identity, {"super_admin"})
+    issuer_id = _employee_actor_id(identity)
+    if issuer_id is None:
+        raise HTTPException(403, "A real Super Administrator employee identity is required.")
+    temporary_password = f"CL!{secrets.token_urlsafe(10)}9a"
+    with connection() as conn:
+        employee = conn.execute(
+            """
+            SELECT id, employee_code, full_name, lower(COALESCE(office_email, microsoft_upn)) AS email
+            FROM employees WHERE id=%s AND status='active' FOR UPDATE
+            """,
+            (employee_id,),
+        ).fetchone()
+        if not employee:
+            raise HTTPException(status_code=404, detail="Active employee not found.")
+        if not employee["email"] or not employee["email"].endswith(f"@{ADMIN_ALLOWED_EMAIL_DOMAIN}"):
+            raise HTTPException(status_code=422, detail="This employee needs an approved Crop Life work email before portal access can be issued.")
+        existing = conn.execute("SELECT role_code FROM employee_roles WHERE employee_id=%s ORDER BY role_code", (employee_id,)).fetchall()
+        old_roles = [row["role_code"] for row in existing]
+        conn.execute("DELETE FROM employee_roles WHERE employee_id=%s AND role_code <> 'super_admin'", (employee_id,))
+        for role in payload.roles:
+            conn.execute(
+                "INSERT INTO employee_roles(employee_id, role_code, granted_by) VALUES (%s,%s,%s) ON CONFLICT (employee_id, role_code) DO UPDATE SET granted_by=EXCLUDED.granted_by",
+                (employee_id, role, issuer_id),
+            )
+        conn.execute(
+            """
+            INSERT INTO portal_password_accounts(employee_id, email, password_hash, invited_by, invited_at, active)
+            VALUES (%s,%s,%s,%s,now(),true)
+            ON CONFLICT (employee_id) DO UPDATE SET
+                email=EXCLUDED.email, password_hash=EXCLUDED.password_hash,
+                invited_by=EXCLUDED.invited_by, invited_at=now(), active=true
+            """,
+            (employee_id, employee["email"], _password_hash(temporary_password), issuer_id),
+        )
+        _audit(conn, identity, "invite_portal_employee", "employee", employee["employee_code"], {"roles": old_roles}, {"roles": payload.roles, "email": employee["email"]})
+        conn.commit()
+    email_sent, delivery_message = _send_portal_invitation(employee["email"], employee["full_name"], temporary_password, payload.roles)
+    return {
+        "employee_id": str(employee_id), "name": employee["full_name"], "email": employee["email"],
+        "roles": payload.roles, "email_sent": email_sent, "delivery_message": delivery_message,
+        "temporary_password": None if email_sent else temporary_password,
+    }
 
 
 @router.post('/sales-officers/{roster_id}/access')

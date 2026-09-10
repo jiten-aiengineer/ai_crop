@@ -27,14 +27,21 @@
 }
 
 .admin-product-status { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
-.field-report-filters { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:20px 0; }
+.field-report-filters { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:14px; margin:20px 0; }
 .field-report-filters label { display:grid; gap:7px; font-size:12px; font-weight:600; color:#365347; }
 .field-report-filters input,.field-report-filters select,.field-link-input { width:100%; min-width:0; padding:12px; border:1px solid #d5e2da; border-radius:10px; background:#fff; color:#203b2d; }
 .field-link-input { margin:14px 0; }
 .field-link-panel { margin-bottom:18px; border-left:4px solid #3f9564; }
 .field-link-panel>p { color:#60776b; font-size:11px; line-height:1.5; }
-.field-force-table { min-width:1500px; }
+.field-force-table { min-width:1120px; }
 .field-force-table .admin-badge { display:inline-flex; margin-top:7px; }
+.field-link-action { display:block; width:max-content; margin-top:8px; padding:8px 10px; font-size:10px; }
+.field-state-summary { margin:18px 0; }
+.field-state-summary>header { margin-bottom:10px; }
+.field-state-summary .admin-table-wrap { margin:0; }
+.field-state-summary tbody tr { cursor:pointer; }
+.field-state-summary tbody tr:hover { background:#f0f8f3; }
+.admin-state-link { border:0; padding:0; background:transparent; color:#17633f; font:inherit; font-weight:800; cursor:pointer; }
 .field-identity-banner { margin:12px auto; padding:12px 18px; max-width:1240px; display:flex; gap:14px; align-items:center; background:#e7f5ec; color:#24543b; border:1px solid #c8e5d2; border-radius:12px; font-size:13px; }
 .field-identity-banner .field-avatar { width:38px; height:38px; border-radius:50%; display:grid; place-items:center; flex:none; background:#1d704b; color:#fff; font-size:11px; font-weight:850; }
 .field-identity-banner div { min-width:0; }
@@ -73,4 +80,21 @@
 .field-photo-contract>p { margin:11px 0 0; color:#557164; font-size:9px; }
 .photo-quality-message { margin:9px 0 15px; padding:9px 11px; border-radius:8px; background:#fff0dc; color:#875221; font-size:10px; }
 .photo-quality-message.passed { background:#e7f5ec; color:#286543; }
+.field-profile-card { margin:14px 0; padding:14px; border:1px solid #cfe2d5; border-radius:12px; background:#f2faf4; color:#294c39; }
+.field-profile-card>small,.field-profile-card>b,.field-profile-card>p { display:block; }
+.field-profile-card>small { color:#3e7a59; font-size:8px; font-weight:850; letter-spacing:.12em; }
+.field-profile-card>b { margin-top:4px; }
+.field-profile-card>p { margin:4px 0 10px; color:#5a7466; font-size:11px; }
+.field-profile-card dl { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:0; }
+.field-profile-card dl div { padding:9px; border-radius:8px; background:white; }
+.field-profile-card dt { color:#688073; font-size:8px; font-weight:700; text-transform:uppercase; }
+.field-profile-card dd { margin:3px 0 0; font-size:10px; font-weight:700; overflow-wrap:anywhere; }
+.admin-access-profile { display:grid; gap:7px; margin:16px 0; max-width:720px; color:#365347; font-size:11px; font-weight:750; }
+.admin-access-profile select { padding:12px; border:1px solid #d5e2da; border-radius:9px; background:#fff; color:#244936; }
+.admin-access-profile small { color:#6a8174; font-weight:500; }
+.admin-invitation-result { margin:15px 0; padding:14px; border:1px solid #e2d5ac; border-radius:10px; background:#fff9e8; color:#614d18; }
+.admin-invitation-result.sent { border-color:#bcdcc7; background:#edf8f0; color:#28553b; }
+.admin-invitation-result>p,.admin-invitation-result>small { display:block; margin:5px 0; font-size:10px; }
+.admin-invitation-result>div { display:flex; gap:8px; margin-top:8px; }
+.admin-invitation-result input { flex:1; min-width:0; padding:10px; border:1px solid #c8d8ce; border-radius:8px; background:#fff; font-family:monospace; }
 @media(max-width:600px){.field-photo-slots{grid-template-columns:1fr}.field-identity-banner p{display:none}.field-identity-banner{border-radius:0;margin:0}.field-identity-banner button{font-size:9px;padding:6px}.field-photo-contract{padding:12px}}

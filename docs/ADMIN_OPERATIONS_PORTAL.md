@@ -103,9 +103,18 @@ ENTRA_CLIENT_SECRET=<Microsoft-Entra-client-secret>
 ADMIN_ALLOWED_EMAIL_DOMAIN=croplifescience.com
 ADMIN_BACKEND_URL=http://127.0.0.1:8000
 ADMIN_GATEWAY_TOKEN=<different-long-random-token>
+PORTAL_INVITE_EMAIL_FROM=aiengineer.2@croplifescience.com
+PORTAL_INVITE_URL=https://croplifescience.duckdns.org/admin/portal
+SMTP_HOST=<company-Microsoft-365-SMTP-host>
+SMTP_PORT=587
+SMTP_USERNAME=<approved-sending-account>
+SMTP_PASSWORD=<secret-or-app-password>
+SMTP_USE_TLS=true
 ```
 
 `ADMIN_GATEWAY_TOKEN` is shared only between the Next.js application and the loopback FastAPI API. The browser never receives it. Microsoft login creates an HTTP-only signed session cookie; the Node application then sends the employee email and gateway token to FastAPI. FastAPI re-checks the active employee record and assigned roles in PostgreSQL on every request.
+
+Until Microsoft Entra login replaces password access, the Super Administrator can select an official employee, choose the Manager, Senior Manager or Managing Director profile, and issue a password from **Access & hierarchy**. When SMTP is configured, the server sends the password from `PORTAL_INVITE_EMAIL_FROM`. If mail delivery is unavailable, the portal displays the temporary password once so it can be shared through an approved internal channel.
 
 ### 4. Apply and verify
 
