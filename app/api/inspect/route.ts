@@ -38,7 +38,14 @@ export async function POST(request: Request) {
   ]);
   const comparison = await queueShadow(input,gemini,inspectionId);
   const diagnosis = gemini.success && gemini.diagnosis ? legacyDiagnosis(gemini.diagnosis) : undefined;
-  const grounded = diagnosis ? {...diagnosis,catalog_crop:catalogCropName(input.context.crop || diagnosis.crop)} : undefined;
+  // Keep known aliases normalised, but retain an approved live crop name even
+  // when it was added after the application build. PostgreSQL remains the
+  // source of truth for the final crop/product eligibility decision.
+  const requestedCrop = input.context.crop || diagnosis?.crop || '';
+  const grounded = diagnosis ? {
+    ...diagnosis,
+    catalog_crop: catalogCropName(requestedCrop) || requestedCrop.trim().slice(0, 160),
+  } : undefined;
   const catalogue = grounded
     ? await approvedCatalogueRecommendations(grounded)
     : { recommendations: [], source: 'catalogue_unavailable' as const };

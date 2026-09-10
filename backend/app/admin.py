@@ -23,8 +23,10 @@ router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 CATALOGUE_MANAGER_ROLES = {"catalog_editor", "manager", "catalogue_manager", "senior_catalogue_manager", "managing_director", "product_approver"}
 SENIOR_CATALOGUE_MANAGER_ROLES = {"senior_catalogue_manager"}
-MANAGING_DIRECTOR_ROLES = {"managing_director"}
-PRODUCT_PUBLISHER_ROLES = {"product_approver", "senior_catalogue_manager", "managing_director"}
+# Product records are company knowledge. A senior manager may validate a
+# proposal, but only the protected Super Administrator account can release a
+# validated catalogue change into the live farmer application.
+FINAL_CATALOGUE_PUBLISHER_ROLES = {"super_admin"}
 MAPPING_PUBLISHER_ROLES = {"mapping_approver", "senior_catalogue_manager", "managing_director"}
 CATALOGUE_READ_ROLES = CATALOGUE_MANAGER_ROLES | {
     "mapping_approver", "expert_review_approver", "employee_access_approver"
@@ -87,7 +89,7 @@ class CatalogueChangeRequest(BaseModel):
 
 
 class ApprovalDecision(BaseModel):
-    decision: Literal["approved", "rejected", "send_to_md"]
+    decision: Literal["approved", "rejected", "send_to_final_publisher"]
     note: str = Field(default="", max_length=2000)
 
 
@@ -194,10 +196,10 @@ def current_admin(identity: AdminIdentity = Depends(_identity)):
             "view_overview": True,
             "view_catalogue": _can(identity, CATALOGUE_READ_ROLES),
             "submit_catalogue_changes": _can(identity, CATALOGUE_MANAGER_ROLES),
-            "decide_product_changes": _can(identity, PRODUCT_PUBLISHER_ROLES),
             "decide_crop_mappings": _can(identity, MAPPING_PUBLISHER_ROLES),
-            "send_catalogue_changes_to_md": _can(identity, SENIOR_CATALOGUE_MANAGER_ROLES),
-            "finalise_md_catalogue_reviews": _can(identity, MANAGING_DIRECTOR_ROLES),
+            "review_catalogue_changes": _can(identity, SENIOR_CATALOGUE_MANAGER_ROLES),
+            "send_catalogue_changes_to_final_publisher": _can(identity, SENIOR_CATALOGUE_MANAGER_ROLES),
+            "finalise_catalogue_release": _can(identity, FINAL_CATALOGUE_PUBLISHER_ROLES),
             "view_inspections": _can(identity, INSPECTION_REVIEW_ROLES),
             "view_model_observability": _can(identity, INSPECTION_REVIEW_ROLES),
             "view_employee_access": _can(identity, {"employee_access_approver"}),
@@ -329,29 +331,36 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
             raise HTTPException(status_code=404, detail="Pending catalogue approval request not found.")
 
         review_stage = request["review_stage"] or "senior_manager"
-        if decision.decision == "send_to_md":
+        # Stage 1: senior catalogue review. A senior reviewer may reject an
+        # unsafe/incomplete proposal or validate it and put it into the final
+        # release queue. This stage never changes live farmer advice.
+        if decision.decision == "send_to_final_publisher":
             _require(identity, SENIOR_CATALOGUE_MANAGER_ROLES)
             if review_stage != "senior_manager":
-                raise HTTPException(status_code=409, detail="This request is already with the Managing Director or has been decided.")
+                raise HTTPException(status_code=409, detail="This request is already in the final release queue or has been decided.")
             note = decision.note.strip() or None
             conn.execute(
-                "UPDATE approval_requests SET review_stage = 'managing_director', decision_note = %s WHERE id = %s",
+                "UPDATE approval_requests SET review_stage = 'final_publisher', decision_note = %s WHERE id = %s",
                 (note, request_id),
             )
-            _audit(conn, identity.id, "send_catalogue_change_to_managing_director", "approval_request", str(request_id), {"review_stage": review_stage}, {"review_stage": "managing_director", "note": note})
+            _audit(conn, identity.id, "send_catalogue_change_to_final_release", "approval_request", str(request_id), {"review_stage": review_stage}, {"review_stage": "final_publisher", "note": note})
             conn.commit()
-            return {"id": str(request_id), "status": "pending", "review_stage": "managing_director"}
+            return {"id": str(request_id), "status": "pending", "review_stage": "final_publisher"}
 
-        if review_stage == "managing_director":
-            _require(identity, MANAGING_DIRECTOR_ROLES)
+        # Final approval is deliberately separated from the senior review.
+        # It writes directly to PostgreSQL, so the inspection engine, chatbot
+        # and live product browser see the updated catalogue immediately.
+        if review_stage == "final_publisher":
+            _require(identity, FINAL_CATALOGUE_PUBLISHER_ROLES)
+        elif review_stage == "senior_manager":
+            _require(identity, SENIOR_CATALOGUE_MANAGER_ROLES)
+            if decision.decision == "approved":
+                raise HTTPException(status_code=409, detail="Senior review is complete only after sending the request to the final release queue.")
         else:
-            _require(identity, PRODUCT_PUBLISHER_ROLES)
+            raise HTTPException(status_code=409, detail="This approval has an unsupported review stage.")
 
-        # A normal product approver remains independent. Senior catalogue managers,
-        # the Managing Director and the super administrator may directly publish as
-        # explicitly authorised by the company's workflow.
-        if request["requested_by"] == identity.id and not _can(identity, SENIOR_CATALOGUE_MANAGER_ROLES | MANAGING_DIRECTOR_ROLES):
-            raise HTTPException(status_code=403, detail="A separate authorised person must approve your own change.")
+        if request["requested_by"] == identity.id and review_stage == "senior_manager":
+            raise HTTPException(status_code=403, detail="A separate Senior Catalogue Manager must review your own change.")
 
         proposed = request["proposed_data"]
         product: dict[str, Any] = proposed["product"]

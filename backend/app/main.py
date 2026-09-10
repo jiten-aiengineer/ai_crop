@@ -138,12 +138,17 @@ def list_products(
         filters.append("pc.name = %s")
     params.append(limit)
     sql = f"""
-        SELECT p.id, p.name, pc.name AS category, p.common_name, p.dose,
-               p.use_benefits, p.packing, p.image_path, p.source_page,
-               p.approval_status
+        SELECT p.id, p.name, pc.name AS category, p.common_name, p.formulation,
+               p.dose, p.use_benefits, p.packing, p.application_method,
+               p.safety_information, p.image_path, p.source_page,
+               array_remove(array_agg(DISTINCT c.name), NULL) AS approved_crops
         FROM products p
         JOIN product_categories pc ON pc.id = p.category_id
+        LEFT JOIN product_crop_mappings pcm
+          ON pcm.product_id = p.id AND pcm.approval_status = 'approved'
+        LEFT JOIN crops c ON c.id = pcm.crop_id AND c.status = 'active'
         WHERE {' AND '.join(filters)}
+        GROUP BY p.id, pc.name
         ORDER BY p.name
         LIMIT %s
     """

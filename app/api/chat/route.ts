@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { catalog, searchCatalog } from '../../lib/catalog';
+import { searchCatalogProducts, type CatalogProduct } from '../../lib/catalog';
+import { approvedCatalogueProducts } from '../../lib/database-catalog';
 import { companyAssistantKnowledge } from '../../lib/company-knowledge';
 import { isSalesLocationQuestion, salesDirectoryAnswer } from '../../lib/sales-directory';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 type GeminiResponse = { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>; error?: { message?: string } };
 
 function parseJsonObject(value: string) {
@@ -24,7 +25,7 @@ async function readGeminiResponse(response: Response): Promise<GeminiResponse | 
   catch { return null; }
 }
 
-function catalogFallback(products: typeof catalog, language = 'en') {
+function catalogFallback(products: CatalogProduct[], language = 'en') {
   const selected = products.slice(0, 4);
   const copy: Record<string, { found: string; dose: string; warning: string }> = {
     en: { found: 'I found verified matches in the Crop Life Science catalogue.', dose: 'Catalogue dose', warning: 'Always confirm the approved label, crop registration and local expert guidance before use.' },
@@ -74,9 +75,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ...salesDirectoryAnswer(cleanQuestion, language), products: [] });
   }
 
+  // This is the live RAG source of truth. It contains only records released
+  // through the approval pipeline; a draft or inactive product never enters
+  // Gemini's context or a farmer-facing response.
+  const liveCatalogue = await approvedCatalogueProducts();
+  const approvedProducts = liveCatalogue.source === 'approved_postgresql_catalogue' ? liveCatalogue.products : [];
   const lowerQuestion = cleanQuestion.toLowerCase();
-  const exactProducts = catalog.filter((product) => lowerQuestion.includes(product.name.toLowerCase()));
-  const rankedMatches = searchCatalog(cleanQuestion, 10).filter((match) => match.score >= 3);
+  const exactProducts = approvedProducts.filter((product) => lowerQuestion.includes(product.name.toLowerCase()));
+  const rankedMatches = searchCatalogProducts(approvedProducts, cleanQuestion, 10).filter((match) => match.score >= 3);
   const candidates = (exactProducts.length ? exactProducts : rankedMatches.map((match) => match.product)).slice(0, 10);
   const catalogContext = candidates.map((product) => ({ id: product.id, name: product.name, category: product.category, composition: product.commonName, dose: product.dose, use_benefits: product.useBenefits, packing: product.packing, approved_crops: product.approvedCrops || [], crop_mapping_source: product.cropMappingSource || '', source_page: product.sourcePage }));
   const languageNames: Record<string, string> = { en: 'English', hi: 'Hindi', gu: 'Gujarati', mr: 'Marathi', bn: 'Bengali', bho: 'Bhojpuri' };
@@ -116,7 +122,7 @@ export async function POST(request: Request) {
     if (typeof parsed.answer !== 'string' || !parsed.answer.trim()) throw new Error('Missing answer.');
     const ids = Array.isArray(parsed.recommended_product_ids) ? parsed.recommended_product_ids.filter((id): id is string => typeof id === 'string') : [];
     const allowed = new Set(candidates.map((product) => product.id));
-    const products = catalog.filter((product) => allowed.has(product.id) && ids.includes(product.id)).slice(0, 4);
+    const products = candidates.filter((product) => allowed.has(product.id) && ids.includes(product.id)).slice(0, 4);
     return NextResponse.json({ answer: parsed.answer.trim(), products });
   } catch {
     if (mode === 'company') return NextResponse.json(companyFallback(language));

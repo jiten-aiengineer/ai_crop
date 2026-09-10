@@ -5,9 +5,12 @@ export type CatalogProduct = {
   name: string;
   category: string;
   commonName: string;
+  formulation?: string;
   dose: string;
   useBenefits: string;
   packing: string;
+  applicationMethod?: string;
+  safetyInformation?: string;
   image: string;
   sourcePage: number;
   /** Crops transcribed from the earlier CLSL catalogue for reference only. */
@@ -94,11 +97,11 @@ export function approvedCropLabel(product: CatalogProduct, crop: string) {
   return (product.approvedCrops || []).find((approvedCrop) => sharesCropAlias(approvedCrop, crop)) || '';
 }
 
-export function searchCatalog(query: string, limit = 12, category = 'All products') {
+export function searchCatalogProducts(products: CatalogProduct[], query: string, limit = 12, category = 'All products') {
   const normalized = normalize(query);
   const queryTokens = tokens(normalized);
   const categoryLower = category.toLowerCase();
-  return catalog.map((product) => {
+  return products.map((product) => {
     const cropText = `${(product.approvedCrops || []).join(' ')} ${(product.catalogCrops || []).join(' ')}`.toLowerCase();
     const haystack = `${product.name} ${product.category} ${product.commonName} ${product.useBenefits} ${product.dose} ${cropText}`.toLowerCase();
     let score = 0;
@@ -114,6 +117,10 @@ export function searchCatalog(query: string, limit = 12, category = 'All product
   }).filter(({ product, score }) => (categoryLower === 'all products' || product.category.toLowerCase() === categoryLower) && (!normalized || score > 0))
     .sort((a, b) => b.score - a.score || a.product.name.localeCompare(b.product.name))
     .slice(0, limit);
+}
+
+export function searchCatalog(query: string, limit = 12, category = 'All products') {
+  return searchCatalogProducts(catalog, query, limit, category);
 }
 
 export function catalogRecommendations(diagnosis: { crop?: string; catalog_crop?: string; likely_issue?: string; issue_type?: string; observed_symptoms?: string[]; probable_causes?: string[]; confidence?: number; additional_information_required?: boolean; issue_detected?: boolean }) {
