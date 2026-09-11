@@ -38,7 +38,7 @@ export function inspectionPersistenceIsConfigured() {
  * Sends only server-side metadata to FastAPI. This endpoint is intentionally
  * disabled unless both its private URL and shared internal token are configured.
  */
-export async function persistInspection(input: PersistInspectionInput): Promise<{ status: InspectionPersistenceStatus }> {
+export async function persistInspection(input: PersistInspectionInput): Promise<{ status: InspectionPersistenceStatus; shadowStatus?: string }> {
   const url = persistenceUrl();
   const token = persistenceToken();
   if (!url || !token) return { status: 'skipped' };
@@ -83,7 +83,12 @@ export async function persistInspection(input: PersistInspectionInput): Promise<
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(5_000),
     });
-    return { status: response.ok ? 'saved' : 'failed' };
+    if (!response.ok) return { status: 'failed' };
+    const payload = await response.json().catch(() => ({})) as { shadow_status?: unknown };
+    return {
+      status: 'saved',
+      shadowStatus: typeof payload.shadow_status === 'string' ? payload.shadow_status : undefined,
+    };
   } catch {
     return { status: 'failed' };
   }

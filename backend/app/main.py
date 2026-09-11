@@ -8,7 +8,13 @@ from pydantic import BaseModel, Field
 from psycopg.types.json import Jsonb
 
 from .catalog_engine import recommend
-from .config import INTERNAL_SERVICE_TOKEN
+from .config import (
+    INTERNAL_SERVICE_TOKEN,
+    QWEN_ENABLED,
+    QWEN_MAX_ATTEMPTS,
+    QWEN_MODEL,
+    QWEN_SHADOW_MODE,
+)
 from .db import connection
 from .admin import router as admin_router
 
@@ -434,10 +440,58 @@ def persist_inspection(
                         recommendation.product_id,
                     ),
                 )
+        shadow_status = "not_queued"
+        if (
+            QWEN_ENABLED
+            and QWEN_SHADOW_MODE
+            and payload.provider.success
+            and prediction_id
+            and payload.storage.images
+        ):
+            queued = conn.execute(
+                """
+                INSERT INTO qwen_shadow_jobs(
+                    inspection_id, model_name, status, max_attempts,
+                    next_attempt_at, error_category, last_error, updated_at
+                ) VALUES (%s, %s, 'pending', %s, now(), NULL, NULL, now())
+                ON CONFLICT (inspection_id) DO UPDATE SET
+                    model_name = EXCLUDED.model_name,
+                    max_attempts = EXCLUDED.max_attempts,
+                    status = CASE
+                        WHEN qwen_shadow_jobs.status IN ('completed', 'processing')
+                            THEN qwen_shadow_jobs.status
+                        ELSE 'pending'
+                    END,
+                    next_attempt_at = CASE
+                        WHEN qwen_shadow_jobs.status IN ('completed', 'processing')
+                            THEN qwen_shadow_jobs.next_attempt_at
+                        ELSE now()
+                    END,
+                    error_category = CASE
+                        WHEN qwen_shadow_jobs.status IN ('completed', 'processing')
+                            THEN qwen_shadow_jobs.error_category
+                        ELSE NULL
+                    END,
+                    last_error = CASE
+                        WHEN qwen_shadow_jobs.status IN ('completed', 'processing')
+                            THEN qwen_shadow_jobs.last_error
+                        ELSE NULL
+                    END,
+                    updated_at = now()
+                RETURNING status
+                """,
+                (payload.inspection_id, QWEN_MODEL, QWEN_MAX_ATTEMPTS),
+            ).fetchone()
+            shadow_status = queued["status"] if queued else "not_queued"
+        elif QWEN_ENABLED and QWEN_SHADOW_MODE and payload.provider.success:
+            shadow_status = "not_queued_no_s3_evidence"
+        elif not (QWEN_ENABLED and QWEN_SHADOW_MODE):
+            shadow_status = "disabled"
         conn.commit()
 
     return {
         "status": "saved",
         "inspection_id": str(payload.inspection_id),
         "stored_images": len(payload.storage.images),
+        "shadow_status": shadow_status,
     }

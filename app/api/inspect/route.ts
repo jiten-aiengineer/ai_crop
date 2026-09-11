@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { catalogCropName } from '../../lib/catalog';
 import { approvedCatalogueRecommendations } from '../../lib/database-catalog';
-import { geminiInspection, legacyDiagnosis, queueShadow, InspectionInput } from '../../lib/inspection-ai';
+import { geminiInspection, legacyDiagnosis, InspectionInput } from '../../lib/inspection-ai';
 import { persistInspection } from '../../lib/inspection-persistence';
 import { storeInspectionImages } from '../../lib/s3-storage';
 import { fieldIdentityFor } from '../../lib/field-access';
@@ -46,7 +46,6 @@ export async function POST(request: Request) {
     storeInspectionImages(inspectionId, preparedImages.map(({ bytes, mimeType, imageOrder }) => ({ bytes, mimeType, imageOrder })))
       .catch(() => ({ status: 'failed' as const, images: [], failures: preparedImages.map((image) => ({ imageOrder: image.imageOrder, code: 'upload_failed' as const })) })),
   ]);
-  const comparison = await queueShadow(input,gemini,inspectionId);
   const diagnosis = gemini.success && gemini.diagnosis ? legacyDiagnosis(gemini.diagnosis) : undefined;
   // Keep known aliases normalised, but retain an approved live crop name even
   // when it was added after the application build. PostgreSQL remains the
@@ -63,7 +62,7 @@ export async function POST(request: Request) {
   const persistence = await persistInspection({ inspectionId, input, employeeCode, collectionMode, imageCount: images.length, storage, provider: gemini, recommendations });
   const storageMetadata = {
     inspection_id: inspectionId,
-    comparison_status: comparison.status,
+    comparison_status: persistence.shadowStatus || 'not_queued',
     storage_status: storage.status,
     stored_image_count: storage.images.length,
     image_storage_failures: storage.failures.map((failure) => failure.imageOrder),

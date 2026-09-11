@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 
 // Vinext's server bundle must leave the AWS implementation to Node. Loading
 // through Node's resolver avoids a bundled signer that fails at runtime on EC2.
-const nodeRequire = createRequire(import.meta.url);
+const nodeRequire = createRequire(`${process.cwd()}/package.json`);
 const s3 = nodeRequire('@aws-sdk/client-s3') as typeof import('@aws-sdk/client-s3');
 
 /** Server-only private S3 storage for the exact image bytes submitted for an inspection. */

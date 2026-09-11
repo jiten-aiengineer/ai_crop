@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Crop Life AI private Qwen GPU schedule. Starts the evaluation instance at
+  20:00 IST and applies a hard stop at 22:30 IST. It never terminates the GPU.
+
+Parameters:
+  GpuInstanceId:
+    Type: String
+    Default: i-01f405ee587ea2001
+    AllowedPattern: '^i-[0-9a-f]+$'
+  AppInstanceRoleName:
+    Type: String
+    Default: CropLifeAIAppRole
+
+Resources:
+  SchedulerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ControlOnlyCropLifeQwenGpu
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:StartInstances
+                  - ec2:StopInstances
+                Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${GpuInstanceId}
+
+  StartQwenGpuAtEightPmIst:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Description: Start Crop Life AI Qwen evaluation GPU at 20:00 IST.
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      ScheduleExpression: cron(0 20 * * ? *)
+      ScheduleExpressionTimezone: Asia/Kolkata
+      State: ENABLED
+      Target:
+        Arn: arn:aws:scheduler:::aws-sdk:ec2:startInstances
+        RoleArn: !GetAtt SchedulerExecutionRole.Arn
+        Input: !Sub '{"InstanceIds":["${GpuInstanceId}"]}'
+
+  HardStopQwenGpuAtTenThirtyPmIst:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Description: Hard stop Crop Life AI Qwen evaluation GPU at 22:30 IST.
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      ScheduleExpression: cron(30 22 * * ? *)
+      ScheduleExpressionTimezone: Asia/Kolkata
+      State: ENABLED
+      Target:
+        Arn: arn:aws:scheduler:::aws-sdk:ec2:stopInstances
+        RoleArn: !GetAtt SchedulerExecutionRole.Arn
+        Input: !Sub '{"InstanceIds":["${GpuInstanceId}"]}'
+
+  AppEarlyStopPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Allow the main Crop Life AI host to inspect and early-stop only its Qwen GPU.
+      Roles:
+        - !Ref AppInstanceRoleName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: ec2:DescribeInstances
+            Resource: '*'
+          - Effect: Allow
+            Action: ec2:StopInstances
+            Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${GpuInstanceId}
+
+Outputs:
+  StartSchedule:
+    Value: !Ref StartQwenGpuAtEightPmIst
+  HardStopSchedule:
+    Value: !Ref HardStopQwenGpuAtTenThirtyPmIst
+  EarlyStopPolicyArn:
+    Value: !Ref AppEarlyStopPolicy

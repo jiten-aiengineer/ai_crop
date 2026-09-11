@@ -302,15 +302,15 @@
 
 .admin-diagnostic-lab { display:grid; gap:16px; }
 .admin-diagnostic-lab>.admin-list-toolbar,.admin-diagnostic-lab>.admin-metric-grid { margin-bottom:0; }
-.admin-training-readiness>header,.admin-comparison-panel>header,.admin-training-runs>header,.admin-provider-card>header,.admin-model-section-head { display:flex; justify-content:space-between; align-items:start; gap:18px; }
-.admin-training-readiness h3,.admin-model-section-head h3,.admin-comparison-panel h3,.admin-training-runs h3 { margin:5px 0 0; font-size:17px; }
+.admin-training-readiness>header,.admin-qwen-runtime>header,.admin-qwen-jobs>header,.admin-comparison-panel>header,.admin-training-runs>header,.admin-provider-card>header,.admin-model-section-head { display:flex; justify-content:space-between; align-items:start; gap:18px; }
+.admin-training-readiness h3,.admin-qwen-runtime h3,.admin-qwen-jobs h3,.admin-model-section-head h3,.admin-comparison-panel h3,.admin-training-runs h3 { margin:5px 0 0; font-size:17px; }
 .admin-training-readiness>header>strong { color:var(--clsl-blue); font-size:20px; }
 .admin-progress-large { height:12px; overflow:hidden; margin:18px 0; border-radius:20px; background:#e3eef7; }
 .admin-progress-large>i { display:block; height:100%; border-radius:20px; background:#064878; }
 .admin-readiness-facts,.admin-comparison-metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:9px; }
 .admin-readiness-facts span,.admin-comparison-metrics span { padding:11px; border:1px solid #deebf5; border-radius:9px; background:#f7fbfe; color:#607789; font-size:10px; }
 .admin-readiness-facts b,.admin-comparison-metrics b { display:block; margin-bottom:4px; color:#064878; font-size:17px; }
-.admin-training-readiness>p { margin:16px 0 0; color:#5f7586; font-size:11px; line-height:1.55; }
+.admin-training-readiness>p,.admin-qwen-runtime>p { margin:16px 0 0; color:#5f7586; font-size:11px; line-height:1.55; }
 .admin-model-section-head { margin-top:6px; }
 .admin-model-section-head small { max-width:420px; color:#6b7f8e; font-size:10px; text-align:right; }
 .admin-provider-card>header h3 { margin:4px 0; }
@@ -321,7 +321,9 @@
 .admin-model-history i { height:9px; overflow:hidden; border-radius:20px; background:#e4eef6; }
 .admin-model-history em { display:block; height:100%; border-radius:20px; background:var(--clsl-blue); }
 .admin-model-history b { color:#335a76; font-size:10px; text-align:right; }
-.admin-training-runs>.admin-table-wrap { margin-top:16px; }
+.admin-training-runs>.admin-table-wrap,.admin-qwen-jobs>.admin-table-wrap { margin-top:16px; }
+.admin-qwen-runtime { border-top:4px solid #064878; background:linear-gradient(135deg,#fff 0%,#f2f8fc 100%); }
+.admin-qwen-jobs td:nth-child(2),.admin-qwen-jobs td:nth-child(3) { min-width:170px; }
 .admin-model-disclaimer { margin:0; padding:12px 14px; border-left:3px solid var(--clsl-blue); background:#eaf4fb; color:#48687f; font-size:10px; line-height:1.5; }
 
 @media(max-width:780px) {
@@ -424,12 +426,15 @@
 .admin-invitation-result > small,
 .admin-model-disclaimer,
 .admin-training-readiness > p { font-size: 13px; line-height: 1.55; }
+.admin-qwen-runtime > p { font-size: 13px; line-height: 1.55; }
 .field-link-action { font-size: 13px; }
 .field-state-chart > button span b { font-size: 14px; }
 .field-state-chart > button span small { font-size: 12px; }
 .field-state-chart > button > strong { font-size: 14px; }
 
 .admin-training-readiness h3,
+.admin-qwen-runtime h3,
+.admin-qwen-jobs h3,
 .admin-model-section-head h3,
 .admin-comparison-panel h3,
 .admin-training-runs h3 { font-size: 19px; }

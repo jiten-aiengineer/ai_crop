@@ -9,6 +9,7 @@ until an authorised employee approves them.
 import hmac
 import hashlib
 import base64
+import json
 import smtplib
 import secrets
 import re
@@ -17,6 +18,8 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
@@ -28,6 +31,9 @@ from .config import (
     PORTAL_INVITE_URL, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USERNAME,
     SMTP_USE_TLS, GPU_TRAINING_SERVICE_URL, GPU_TRAINING_SERVICE_TOKEN,
     MODEL_TRAINING_AUTOSTART, MODEL_TRAINING_DATASET_TARGET,
+    QWEN_BASE_URL, QWEN_ENABLED, QWEN_GPU_INSTANCE_ID, QWEN_MODEL,
+    QWEN_PROCESSING_WINDOW_ENABLED, QWEN_SCHEDULE_AUTOMATION,
+    QWEN_SHADOW_MODE, QWEN_TIMEZONE, QWEN_WINDOW_END, QWEN_WINDOW_START,
 )
 from .db import connection
 
@@ -849,35 +855,25 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
         ).fetchall()
         comparisons = conn.execute(
             """
-            WITH gemini AS (
-                SELECT inspection_id, crop_text, issue_type, issue_name, severity, confidence FROM ai_predictions WHERE provider = 'gemini'
-            ), qwen AS (
-                SELECT inspection_id, crop_text, issue_type, issue_name, severity, confidence FROM ai_predictions WHERE provider = 'qwen'
-            )
-            SELECT count(*) AS paired_cases,
-                   count(*) FILTER (WHERE lower(COALESCE(gemini.crop_text, '')) = lower(COALESCE(qwen.crop_text, ''))) AS crop_match,
-                   count(*) FILTER (WHERE lower(COALESCE(gemini.issue_type, '')) = lower(COALESCE(qwen.issue_type, ''))) AS issue_type_match,
-                   count(*) FILTER (WHERE lower(COALESCE(gemini.issue_name, '')) = lower(COALESCE(qwen.issue_name, ''))) AS issue_match,
-                   count(*) FILTER (WHERE lower(COALESCE(gemini.severity, '')) = lower(COALESCE(qwen.severity, ''))) AS severity_match,
-                   round(avg(gemini.confidence) * 100, 1) AS gemini_confidence_percent,
-                   round(avg(qwen.confidence) * 100, 1) AS qwen_confidence_percent,
-                   round(avg(abs(COALESCE(gemini.confidence, 0) - COALESCE(qwen.confidence, 0))) * 100, 1) AS mean_confidence_gap
-            FROM gemini JOIN qwen USING (inspection_id)
+            SELECT count(*) FILTER (
+                       WHERE status='completed' AND agreement_json->>'evaluated'='true'
+                   ) AS paired_cases,
+                   count(*) FILTER (WHERE agreement_json->>'crop_match'='true') AS crop_match,
+                   count(*) FILTER (WHERE agreement_json->>'issue_type_match'='true') AS issue_type_match,
+                   count(*) FILTER (WHERE agreement_json->>'issue_match'='true') AS issue_match,
+                   count(*) FILTER (WHERE agreement_json->>'severity_match'='true') AS severity_match,
+                   round(avg((agreement_json->>'confidence_difference')::numeric) * 100, 1) AS mean_confidence_gap
+            FROM qwen_shadow_jobs
             """
         ).fetchone()
         history = conn.execute(
             """
-            WITH gemini AS (
-                SELECT inspection_id, created_at, crop_text, issue_name FROM ai_predictions WHERE provider = 'gemini'
-            ), qwen AS (
-                SELECT inspection_id, crop_text, issue_name FROM ai_predictions WHERE provider = 'qwen'
-            )
-            SELECT (gemini.created_at AT TIME ZONE 'Asia/Kolkata')::date AS day,
-                   count(*) AS paired_cases,
-                   count(*) FILTER (WHERE lower(COALESCE(gemini.crop_text, '')) = lower(COALESCE(qwen.crop_text, ''))) AS crop_match,
-                   count(*) FILTER (WHERE lower(COALESCE(gemini.issue_name, '')) = lower(COALESCE(qwen.issue_name, ''))) AS issue_match
-            FROM gemini JOIN qwen USING (inspection_id)
-            WHERE gemini.created_at >= now() - interval '30 days'
+            SELECT (completed_at AT TIME ZONE 'Asia/Kolkata')::date AS day,
+                   count(*) FILTER (WHERE agreement_json->>'evaluated'='true') AS paired_cases,
+                   count(*) FILTER (WHERE agreement_json->>'crop_match'='true') AS crop_match,
+                   count(*) FILTER (WHERE agreement_json->>'issue_match'='true') AS issue_match
+            FROM qwen_shadow_jobs
+            WHERE status='completed' AND completed_at >= now() - interval '30 days'
             GROUP BY day ORDER BY day
             """
         ).fetchall()
@@ -907,9 +903,77 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
             FROM model_training_runs ORDER BY created_at DESC LIMIT 25
             """
         ).fetchall()
+        queue_summary = conn.execute(
+            """
+            SELECT count(*) AS total,
+                   count(*) FILTER (WHERE status IN ('pending','retry','deferred')) AS waiting,
+                   count(*) FILTER (WHERE status = 'processing') AS processing,
+                   count(*) FILTER (WHERE status = 'completed') AS completed,
+                   count(*) FILTER (WHERE status = 'failed') AS failed,
+                   min(created_at) FILTER (WHERE status IN ('pending','retry','deferred')) AS oldest_waiting_at,
+                   round(avg(latency_ms) FILTER (WHERE status = 'completed'), 1) AS average_latency_ms,
+                   max(completed_at) FILTER (WHERE status = 'completed') AS latest_completed_at
+            FROM qwen_shadow_jobs
+            """
+        ).fetchone()
+        runtime = conn.execute(
+            """
+            SELECT status, details, updated_at
+            FROM ai_runtime_status WHERE status_key = 'qwen_worker'
+            """
+        ).fetchone()
+        processing_sessions = conn.execute(
+            """
+            SELECT id, worker_id, instance_id, model_name, status, jobs_claimed,
+                   jobs_completed, jobs_failed, started_at, last_heartbeat_at,
+                   completed_at, stop_reason, error_message
+            FROM gpu_processing_sessions ORDER BY started_at DESC LIMIT 12
+            """
+        ).fetchall()
+        queue_jobs = conn.execute(
+            """
+            SELECT job.id, job.inspection_id, job.status, job.attempt_count,
+                   job.max_attempts, job.latency_ms, job.agreement_json,
+                   job.error_category, job.last_error, job.created_at,
+                   job.started_at, job.completed_at, job.next_attempt_at,
+                   inspection.farmer_crop_text, employee.employee_code,
+                   employee.full_name AS employee_name,
+                   gemini.crop_text AS gemini_crop, gemini.issue_name AS gemini_issue,
+                   gemini.confidence AS gemini_confidence,
+                   qwen.crop_text AS qwen_crop, qwen.issue_name AS qwen_issue,
+                   qwen.confidence AS qwen_confidence
+            FROM qwen_shadow_jobs job
+            JOIN inspections inspection ON inspection.id = job.inspection_id
+            LEFT JOIN employees employee ON employee.id = inspection.employee_id
+            LEFT JOIN LATERAL (
+                SELECT crop_text, issue_name, confidence FROM ai_predictions
+                WHERE inspection_id = job.inspection_id AND provider = 'gemini'
+                ORDER BY created_at DESC LIMIT 1
+            ) gemini ON true
+            LEFT JOIN LATERAL (
+                SELECT crop_text, issue_name, confidence FROM ai_predictions
+                WHERE inspection_id = job.inspection_id AND provider = 'qwen'
+                ORDER BY created_at DESC LIMIT 1
+            ) qwen ON true
+            ORDER BY job.created_at DESC LIMIT 25
+            """
+        ).fetchall()
     eligible = int(dataset["dataset_eligible_inspections"] or 0)
     readiness = min(100, round(eligible * 100 / MODEL_TRAINING_DATASET_TARGET, 1))
     connector_configured = bool(GPU_TRAINING_SERVICE_URL and len(GPU_TRAINING_SERVICE_TOKEN) >= 32)
+    qwen_health = {"status": "disabled", "model": QWEN_MODEL}
+    if QWEN_ENABLED and QWEN_SHADOW_MODE:
+        try:
+            request = Request(f"{QWEN_BASE_URL}/api/tags", headers={"Accept": "application/json"})
+            with urlopen(request, timeout=3) as response:
+                payload = json.loads(response.read(512 * 1024))
+            names = [item.get("name") for item in payload.get("models", []) if isinstance(item, dict)]
+            qwen_health = {
+                "status": "available" if QWEN_MODEL in names else "model_missing",
+                "model": QWEN_MODEL,
+            }
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError):
+            qwen_health = {"status": "offline", "model": QWEN_MODEL}
     return {
         "providers": providers,
         "gemini_qwen_comparison": comparisons,
@@ -925,6 +989,23 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
             "configured": connector_configured,
             "auto_start_enabled": bool(MODEL_TRAINING_AUTOSTART and connector_configured),
             "status": "ready" if connector_configured else "waiting_for_gpu_server",
+        },
+        "qwen_shadow": {
+            "enabled": bool(QWEN_ENABLED and QWEN_SHADOW_MODE),
+            "provider_health": qwen_health,
+            "queue": queue_summary,
+            "runtime": runtime,
+            "sessions": processing_sessions,
+            "jobs": queue_jobs,
+            "schedule": {
+                "window_enabled": QWEN_PROCESSING_WINDOW_ENABLED,
+                "start": QWEN_WINDOW_START,
+                "end": QWEN_WINDOW_END,
+                "timezone": QWEN_TIMEZONE,
+                "automation": QWEN_SCHEDULE_AUTOMATION,
+                "instance_configured": bool(QWEN_GPU_INSTANCE_ID),
+            },
+            "governance": "evaluation_only_no_product_selection",
         },
     }
 

@@ -17,7 +17,7 @@ function load(file, overrides={}) {
     if(name.startsWith('.')){const target=path.resolve(path.dirname(filename),name);return name.endsWith('.json')?JSON.parse(fs.readFileSync(target,'utf8')):load(path.relative(path.resolve(__dirname,'..'),target+'.ts'),overrides);}
     return require(name);
   };
-  vm.runInNewContext(source,{module:loaded,exports:loaded.exports,require:customRequire,process,fetch:(...args)=>global.fetch(...args),AbortSignal,Response,Request,File,Uint8Array,TextEncoder,TextDecoder,crypto:global.crypto,btoa,Date,console},{filename});
+  vm.runInNewContext(source,{module:loaded,exports:loaded.exports,require:customRequire,process,fetch:(...args)=>global.fetch(...args),AbortSignal,Response,Request,File,URL,Uint8Array,TextEncoder,TextDecoder,crypto:global.crypto,btoa,Date,console},{filename});
   return loaded.exports;
 }
 const data={crop:'Tomato',crop_confidence:.9,condition:'affected',issue_detected:true,issue_type:'fungal_disease',probable_issue:'Early blight',confidence:.85,severity:'moderate',visible_symptoms:['Brown spots']};
@@ -89,7 +89,11 @@ test('private S3 inspection archive uses IAM SDK defaults and non-PII UUID keys'
   class DeleteObjectCommand{constructor(input){this.input=input;}}
   Object.assign(process.env,{AWS_REGION:'us-east-1',S3_BUCKET_NAME:'crop-life-ai-data',S3_INSPECTIONS_PREFIX:'inspections'});
   try{
-    const storage=load('app/lib/s3-storage.ts',{'@aws-sdk/client-s3':{S3Client,PutObjectCommand,DeleteObjectCommand}});
+    const sdk={S3Client,PutObjectCommand,DeleteObjectCommand};
+    const storage=load('app/lib/s3-storage.ts',{
+      '@aws-sdk/client-s3':sdk,
+      'node:module':{createRequire:()=>name=>name==='@aws-sdk/client-s3'?sdk:require(name)},
+    });
     const result=await storage.storeInspectionImages('550e8400-e29b-41d4-a716-446655440000',[{bytes:new Uint8Array([1,2,3]),mimeType:'image/jpeg',imageOrder:1}]);
     assert.equal(result.status,'stored');assert.equal(result.images[0].bucket,'crop-life-ai-data');
     assert.match(result.images[0].key,/^inspections\/\d{4}\/\d{2}\/\d{2}\/550e8400-e29b-41d4-a716-446655440000\/image-01\.jpg$/);
@@ -106,5 +110,17 @@ test('inspection persistence is skipped safely until its private server token is
   try{
     const persistence=load('app/lib/inspection-persistence.ts');
     assert.equal((await persistence.persistInspection(payload)).status,'skipped');
+  }finally{global.fetch=prior;for(const name of names){if(old[name]===undefined)delete process.env[name];else process.env[name]=old[name];}}
+});
+
+test('inspection persistence returns the durable shadow queue state',async()=>{
+  const names=['INSPECTION_PERSISTENCE_URL','INSPECTION_PERSISTENCE_TOKEN'];const old=Object.fromEntries(names.map(name=>[name,process.env[name]]));const prior=global.fetch;
+  const payload={inspectionId:'550e8400-e29b-41d4-a716-446655440000',collectionMode:'general_employee',imageCount:1,input,storage:{status:'stored',images:[{bucket:'private',key:'inspections/test.jpg',mimeType:'image/jpeg',fileSizeBytes:4,imageOrder:1}],failures:[]},provider:{provider:'gemini',model:'test',success:true,latencyMs:3,timestamp:'now',diagnosis:data},recommendations:[]};
+  Object.assign(process.env,{INSPECTION_PERSISTENCE_URL:'http://127.0.0.1:8000/api/v1/inspections/persist',INSPECTION_PERSISTENCE_TOKEN:'test-only'});
+  global.fetch=async()=>Response.json({status:'saved',shadow_status:'pending'},{status:201});
+  try{
+    const persistence=load('app/lib/inspection-persistence.ts');
+    const result=await persistence.persistInspection(payload);
+    assert.equal(result.status,'saved');assert.equal(result.shadowStatus,'pending');
   }finally{global.fetch=prior;for(const name of names){if(old[name]===undefined)delete process.env[name];else process.env[name]=old[name];}}
 });
