@@ -26,7 +26,8 @@ from psycopg.types.json import Jsonb
 from .config import (
     ADMIN_ALLOWED_EMAIL_DOMAIN, ADMIN_GATEWAY_TOKEN, PORTAL_INVITE_EMAIL_FROM,
     PORTAL_INVITE_URL, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USERNAME,
-    SMTP_USE_TLS,
+    SMTP_USE_TLS, GPU_TRAINING_SERVICE_URL, GPU_TRAINING_SERVICE_TOKEN,
+    MODEL_TRAINING_AUTOSTART, MODEL_TRAINING_DATASET_TARGET,
 )
 from .db import connection
 
@@ -102,6 +103,11 @@ class CatalogueChangeRequest(BaseModel):
         if len(set(name.casefold() for name in cleaned)) != len(cleaned):
             raise ValueError("A crop can be included only once.")
         return cleaned
+
+
+class DirectProductStatusChange(BaseModel):
+    status: Literal["active", "inactive"]
+    reason: str = Field(default="", max_length=500)
 
 
 class ApprovalDecision(BaseModel):
@@ -320,6 +326,7 @@ def current_admin(identity: AdminIdentity = Depends(_identity)):
             "view_overview": True,
             "view_catalogue": _can(identity, CATALOGUE_READ_ROLES),
             "submit_catalogue_changes": _can(identity, CATALOGUE_MANAGER_ROLES),
+            "direct_catalogue_status": _can(identity, {"super_admin"}),
             "decide_crop_mappings": _can(identity, MAPPING_PUBLISHER_ROLES),
             "review_catalogue_changes": _can(identity, SENIOR_CATALOGUE_MANAGER_ROLES),
             "send_catalogue_changes_to_final_publisher": _can(identity, SENIOR_CATALOGUE_MANAGER_ROLES),
@@ -374,6 +381,38 @@ def catalogue_products(identity: AdminIdentity = Depends(_identity)):
     _require(identity, CATALOGUE_READ_ROLES)
     with connection() as conn:
         return {"items": _product_rows(conn)}
+
+
+@router.patch("/catalogue/products/{product_id}/status")
+def set_catalogue_product_status(
+    product_id: str,
+    payload: DirectProductStatusChange,
+    identity: AdminIdentity = Depends(_identity),
+):
+    """Allow only the protected Super Administrator to change availability now."""
+    _require(identity, {"super_admin"})
+    with connection() as conn:
+        product = conn.execute(
+            "SELECT id, name, status, approval_status, version FROM products WHERE id = %s FOR UPDATE",
+            (product_id,),
+        ).fetchone()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found.")
+        if product["approval_status"] != "approved":
+            raise HTTPException(status_code=409, detail="Only a finally approved product can be activated or deactivated directly.")
+        if product["status"] == payload.status:
+            return {"id": product_id, "name": product["name"], "status": payload.status, "changed": False}
+        conn.execute(
+            "UPDATE products SET status = %s, version = version + 1, updated_at = now() WHERE id = %s",
+            (payload.status, product_id),
+        )
+        _audit(
+            conn, identity, "direct_product_status_change", "product_catalogue", product_id,
+            {"status": product["status"], "version": product["version"]},
+            {"status": payload.status, "reason": payload.reason.strip() or "Super Administrator direct availability control"},
+        )
+        conn.commit()
+    return {"id": product_id, "name": product["name"], "status": payload.status, "changed": True}
 
 
 @router.get("/catalogue/options")
@@ -789,31 +828,105 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
     with connection() as conn:
         providers = conn.execute(
             """
-            SELECT provider, model_name, count(*) AS attempts,
-                   count(*) FILTER (WHERE success) AS successful,
-                   count(*) FILTER (WHERE NOT success) AS failed,
-                   round(avg(latency_ms) FILTER (WHERE success), 1) AS average_latency_ms,
-                   max(created_at) AS latest_attempt
-            FROM ai_provider_results
-            GROUP BY provider, model_name
-            ORDER BY provider, model_name
+            SELECT result.provider, result.model_name, count(*) AS attempts,
+                   count(*) FILTER (WHERE result.success) AS successful,
+                   count(*) FILTER (WHERE NOT result.success) AS failed,
+                   round(count(*) FILTER (WHERE result.success)::numeric * 100 / NULLIF(count(*), 0), 1) AS success_rate_percent,
+                   round(avg(result.latency_ms) FILTER (WHERE result.success), 1) AS average_latency_ms,
+                   round(avg(prediction.confidence) * 100, 1) AS average_confidence_percent,
+                   count(prediction.confidence) AS confidence_samples,
+                   max(result.created_at) AS latest_attempt
+            FROM ai_provider_results result
+            LEFT JOIN LATERAL (
+                SELECT confidence FROM ai_predictions prediction
+                WHERE prediction.inspection_id = result.inspection_id
+                  AND prediction.provider = result.provider AND prediction.model_name = result.model_name
+                ORDER BY prediction.created_at DESC LIMIT 1
+            ) prediction ON true
+            GROUP BY result.provider, result.model_name
+            ORDER BY result.provider, result.model_name
             """
         ).fetchall()
         comparisons = conn.execute(
             """
             WITH gemini AS (
-                SELECT inspection_id, crop_text, issue_name, confidence FROM ai_predictions WHERE provider = 'gemini'
+                SELECT inspection_id, crop_text, issue_type, issue_name, severity, confidence FROM ai_predictions WHERE provider = 'gemini'
             ), qwen AS (
-                SELECT inspection_id, crop_text, issue_name, confidence FROM ai_predictions WHERE provider = 'qwen'
+                SELECT inspection_id, crop_text, issue_type, issue_name, severity, confidence FROM ai_predictions WHERE provider = 'qwen'
             )
             SELECT count(*) AS paired_cases,
                    count(*) FILTER (WHERE lower(COALESCE(gemini.crop_text, '')) = lower(COALESCE(qwen.crop_text, ''))) AS crop_match,
+                   count(*) FILTER (WHERE lower(COALESCE(gemini.issue_type, '')) = lower(COALESCE(qwen.issue_type, ''))) AS issue_type_match,
                    count(*) FILTER (WHERE lower(COALESCE(gemini.issue_name, '')) = lower(COALESCE(qwen.issue_name, ''))) AS issue_match,
+                   count(*) FILTER (WHERE lower(COALESCE(gemini.severity, '')) = lower(COALESCE(qwen.severity, ''))) AS severity_match,
+                   round(avg(gemini.confidence) * 100, 1) AS gemini_confidence_percent,
+                   round(avg(qwen.confidence) * 100, 1) AS qwen_confidence_percent,
                    round(avg(abs(COALESCE(gemini.confidence, 0) - COALESCE(qwen.confidence, 0))) * 100, 1) AS mean_confidence_gap
             FROM gemini JOIN qwen USING (inspection_id)
             """
         ).fetchone()
-    return {"providers": providers, "gemini_qwen_comparison": comparisons}
+        history = conn.execute(
+            """
+            WITH gemini AS (
+                SELECT inspection_id, created_at, crop_text, issue_name FROM ai_predictions WHERE provider = 'gemini'
+            ), qwen AS (
+                SELECT inspection_id, crop_text, issue_name FROM ai_predictions WHERE provider = 'qwen'
+            )
+            SELECT (gemini.created_at AT TIME ZONE 'Asia/Kolkata')::date AS day,
+                   count(*) AS paired_cases,
+                   count(*) FILTER (WHERE lower(COALESCE(gemini.crop_text, '')) = lower(COALESCE(qwen.crop_text, ''))) AS crop_match,
+                   count(*) FILTER (WHERE lower(COALESCE(gemini.issue_name, '')) = lower(COALESCE(qwen.issue_name, ''))) AS issue_match
+            FROM gemini JOIN qwen USING (inspection_id)
+            WHERE gemini.created_at >= now() - interval '30 days'
+            GROUP BY day ORDER BY day
+            """
+        ).fetchall()
+        dataset = conn.execute(
+            """
+            SELECT
+              (SELECT count(*) FROM inspections) AS total_inspections,
+              (SELECT count(*) FROM inspection_images WHERE retention_status = 'retained') AS retained_images,
+              (SELECT count(*) FROM inspection_images WHERE retention_status = 'retained' AND consent_for_training) AS consented_images,
+              (SELECT count(DISTINCT inspection_id) FROM inspection_images WHERE retention_status = 'retained' AND consent_for_training) AS consented_inspections,
+              (SELECT count(DISTINCT inspection_id) FROM expert_reviews WHERE review_status IN ('verified', 'corrected')) AS expert_reviewed_inspections,
+              (SELECT count(DISTINCT inspection_id) FROM expert_reviews WHERE review_status IN ('verified', 'corrected') AND dataset_eligible) AS dataset_eligible_inspections,
+              (SELECT count(*) FROM expert_reviews WHERE diagnosis_correct IS TRUE) AS diagnosis_correct,
+              (SELECT count(*) FROM expert_reviews WHERE diagnosis_correct IS FALSE) AS diagnosis_incorrect,
+              (SELECT count(DISTINCT verified_crop_id) FROM expert_reviews WHERE dataset_eligible AND verified_crop_id IS NOT NULL) AS verified_crop_classes,
+              (SELECT count(DISTINCT verified_problem_id) FROM expert_reviews WHERE dataset_eligible AND verified_problem_id IS NOT NULL) AS verified_problem_classes,
+              (SELECT count(*) FROM expert_reviews WHERE review_status = 'pending') AS pending_expert_reviews
+            """
+        ).fetchone()
+        training_runs = conn.execute(
+            """
+            SELECT id, external_run_id, run_name, connector, model_family, base_model, dataset_version,
+                   status, trigger_source, training_examples, validation_examples, training_images,
+                   progress_percent, current_epoch, total_epochs, train_loss, validation_loss,
+                   validation_accuracy, validation_macro_f1, crop_accuracy, issue_accuracy,
+                   severity_accuracy, started_at, completed_at, created_at, error_message
+            FROM model_training_runs ORDER BY created_at DESC LIMIT 25
+            """
+        ).fetchall()
+    eligible = int(dataset["dataset_eligible_inspections"] or 0)
+    readiness = min(100, round(eligible * 100 / MODEL_TRAINING_DATASET_TARGET, 1))
+    connector_configured = bool(GPU_TRAINING_SERVICE_URL and len(GPU_TRAINING_SERVICE_TOKEN) >= 32)
+    return {
+        "providers": providers,
+        "gemini_qwen_comparison": comparisons,
+        "comparison_history": history,
+        "dataset": dataset,
+        "training_runs": training_runs,
+        "training_readiness": {
+            "target_expert_approved_cases": MODEL_TRAINING_DATASET_TARGET,
+            "eligible_cases": eligible,
+            "progress_percent": readiness,
+        },
+        "training_connector": {
+            "configured": connector_configured,
+            "auto_start_enabled": bool(MODEL_TRAINING_AUTOSTART and connector_configured),
+            "status": "ready" if connector_configured else "waiting_for_gpu_server",
+        },
+    }
 
 
 @router.get("/access/employees")

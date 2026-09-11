@@ -13,8 +13,9 @@ type Officer = {
   has_access_link: boolean; access_link_created_at?: string; access_link_last_used_at?: string;
 };
 type Report = { items: Officer[]; report_day?: string; anonymous_day_uploads: number };
-type StateSummary = { state: string; officers: number; active: number; compliant: number; inspections: number; images: number; completeSets: number };
+type StateSummary = { state: string; officers: number; active: number; compliant: number; inspections: number; images: number; completeSets: number; selectedDayActive: number; selectedDayInspections: number; selectedDayImages: number };
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+const relativeDay = (offset: number) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(Date.now() + offset * 86_400_000));
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/admin/portal/${path}`, { ...init, headers: { 'Content-Type': 'application/json' }, cache: 'no-store' });
@@ -44,7 +45,7 @@ export default function FieldForce({ initialData, canManage = false }: { initial
   const [day, setDay] = useState(today); const [state, setState] = useState('');
   const [territory, setTerritory] = useState(''); const [mode, setMode] = useState('all');
   const [sort, setSort] = useState('most_active'); const [query, setQuery] = useState(''); const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(''); const [accessLink, setAccessLink] = useState<{ name: string; url: string } | null>(null);
+  const [error, setError] = useState(''); const [accessLink, setAccessLink] = useState<{ name: string; url: string } | null>(null); const [linkCopied, setLinkCopied] = useState(false);
   useEffect(() => { if (initialData) setData(initialData); }, [initialData]);
   async function refresh(reportDay = day) {
     setBusy(true); setError('');
@@ -58,9 +59,10 @@ export default function FieldForce({ initialData, canManage = false }: { initial
   const stateSummary = useMemo(() => {
     const summaries = new Map<string, StateSummary>();
     for (const item of items) {
-      const current = summaries.get(item.state) || { state: item.state, officers: 0, active: 0, compliant: 0, inspections: 0, images: 0, completeSets: 0 };
+      const current = summaries.get(item.state) || { state: item.state, officers: 0, active: 0, compliant: 0, inspections: 0, images: 0, completeSets: 0, selectedDayActive: 0, selectedDayInspections: 0, selectedDayImages: 0 };
       current.officers += 1; current.active += Number(item.active_days_30) > 0 ? 1 : 0; current.compliant += Number(item.active_days_30) >= 20 ? 1 : 0;
       current.inspections += Number(item.month_uploads); current.images += Number(item.month_images); current.completeSets += Number(item.month_complete_sets);
+      current.selectedDayActive += Number(item.day_uploads) > 0 ? 1 : 0; current.selectedDayInspections += Number(item.day_uploads); current.selectedDayImages += Number(item.day_images);
       summaries.set(item.state, current);
     }
     return [...summaries.values()].sort((a, b) => b.inspections - a.inspections || a.state.localeCompare(b.state));
@@ -81,35 +83,33 @@ export default function FieldForce({ initialData, canManage = false }: { initial
   async function issueAccess(item: Officer) {
     const action = item.has_access_link ? 'Rotate the permanent link' : 'Create a permanent personal link';
     if (!window.confirm(`${action} for ${item.full_name}? ${item.has_access_link ? 'The previous link will stop working.' : 'It remains valid until an administrator revokes or rotates it.'}`)) return;
-    const fieldWindow = window.open('about:blank', '_blank');
-    if (fieldWindow) {
-      fieldWindow.opener = null;
-      fieldWindow.document.title = 'Opening Crop Life AI…';
-      fieldWindow.document.body.textContent = 'Preparing the secure Crop Life AI field app…';
-      fieldWindow.document.body.style.cssText = 'font:16px Arial;padding:32px;color:#0b5ea8';
-    }
     try {
       const result = await request<{ token: string; name: string }>(`sales-officers/${item.id}/access`, { method: 'POST' });
       const url = `${window.location.origin}/field/access?token=${encodeURIComponent(result.token)}`;
-      setAccessLink({ name: result.name, url });
-      if (fieldWindow) { fieldWindow.location.replace(url); fieldWindow.focus(); }
-      else window.location.assign(url);
+      setLinkCopied(false); setAccessLink({ name: result.name, url });
       await refresh();
-    } catch (reason) { fieldWindow?.close(); setError(reason instanceof Error ? reason.message : 'Unable to create access link.'); }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to create access link.'); }
   }
+  const selectReportDay = (value: string) => { setDay(value); void refresh(value); };
+  const maxSelectedDayInspections = Math.max(1, ...stateSummary.map((summary) => summary.selectedDayInspections));
+  const copyAccessLink = async () => {
+    if (!accessLink) return;
+    try { await navigator.clipboard.writeText(accessLink.url); setLinkCopied(true); }
+    catch { setError('Select the personal link and copy it manually.'); }
+  };
   return <div className="admin-content">
-    <div className="admin-list-toolbar"><div><p className="admin-overline">Employees · Confirmed Sales Officers</p><h2>Field activity and personal app access</h2><p>Daily target: 2–3 four-photo inspections. Monthly compliance target: activity on at least 20 of the latest 30 days ending {data?.report_day || 'today'}.</p></div><button className="admin-secondary" disabled={busy} onClick={() => void refresh()}>{busy ? 'Loading…' : 'Refresh report'}</button></div>
+    <div className="admin-list-toolbar"><div><p className="admin-overline">Employees · Confirmed Sales Officers</p><h2>Field activity and personal app access</h2><p>Daily target: 2–3 four-photo inspections. Monthly compliance target: activity on at least 20 of the latest 30 days ending {data?.report_day || 'today'}.</p></div><button className="admin-secondary" disabled={busy} onClick={() => void refresh()}>{busy ? 'Refreshing employees…' : 'Refresh employees & links'}</button></div>
     {error && <p className="admin-message error" role="alert">{error}</p>}
-    {accessLink && <section className="admin-panel field-link-panel"><h3>Permanent personal field link · {accessLink.name}</h3><p>The field app has opened in a new tab. Send this link privately to the named officer; it personalises the installed PWA and attributes inspections until rotated.</p><input className="field-link-input" aria-label="Personal field access link" readOnly value={accessLink.url} onFocus={(event) => event.target.select()} /><a className="admin-primary field-open-link" href={accessLink.url} target="_blank" rel="noreferrer">Open field app →</a><button className="admin-secondary" onClick={() => void navigator.clipboard.writeText(accessLink.url).catch(() => setError('Select the link above and copy it manually.'))}>Copy link</button><button className="admin-secondary" onClick={() => setAccessLink(null)}>Close</button></section>}
+    {accessLink && <div className="admin-modal-backdrop" role="presentation" onMouseDown={() => setAccessLink(null)}><section className="admin-link-dialog" role="dialog" aria-modal="true" aria-labelledby="field-link-title" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="admin-overline">Secure personal app access</p><h3 id="field-link-title">Field link for {accessLink.name}</h3></div><button type="button" aria-label="Close personal link" onClick={() => setAccessLink(null)}>×</button></header><p>Copy this private link and send it only to the named Sales Officer. The link connects their profile and future inspections to the employee dashboard.</p><label>Permanent personal link<input className="field-link-input" readOnly value={accessLink.url} onFocus={(event) => event.target.select()} /></label><div className="admin-link-dialog-actions"><button className="admin-primary" onClick={() => void copyAccessLink()}>{linkCopied ? 'Copied ✓' : 'Copy personal link'}</button><a className="admin-secondary field-open-link secondary" href={accessLink.url} target="_blank" rel="noreferrer">Preview field app</a><button className="admin-secondary" onClick={() => setAccessLink(null)}>Done</button></div><small>Rotating a link immediately invalidates the previous one.</small></section></div>}
     <div className="admin-metric-grid">
       <article className="admin-metric"><p>Confirmed Sales Officers</p><strong>{items.length}</strong><small>{states.length} states · official employee identities</small></article>
       <article className="admin-metric green"><p>Monthly target complete</p><strong>{items.filter((item) => Number(item.active_days_30) >= 20).length}</strong><small>Active on at least 20 of the latest 30 days</small></article>
       <article className="admin-metric amber"><p>Active but below target</p><strong>{items.filter((item) => Number(item.active_days_30) > 0 && Number(item.active_days_30) < 20).length}</strong><small>Use “Least active first” for follow-up</small></article>
       <article className="admin-metric"><p>No 30-day activity</p><strong>{items.filter((item) => Number(item.active_days_30) === 0).length}</strong><small>{items.filter((item) => !item.has_access_link).length} links not generated</small></article>
     </div>
-    <section className="admin-panel field-state-summary"><header><div><p className="admin-overline">State-wise performance · latest 30 days</p><h3>See where collection is active and where follow-up is needed</h3></div></header><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>State</th><th>Officers</th><th>Active officers</th><th>20-day compliant</th><th>Inspections</th><th>Images</th><th>Complete sets</th></tr></thead><tbody>{stateSummary.map((summary) => <tr key={summary.state} onClick={() => { setState(summary.state); setTerritory(''); }}><td><button className="admin-state-link">{summary.state}</button></td><td>{summary.officers}</td><td>{summary.active}</td><td>{summary.compliant}</td><td>{summary.inspections}</td><td>{summary.images}</td><td>{summary.completeSets}</td></tr>)}</tbody></table></div></section>
+    <section className="admin-panel field-state-summary"><header><div><p className="admin-overline">State-wise activity · {data?.report_day || day}</p><h3>Selected-day inspections and latest 30-day performance</h3></div></header><div className="field-state-chart" aria-label="State-wise selected day inspections">{stateSummary.map((summary) => <button key={summary.state} onClick={() => { setState(summary.state); setTerritory(''); }}><span><b>{summary.state}</b><small>{summary.selectedDayActive}/{summary.officers} officers active</small></span><i><em style={{ width: `${summary.selectedDayInspections ? Math.max(2, summary.selectedDayInspections / maxSelectedDayInspections * 100) : 0}%` }} /></i><strong>{summary.selectedDayInspections}</strong></button>)}</div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>State</th><th>Officers</th><th>Selected day</th><th>Active officers (30d)</th><th>20-day compliant</th><th>30-day inspections</th><th>Images</th><th>Complete sets</th></tr></thead><tbody>{stateSummary.map((summary) => <tr key={summary.state} onClick={() => { setState(summary.state); setTerritory(''); }}><td><button className="admin-state-link">{summary.state}</button></td><td>{summary.officers}</td><td>{summary.selectedDayInspections} inspections · {summary.selectedDayImages} images</td><td>{summary.active}</td><td>{summary.compliant}</td><td>{summary.inspections}</td><td>{summary.images}</td><td>{summary.completeSets}</td></tr>)}</tbody></table></div></section>
     <div className="field-report-filters">
-      <label>Report end date (India)<input type="date" value={day} max={today()} onChange={(event) => { setDay(event.target.value); if (event.target.value) void refresh(event.target.value); }} /></label>
+      <label>Report date (India)<input type="date" value={day} max={today()} onChange={(event) => { if (event.target.value) selectReportDay(event.target.value); }} /><span className="field-date-shortcuts"><button type="button" className={day === today() ? 'selected' : ''} onClick={() => selectReportDay(today())}>Today</button><button type="button" className={day === relativeDay(-1) ? 'selected' : ''} onClick={() => selectReportDay(relativeDay(-1))}>Yesterday</button></span></label>
       <label>State<select value={state} onChange={(event) => { setState(event.target.value); setTerritory(''); }}><option value="">All states</option>{states.map((value) => <option key={value}>{value}</option>)}</select></label>
       <label>Territory<select value={territory} onChange={(event) => setTerritory(event.target.value)}><option value="">All territories</option>{territories.map((value) => <option key={value}>{value}</option>)}</select></label>
       <label>Performance<select value={mode} onChange={(event) => setMode(event.target.value)}><option value="all">All officers</option><option value="month_complete">Monthly target complete</option><option value="month_below">Monthly target below 20 days</option><option value="month_missing">No activity in 30 days</option><option value="daily_complete">Today: target complete</option><option value="daily_below">Today: below target</option><option value="daily_missing">Today: no upload</option><option value="link_pending">Link not generated</option><option value="link_generated">Link generated</option><option value="active_collectors">Link used</option><option value="new">New HR employee</option><option value="updated">Updated HR employee</option><option value="inactive">Inactive / left</option></select></label>

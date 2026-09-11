@@ -10,7 +10,7 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
     const session = sessionForRequest(request);
     if (!session) return NextResponse.json({ error: 'Sign in to the Crop Life administration portal.' }, { status: 401 });
     const { path } = await context.params;
-    if (!path.length || path.some((part) => !/^[A-Za-z0-9_-]+$/.test(part))) return NextResponse.json({ error: 'Invalid administration route.' }, { status: 400 });
+    if (!path.length || path.some((part) => !/^[A-Za-z0-9_.-]+$/.test(part))) return NextResponse.json({ error: 'Invalid administration route.' }, { status: 400 });
     const incoming = new URL(request.url);
     const destination = new URL(`${configuration.backendUrl}/api/v1/admin/${path.join('/')}`);
     destination.search = incoming.search;
@@ -38,3 +38,4 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
 export function GET(request: Request, context: { params: Promise<{ path: string[] }> }) { return proxy(request, context); }
 export function POST(request: Request, context: { params: Promise<{ path: string[] }> }) { return proxy(request, context); }
 export function PUT(request: Request, context: { params: Promise<{ path: string[] }> }) { return proxy(request, context); }
+export function PATCH(request: Request, context: { params: Promise<{ path: string[] }> }) { return proxy(request, context); }

@@ -30,3 +30,10 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").strip().lower() not in {"0", "false", "no"}
+
+# Future private GPU training connector. Until its URL and token are supplied,
+# the portal reports dataset readiness but never claims that training is active.
+GPU_TRAINING_SERVICE_URL = os.getenv("GPU_TRAINING_SERVICE_URL", "").strip()
+GPU_TRAINING_SERVICE_TOKEN = os.getenv("GPU_TRAINING_SERVICE_TOKEN", "")
+MODEL_TRAINING_DATASET_TARGET = max(1, int(os.getenv("MODEL_TRAINING_DATASET_TARGET", "1000")))
+MODEL_TRAINING_AUTOSTART = os.getenv("MODEL_TRAINING_AUTOSTART", "false").strip().lower() in {"1", "true", "yes"}

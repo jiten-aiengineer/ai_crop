@@ -13,6 +13,7 @@ SALES_CONTACT_JSON = PROJECT_ROOT / "app" / "data" / "sales-contacts.json"
 MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "001_initial.sql"
 OPERATIONAL_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "002_operational_data.sql"
 S3_PERSISTENCE_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "003_s3_inspection_persistence.sql"
+MODEL_TRAINING_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "012_model_training_registry.sql"
 
 
 class ProductImportContractTests(unittest.TestCase):
@@ -130,6 +131,16 @@ class MigrationContractTests(unittest.TestCase):
         self.assertIn("image_storage_failures", sql)
         self.assertIn("create table if not exists ai_provider_results", sql)
         self.assertIn("unique(inspection_id, provider, model_name)", sql)
+
+    def test_model_training_registry_tracks_progress_and_validation(self):
+        sql = MODEL_TRAINING_MIGRATION.read_text(encoding="utf-8").lower()
+        self.assertIn("create table if not exists model_training_runs", sql)
+        for field in {
+            "progress_percent", "training_examples", "validation_examples",
+            "validation_accuracy", "validation_macro_f1", "crop_accuracy",
+            "issue_accuracy", "severity_accuracy",
+        }:
+            self.assertIn(field, sql)
 
 
 if __name__ == "__main__":
