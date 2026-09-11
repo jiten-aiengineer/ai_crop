@@ -101,15 +101,16 @@
 
 /* CLSL corporate identity and tactile dashboard interactions */
 .admin-shell {
-  --clsl-blue: #0b5ea8;
-  --clsl-blue-dark: #063d72;
+  --tw-bg-opacity: 1;
+  --clsl-blue: #064878;
+  --clsl-blue-dark: #064878;
   --clsl-blue-soft: #eaf4fc;
-  --clsl-accent: #61aee8;
+  --clsl-accent: #064878;
   background: linear-gradient(135deg, #f7fbff 0%, #eef6fc 100%);
 }
 
 .admin-sidebar {
-  background: linear-gradient(165deg, #073f72 0%, #052f58 72%, #031f3b 100%);
+  background: #064878;
   box-shadow: 10px 0 35px rgba(8, 60, 105, .12);
 }
 
@@ -124,17 +125,18 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
 }
 .admin-brand strong { font-size: 16px; }
-.admin-brand small { color: #c5dbed; letter-spacing: .09em; }
-.admin-sidebar nav button span { color: #78bced; }
+.admin-brand small { color: #fff; letter-spacing: .09em; opacity: .82; }
+.admin-sidebar nav button span { color: #fff; }
 .admin-sidebar nav button.selected,
 .admin-sidebar nav button:hover { background: rgba(255, 255, 255, .13); }
-.admin-sidebar nav button.selected { box-shadow: inset 3px 0 #78bced; }
+.admin-sidebar nav button.selected { box-shadow: inset 3px 0 #fff; }
 .admin-sidebar-bottom { border-top-color: rgba(255, 255, 255, .18); }
-.admin-sidebar .admin-badge { background: rgba(97, 174, 232, .18); color: #dcefff; }
+.admin-sidebar .admin-badge { background: rgba(255, 255, 255, .16); color: #fff; }
 
 .admin-overline { color: var(--clsl-blue); }
 .admin-welcome {
-  background-image: radial-gradient(circle at 93% 5%, rgba(97, 174, 232, .72) 0, rgba(97, 174, 232, 0) 25%), linear-gradient(120deg, #063d72, #0b5ea8 72%, #187fbe);
+  background: #064878;
+  background-image: radial-gradient(circle at 93% 5%, rgba(255, 255, 255, .16) 0, rgba(255, 255, 255, 0) 27%);
   box-shadow: 0 18px 42px rgba(11, 94, 168, .18);
 }
 .admin-welcome .admin-overline { color: #d7edfc; }
@@ -150,7 +152,8 @@
 .admin-form-grid textarea:focus { border-color: var(--clsl-blue); box-shadow: 0 0 0 3px rgba(11, 94, 168, .11); }
 
 .admin-gate {
-  background: radial-gradient(circle at 85% 10%, rgba(97, 174, 232, .28), transparent 28%), linear-gradient(140deg, #052f58, #0b5ea8 62%, #167fbd);
+  background: #064878;
+  background-image: radial-gradient(circle at 85% 10%, rgba(255, 255, 255, .14), transparent 30%);
 }
 .admin-gate-logo {
   width: 118px;
@@ -162,7 +165,7 @@
   background: #fff;
   box-shadow: 0 15px 38px rgba(1, 25, 48, .3);
 }
-.admin-gate-card { background:rgba(4,45,80,.92); border-color:rgba(180,218,245,.28); }
+.admin-gate-card { background:rgba(6,72,120,.94); border-color:rgba(255,255,255,.28); }
 .admin-gate-card .admin-overline { color:#b9ddf6; }
 .admin-gate .admin-login { background:#fff; color:var(--clsl-blue-dark); }
 
@@ -235,11 +238,11 @@
 }
 
 /* Keep operational success and selected states in the single CLSL blue system. */
-.admin-badge.green,.admin-message.success { background:#e8f3fb; color:#0a4d83; }
+.admin-badge.green,.admin-message.success { background:#e8f2f8; color:#064878; }
 .admin-message.success span,.admin-private i,.admin-progress-row em { background:var(--clsl-blue); }
-.admin-side-label { color:#9ec9e8; }
-.admin-sidebar nav button,.admin-signout { color:#c8deee; }
-.admin-sidebar-bottom p,.admin-sidebar-bottom small { color:#a8c6dc; }
+.admin-side-label { color:#fff; opacity:.68; }
+.admin-sidebar nav button,.admin-signout { color:#fff; }
+.admin-sidebar-bottom p,.admin-sidebar-bottom small { color:#fff; opacity:.78; }
 .field-link-panel { border-left-color:var(--clsl-blue); }
 .admin-crop-chips span,.field-identity-banner,.field-profile-card { background:#edf6fc; color:#174f7c; border-color:#c8e0f1; }
 .admin-crop-options label:has(input:checked),.admin-role-options label:has(input:checked) { background:#e7f2fb; border-color:#76acd4; }
@@ -248,17 +251,17 @@
 .admin-role-editor,.field-photo-contract { background:#f1f7fc; border-color:#c9deed; }
 .admin-shell { color:#16364f; }
 .admin-topbar { border-bottom-color:#d7e5ef; }
-.admin-top-actions>button,.admin-secondary { border-color:#c9dbe8; color:#205a85; background:#fff; }
-.admin-top-actions>button:hover:not(:disabled),.admin-secondary:hover:not(:disabled) { border-color:#76add5; background:#f2f8fd; color:#0a4e84; }
+.admin-top-actions>button,.admin-secondary { border-color:#bfd1de; color:#064878; background:#fff; }
+.admin-top-actions>button:hover:not(:disabled),.admin-secondary:hover:not(:disabled) { border-color:#064878; background:#f0f6fa; color:#064878; }
 .admin-panel,.admin-metric,.admin-product-card,.admin-editor,.admin-approval-list article,.admin-table-wrap,.admin-case-head,.admin-private-gallery { border-color:#d7e5ef; }
-.admin-panel h3,.admin-product-title h3,.admin-editor h2,.admin-list-toolbar h2,.admin-topbar h1 { color:#153d5c; }
+.admin-panel h3,.admin-product-title h3,.admin-editor h2,.admin-list-toolbar h2,.admin-topbar h1 { color:#064878; }
 .admin-product-image,.admin-editor-image { background:#edf5fb; }
-.admin-product-image span,.admin-product-title small { color:#0b5ea8; }
+.admin-product-image span,.admin-product-title small { color:#064878; }
 .admin-product-title p,.admin-list-toolbar p:not(.admin-overline),.admin-panel>p,.admin-editor header p:not(.admin-overline) { color:#61798b; }
 .admin-product-card dt,.admin-table td small { color:#6e8495; }
 .admin-product-card dd,.admin-table td { color:#244b67; }
 .admin-search,.admin-status-filter select,.admin-form-grid input,.admin-form-grid select,.admin-form-grid textarea,.field-report-filters input,.field-report-filters select { border-color:#cfdfea; color:#214a68; }
-.admin-search span { color:#2c74a8; }
+.admin-search span { color:#064878; }
 .admin-form-grid label>span,.admin-status-filter,.field-report-filters label { color:#315e7e; }
 .admin-table th { background:#f2f7fb; color:#55758c; }
 .admin-change-summary div { background:#f4f8fc; }
@@ -271,16 +274,16 @@
 }
 .admin-link-dialog {
   width:min(620px,100%); padding:25px; border:1px solid #bcd8ed; border-radius:18px;
-  background:#fff; color:#17364f; box-shadow:0 28px 80px rgba(2,31,57,.32); animation:admin-dialog-in 180ms ease-out;
+  background:#fff; color:#064878; box-shadow:0 28px 80px rgba(2,31,57,.32); animation:admin-dialog-in 180ms ease-out;
 }
 .admin-link-dialog>header { display:flex; align-items:start; justify-content:space-between; gap:20px; }
 .admin-link-dialog h3 { margin:6px 0 0; font-size:21px; }
-.admin-link-dialog>header>button { border:0; background:#edf5fb; color:#205d8d; width:34px; height:34px; border-radius:50%; font-size:20px; }
+.admin-link-dialog>header>button { border:0; background:#edf5fb; color:#064878; width:34px; height:34px; border-radius:50%; font-size:20px; }
 .admin-link-dialog>p { color:#5a7184; font-size:12px; line-height:1.6; }
 .admin-link-dialog>label { display:grid; gap:7px; color:#31566f; font-size:11px; font-weight:750; }
 .admin-link-dialog .field-link-input { margin:0; background:#f8fbfe; color:#164e78; }
 .admin-link-dialog-actions { display:flex; flex-wrap:wrap; gap:9px; margin:16px 0 10px; }
-.admin-link-dialog-actions .field-open-link.secondary { margin:0; border:1px solid #c8d7e2; background:#fff; color:#245b83; }
+.admin-link-dialog-actions .field-open-link.secondary { margin:0; border:1px solid #c8d7e2; background:#fff; color:#064878; }
 .admin-link-dialog>small { color:#708394; font-size:10px; }
 @keyframes admin-fade-in { from { opacity:0; } }
 @keyframes admin-dialog-in { from { opacity:0; transform:translateY(10px) scale(.98); } }
@@ -294,7 +297,7 @@
 .field-state-chart>button span b { font-size:11px; }
 .field-state-chart>button span small { margin-top:2px; color:#71889a; font-size:9px; }
 .field-state-chart>button>i { height:9px; overflow:hidden; border-radius:20px; background:#e4eef6; }
-.field-state-chart>button>i>em { display:block; height:100%; border-radius:20px; background:linear-gradient(90deg,#0b5ea8,#62afe8); }
+.field-state-chart>button>i>em { display:block; height:100%; border-radius:20px; background:#064878; }
 .field-state-chart>button>strong { text-align:right; font-size:12px; }
 
 .admin-diagnostic-lab { display:grid; gap:16px; }
@@ -303,10 +306,10 @@
 .admin-training-readiness h3,.admin-model-section-head h3,.admin-comparison-panel h3,.admin-training-runs h3 { margin:5px 0 0; font-size:17px; }
 .admin-training-readiness>header>strong { color:var(--clsl-blue); font-size:20px; }
 .admin-progress-large { height:12px; overflow:hidden; margin:18px 0; border-radius:20px; background:#e3eef7; }
-.admin-progress-large>i { display:block; height:100%; border-radius:20px; background:linear-gradient(90deg,#084d89,#2b88ca); }
+.admin-progress-large>i { display:block; height:100%; border-radius:20px; background:#064878; }
 .admin-readiness-facts,.admin-comparison-metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:9px; }
 .admin-readiness-facts span,.admin-comparison-metrics span { padding:11px; border:1px solid #deebf5; border-radius:9px; background:#f7fbfe; color:#607789; font-size:10px; }
-.admin-readiness-facts b,.admin-comparison-metrics b { display:block; margin-bottom:4px; color:#164f7a; font-size:17px; }
+.admin-readiness-facts b,.admin-comparison-metrics b { display:block; margin-bottom:4px; color:#064878; font-size:17px; }
 .admin-training-readiness>p { margin:16px 0 0; color:#5f7586; font-size:11px; line-height:1.55; }
 .admin-model-section-head { margin-top:6px; }
 .admin-model-section-head small { max-width:420px; color:#6b7f8e; font-size:10px; text-align:right; }
