@@ -18,8 +18,12 @@ const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' 
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/admin/portal/${path}`, { ...init, headers: { 'Content-Type': 'application/json' }, cache: 'no-store' });
-  const result = await response.json().catch(() => ({})) as { detail?: string; error?: string };
-  if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : result.error || 'Unable to load the field report.');
+  const result = await response.json().catch(() => ({})) as { detail?: unknown; error?: unknown };
+  const validation = Array.isArray(result.detail)
+    ? result.detail.map((item) => item && typeof item === 'object' && 'msg' in item ? String(item.msg) : '').filter(Boolean).join(' · ')
+    : '';
+  const message = typeof result.detail === 'string' ? result.detail : typeof result.error === 'string' ? result.error : validation;
+  if (!response.ok) throw new Error(message || 'Unable to load the field report.');
   return result as T;
 }
 
@@ -77,16 +81,26 @@ export default function FieldForce({ initialData, canManage = false }: { initial
   async function issueAccess(item: Officer) {
     const action = item.has_access_link ? 'Rotate the permanent link' : 'Create a permanent personal link';
     if (!window.confirm(`${action} for ${item.full_name}? ${item.has_access_link ? 'The previous link will stop working.' : 'It remains valid until an administrator revokes or rotates it.'}`)) return;
+    const fieldWindow = window.open('about:blank', '_blank');
+    if (fieldWindow) {
+      fieldWindow.opener = null;
+      fieldWindow.document.title = 'Opening Crop Life AI…';
+      fieldWindow.document.body.textContent = 'Preparing the secure Crop Life AI field app…';
+      fieldWindow.document.body.style.cssText = 'font:16px Arial;padding:32px;color:#0b5ea8';
+    }
     try {
       const result = await request<{ token: string; name: string }>(`sales-officers/${item.id}/access`, { method: 'POST' });
-      setAccessLink({ name: result.name, url: `${window.location.origin}/field/access?token=${encodeURIComponent(result.token)}` });
+      const url = `${window.location.origin}/field/access?token=${encodeURIComponent(result.token)}`;
+      setAccessLink({ name: result.name, url });
+      if (fieldWindow) { fieldWindow.location.replace(url); fieldWindow.focus(); }
+      else window.location.assign(url);
       await refresh();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to create access link.'); }
+    } catch (reason) { fieldWindow?.close(); setError(reason instanceof Error ? reason.message : 'Unable to create access link.'); }
   }
   return <div className="admin-content">
     <div className="admin-list-toolbar"><div><p className="admin-overline">Employees · Confirmed Sales Officers</p><h2>Field activity and personal app access</h2><p>Daily target: 2–3 four-photo inspections. Monthly compliance target: activity on at least 20 of the latest 30 days ending {data?.report_day || 'today'}.</p></div><button className="admin-secondary" disabled={busy} onClick={() => void refresh()}>{busy ? 'Loading…' : 'Refresh report'}</button></div>
     {error && <p className="admin-message error" role="alert">{error}</p>}
-    {accessLink && <section className="admin-panel field-link-panel"><h3>Permanent personal field link · {accessLink.name}</h3><p>Send this privately to the named officer. It personalises the installed PWA and attributes inspections until rotated.</p><input className="field-link-input" aria-label="Personal field access link" readOnly value={accessLink.url} onFocus={(event) => event.target.select()} /><button className="admin-secondary" onClick={() => void navigator.clipboard.writeText(accessLink.url).catch(() => setError('Select the link above and copy it manually.'))}>Copy link</button><button className="admin-secondary" onClick={() => setAccessLink(null)}>Close</button></section>}
+    {accessLink && <section className="admin-panel field-link-panel"><h3>Permanent personal field link · {accessLink.name}</h3><p>The field app has opened in a new tab. Send this link privately to the named officer; it personalises the installed PWA and attributes inspections until rotated.</p><input className="field-link-input" aria-label="Personal field access link" readOnly value={accessLink.url} onFocus={(event) => event.target.select()} /><a className="admin-primary field-open-link" href={accessLink.url} target="_blank" rel="noreferrer">Open field app →</a><button className="admin-secondary" onClick={() => void navigator.clipboard.writeText(accessLink.url).catch(() => setError('Select the link above and copy it manually.'))}>Copy link</button><button className="admin-secondary" onClick={() => setAccessLink(null)}>Close</button></section>}
     <div className="admin-metric-grid">
       <article className="admin-metric"><p>Confirmed Sales Officers</p><strong>{items.length}</strong><small>{states.length} states · official employee identities</small></article>
       <article className="admin-metric green"><p>Monthly target complete</p><strong>{items.filter((item) => Number(item.active_days_30) >= 20).length}</strong><small>Active on at least 20 of the latest 30 days</small></article>
