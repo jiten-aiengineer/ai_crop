@@ -335,3 +335,124 @@
   .admin-link-dialog-actions>* { width:100%; justify-content:center; }
   .field-state-chart>button { grid-template-columns:95px 1fr 26px; padding:7px; }
 }
+
+/* Readable admin typography for office screens, laptops and tablets. */
+@media (min-width: 781px) {
+  .admin-shell { grid-template-columns: 276px minmax(0, 1fr); }
+}
+
+.admin-brand strong { font-size: 18px; }
+.admin-brand small { font-size: 12px; line-height: 1.4; }
+.admin-side-label,
+.admin-overline { font-size: 12px; line-height: 1.4; }
+.admin-sidebar nav button { min-height: 46px; font-size: 15px; }
+.admin-sidebar nav button span { width: 19px; font-size: 19px; }
+.admin-sidebar-bottom p,
+.admin-sidebar-bottom small,
+.admin-signout { font-size: 12px; line-height: 1.45; }
+.admin-sidebar-bottom strong { font-size: 14px; }
+
+.admin-topbar h1 { font-size: 28px; }
+.admin-private { font-size: 13px; }
+.admin-top-actions > button,
+.admin-secondary,
+.admin-primary,
+.admin-welcome > button,
+.field-open-link { font-size: 14px; line-height: 1.25; }
+.admin-welcome h2 { font-size: 28px; }
+.admin-welcome p:not(.admin-overline) { font-size: 15px; }
+
+.admin-metric p,
+.admin-progress-row,
+.admin-progress-row b { font-size: 14px; }
+.admin-metric small,
+.admin-panel > small { font-size: 12px; line-height: 1.5; }
+.admin-panel h3,
+.admin-approval-list h3 { font-size: 18px; }
+.admin-panel > p,
+.admin-rule-list li { font-size: 14px; }
+.admin-list-toolbar h2,
+.admin-editor h2 { font-size: 26px; }
+.admin-list-toolbar p:not(.admin-overline),
+.admin-editor header p:not(.admin-overline) { font-size: 14px; }
+
+.admin-search input,
+.admin-status-filter select,
+.field-report-filters input,
+.field-report-filters select,
+.field-link-input { font-size: 14px; }
+.admin-status-filter,
+.field-report-filters label,
+.admin-access-profile { font-size: 14px; }
+.field-date-shortcuts button { min-height: 38px; font-size: 13px; }
+
+.admin-badge,
+.admin-status-pill { font-size: 12px; }
+.admin-status-pill { padding: 7px 10px; }
+.admin-product-title small { font-size: 12px; }
+.admin-product-title h3 { font-size: 18px; }
+.admin-product-title p { font-size: 13px; line-height: 1.5; }
+.admin-product-card dl div,
+.admin-product-card dd,
+.admin-product-card dt { font-size: 13px; line-height: 1.5; }
+.admin-crop-chips span,
+.admin-crop-options label,
+.admin-role-options label { font-size: 12px; line-height: 1.35; }
+
+.admin-form-grid label > span { font-size: 14px; }
+.admin-form-grid input,
+.admin-form-grid select,
+.admin-form-grid textarea { font-size: 14px; line-height: 1.45; }
+.admin-form-grid small,
+.admin-editor select + small,
+.admin-access-profile small { font-size: 12px; line-height: 1.45; }
+.admin-crop-selector h3 { font-size: 18px; }
+.admin-crop-selector p:not(.admin-overline) { font-size: 13px; }
+
+.admin-table th { font-size: 12px; line-height: 1.35; }
+.admin-table td,
+.admin-table td b { font-size: 14px; line-height: 1.45; }
+.admin-table td small { font-size: 12px; line-height: 1.45; }
+.admin-approval-list header small,
+.admin-approval-list header p,
+.admin-approval-list article footer p,
+.admin-change-summary span { font-size: 12px; line-height: 1.4; }
+.admin-change-summary b { font-size: 14px; }
+
+.field-link-panel > p,
+.admin-invitation-result > p,
+.admin-invitation-result > small,
+.admin-model-disclaimer,
+.admin-training-readiness > p { font-size: 13px; line-height: 1.55; }
+.field-link-action { font-size: 13px; }
+.field-state-chart > button span b { font-size: 14px; }
+.field-state-chart > button span small { font-size: 12px; }
+.field-state-chart > button > strong { font-size: 14px; }
+
+.admin-training-readiness h3,
+.admin-model-section-head h3,
+.admin-comparison-panel h3,
+.admin-training-runs h3 { font-size: 19px; }
+.admin-readiness-facts span,
+.admin-comparison-metrics span,
+.admin-model-history > div,
+.admin-model-history b { font-size: 13px; line-height: 1.45; }
+.admin-readiness-facts b,
+.admin-comparison-metrics b { font-size: 20px; }
+.admin-model-section-head small { font-size: 12px; line-height: 1.45; }
+
+.admin-link-dialog > p,
+.admin-link-dialog > label { font-size: 14px; }
+.admin-link-dialog > small { font-size: 12px; line-height: 1.45; }
+.admin-message { font-size: 14px; }
+.admin-gate-card > p:not(.admin-overline) { font-size: 16px; }
+.admin-login { font-size: 15px; }
+.admin-muted { font-size: 12px !important; }
+.admin-setup-list span { font-size: 14px; }
+
+@media (max-width: 780px) {
+  .admin-sidebar nav button { min-height: 44px; font-size: 14px; }
+  .admin-topbar h1 { font-size: 23px; }
+  .admin-welcome h2 { font-size: 25px; }
+  .admin-welcome p:not(.admin-overline) { font-size: 14px; }
+}
