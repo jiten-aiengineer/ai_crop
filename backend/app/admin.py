@@ -856,7 +856,8 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
         comparisons = conn.execute(
             """
             SELECT count(*) FILTER (
-                       WHERE status='completed' AND agreement_json->>'evaluated'='true'
+                       WHERE status='completed'
+                         AND COALESCE((agreement_json->>'evaluated_weight')::integer, 0) > 0
                    ) AS paired_cases,
                    count(*) FILTER (WHERE agreement_json->>'crop_match'='true') AS crop_match,
                    count(*) FILTER (WHERE agreement_json->>'issue_type_match'='true') AS issue_type_match,
@@ -869,7 +870,9 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
         history = conn.execute(
             """
             SELECT (completed_at AT TIME ZONE 'Asia/Kolkata')::date AS day,
-                   count(*) FILTER (WHERE agreement_json->>'evaluated'='true') AS paired_cases,
+                   count(*) FILTER (
+                       WHERE COALESCE((agreement_json->>'evaluated_weight')::integer, 0) > 0
+                   ) AS paired_cases,
                    count(*) FILTER (WHERE agreement_json->>'crop_match'='true') AS crop_match,
                    count(*) FILTER (WHERE agreement_json->>'issue_match'='true') AS issue_match
             FROM qwen_shadow_jobs

@@ -235,6 +235,7 @@ def agreement(gemini: dict | None, qwen: dict) -> dict:
         coverage += 10
         points += 10 if difference <= 0.10000001 else 0
     metrics.update(
+        evaluated=bool(coverage),
         confidence_difference=difference,
         confidence_close=difference <= 0.10000001 if difference is not None else None,
         overall_agreement_score=points if coverage else None,

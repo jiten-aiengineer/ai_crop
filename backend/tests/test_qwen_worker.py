@@ -60,9 +60,17 @@ class QwenWorkerContractTests(unittest.TestCase):
             "confidence": 0.84,
         }
         result = worker.agreement(gemini, diagnosis(crop=None))
+        self.assertTrue(result["evaluated"])
         self.assertIsNone(result["crop_match"])
         self.assertEqual(result["overall_agreement_score"], 75)
         self.assertEqual(result["evaluated_weight"], 75)
+
+    def test_agreement_with_no_comparable_fields_is_not_evaluated(self):
+        gemini = {"crop_text": None, "issue_type": "unknown", "issue_name": None, "severity": None, "confidence": None}
+        result = worker.agreement(gemini, diagnosis(crop=None, issue_type="unknown", probable_issue=None, severity=None, confidence=None))
+        self.assertFalse(result["evaluated"])
+        self.assertIsNone(result["overall_agreement_score"])
+        self.assertEqual(result["evaluated_weight"], 0)
 
     def test_processing_window_uses_india_time(self):
         timezone = ZoneInfo("Asia/Kolkata")
