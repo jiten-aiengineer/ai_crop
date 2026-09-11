@@ -28,12 +28,15 @@ class ProductImportContractTests(unittest.TestCase):
             self.assertTrue(product["category"])
             self.assertIsInstance(product.get("sourcePage"), int)
 
-    def test_every_product_has_a_cibrc_approved_crop_map(self):
+    def test_manager_approved_cib_crop_map_is_authoritative(self):
         products = json.loads(PRODUCT_JSON.read_text(encoding="utf-8"))
-        self.assertEqual(413, sum(len(product.get("approvedCrops", [])) for product in products))
+        self.assertEqual(283, sum(len(product.get("approvedCrops", [])) for product in products))
+        expected_without_approved_crops = {
+            "croplod", "kingam-gold", "liffwet", "magnastik", "p-dozer", "rustblast", "samyojan"
+        }
         for product in products:
-            self.assertTrue(product.get("approvedCrops"), product["id"])
-            self.assertEqual("CIB&RC approved crop map supplied by CLSL", product.get("cropMappingSource"))
+            self.assertEqual(product["id"] in expected_without_approved_crops, not bool(product.get("approvedCrops")), product["id"])
+            self.assertEqual("CLSL manager-approved CIB crop update", product.get("cropMappingSource"))
 
     def test_catalogue_knowledge_rules_cover_core_grounding_examples(self):
         from app.import_catalog_knowledge import CROP_RULES, PROBLEM_RULES

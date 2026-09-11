@@ -24,18 +24,16 @@
     "approvedCrops": [
       "Paddy",
       "Cotton",
-      "Papaya",
+      "Potato",
       "Tomato",
       "Chili",
       "Brinjal",
-      "Potato",
       "Onion",
       "Garlic",
       "Grapes",
-      "Pomegranate",
-      "Citrus"
+      "Papaya"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "blightoblast",
@@ -51,13 +49,9 @@
       "Paddy"
     ],
     "approvedCrops": [
-      "Paddy",
-      "Potato",
-      "Tomato",
-      "Cotton",
-      "Vegetables"
+      "Paddy"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "humigrow-95",
@@ -73,18 +67,9 @@
       "Tomato"
     ],
     "approvedCrops": [
-      "Tomato",
-      "Chili",
-      "Paddy",
-      "Cotton",
-      "Potato",
-      "Onion",
-      "Sugarcane",
-      "Wheat",
-      "Fruit Crops",
-      "Vegetables"
+      "Tomato"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "p-dozer",
@@ -97,15 +82,8 @@
     "image": "/products/p-dozer.jpg",
     "sourcePage": 17,
     "catalogCrops": [],
-    "approvedCrops": [
-      "Chickpea",
-      "Soybean",
-      "Cotton",
-      "Groundnut",
-      "Vegetables",
-      "Pulses"
-    ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "approvedCrops": [],
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "seapen",
@@ -121,14 +99,9 @@
       "Soybean"
     ],
     "approvedCrops": [
-      "Soybean",
-      "Cotton",
-      "Paddy",
-      "Vegetables",
-      "Pulses",
-      "Fruits"
+      "Soybean"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "trykot",
@@ -149,13 +122,14 @@
       "Soybean"
     ],
     "approvedCrops": [
-      "Soybean",
-      "Groundnut",
-      "Potato",
+      "Paddy",
       "Cotton",
-      "Vegetables"
+      "Potato",
+      "Onion",
+      "Garlic",
+      "Soybean"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "ambucrop",
@@ -169,18 +143,17 @@
     "sourcePage": 13,
     "catalogCrops": [],
     "approvedCrops": [
-      "Paddy",
-      "Groundnut",
+      "Peanut",
+      "Rice",
       "Potato",
-      "Tomato",
-      "Grape",
+      "Grapes",
       "Mango",
-      "Cotton",
-      "Chili",
+      "Chilli",
+      "Tea",
       "Apple",
-      "Tea"
+      "Maize"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "dadubar",
@@ -197,12 +170,10 @@
     ],
     "approvedCrops": [
       "Paddy",
-      "Apple",
-      "Mango",
-      "Grapes",
-      "Groundnut"
+      "Groundnut",
+      "Chilli"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "endowin",
@@ -228,21 +199,19 @@
       "Blackgram"
     ],
     "approvedCrops": [
-      "Sugarcane",
-      "Onion",
-      "Turmeric",
-      "Tomato",
-      "Blackgram",
-      "Soybean",
-      "Chili",
-      "Wheat",
-      "Groundnut",
       "Paddy",
       "Cotton",
-      "Grapes",
-      "Mango"
+      "Groundnut",
+      "Sugarcane",
+      "Wheat",
+      "Tomato",
+      "Chili",
+      "Onion",
+      "Soybean",
+      "Turmeric",
+      "Blackgram"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "finowito",
@@ -256,16 +225,16 @@
     "sourcePage": 14,
     "catalogCrops": [],
     "approvedCrops": [
-      "Paddy",
-      "Chili",
+      "Chilli",
+      "Potato",
       "Tomato",
-      "Soybean",
-      "Cotton",
-      "Onion",
       "Wheat",
+      "Rice",
+      "Onion",
+      "Grapes",
       "Apple"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "ibex",
@@ -279,16 +248,14 @@
     "sourcePage": 14,
     "catalogCrops": [],
     "approvedCrops": [
+      "Grape",
       "Potato",
-      "Tomato",
       "Mustard",
-      "Grapes",
-      "Paddy",
-      "Black Pepper",
       "Tobacco",
-      "Vegetables"
+      "Bajra",
+      "Black paper"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "life-care",
@@ -302,16 +269,11 @@
     "sourcePage": 14,
     "catalogCrops": [],
     "approvedCrops": [
-      "Paddy",
-      "Groundnut",
       "Mango",
-      "Grapes",
-      "Apple",
-      "Tea",
-      "Chili",
-      "Cumin"
+      "Paddy",
+      "Grape"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "purate",
@@ -325,15 +287,10 @@
     "sourcePage": 14,
     "catalogCrops": [],
     "approvedCrops": [
-      "Groundnut",
-      "Soybean",
-      "Chili",
-      "Mango",
-      "Grapes",
-      "Paddy",
-      "Cumin"
+      "Chilli",
+      "Soybean"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "rustblast",
@@ -348,10 +305,8 @@
     "catalogCrops": [
       "Paddy"
     ],
-    "approvedCrops": [
-      "Paddy"
-    ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "approvedCrops": [],
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "thiocrop",
@@ -365,15 +320,16 @@
     "sourcePage": 15,
     "catalogCrops": [],
     "approvedCrops": [
-      "Paddy",
-      "Wheat",
-      "Papaya",
       "Apple",
-      "Grapes",
       "Bottle Gourd",
-      "Tomato"
+      "Cucurbits",
+      "Grape",
+      "Papaya",
+      "Pigeon Pea",
+      "Tomato",
+      "Wheat"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "ado-70",
@@ -387,18 +343,14 @@
     "sourcePage": 7,
     "catalogCrops": [],
     "approvedCrops": [
-      "Paddy",
       "Cotton",
-      "Okra",
-      "Chili",
+      "Rice/Paddy",
+      "Okra (Bhindi)",
+      "Cucumber",
       "Tomato",
-      "Brinjal",
-      "Sugarcane",
-      "Citrus",
-      "Mango",
-      "Groundnut"
+      "Potato"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "armeezin",
@@ -416,16 +368,12 @@
       "Sugarcane"
     ],
     "approvedCrops": [
-      "Groundnut",
-      "Sugarcane",
-      "Paddy",
       "Cotton",
-      "Mustard",
-      "Wheat",
-      "Citrus",
-      "Vegetables"
+      "Sugarcane",
+      "Rice/Paddy",
+      "Groundnut"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "athoxam",
@@ -439,19 +387,21 @@
     "sourcePage": 7,
     "catalogCrops": [],
     "approvedCrops": [
-      "Paddy",
+      "Rice",
       "Cotton",
-      "Mustard",
-      "Wheat",
       "Okra",
-      "Chili",
+      "Mango",
+      "Wheat",
+      "Mustard",
       "Tomato",
       "Brinjal",
+      "Tea",
+      "Potato",
       "Citrus",
-      "Mango",
-      "Potato"
+      "Rice (Nursery)",
+      "Cumin"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "bio-prahar",
@@ -468,19 +418,11 @@
       "Tea"
     ],
     "approvedCrops": [
-      "Rose",
-      "Cotton",
-      "Chili",
-      "Tomato",
-      "Brinjal",
-      "Okra",
-      "Tea",
       "Grapes",
-      "Citrus",
-      "Apple",
-      "Pomegranate"
+      "roses",
+      "and apples"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "carbelza",
@@ -496,13 +438,9 @@
       "Paddy"
     ],
     "approvedCrops": [
-      "Paddy",
-      "Cotton",
-      "Vegetables",
-      "Chili",
-      "Tomato"
+      "Paddy"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "carpal",
@@ -518,19 +456,23 @@
       "Tobacco"
     ],
     "approvedCrops": [
-      "Paddy",
-      "Sugarcane",
-      "Cotton",
-      "Soybean",
-      "Maize",
+      "Rice",
       "Cabbage",
-      "Chili",
+      "Cotton",
       "Tomato",
+      "Chilli",
+      "Pigeon Pea",
+      "Soybean",
+      "Bengal Gram",
+      "Sugarcane",
       "Brinjal",
+      "Black Gram",
+      "Bitter Gourd",
       "Okra",
-      "Pulses"
+      "Maize",
+      "Groundnut"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "carpal-super",
@@ -544,14 +486,9 @@
     "sourcePage": 8,
     "catalogCrops": [],
     "approvedCrops": [
-      "Chili",
-      "Tomato",
-      "Brinjal",
-      "Cotton",
-      "Paddy",
-      "Vegetables"
+      "Chilli"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "cropdon",
@@ -566,15 +503,14 @@
     "catalogCrops": [],
     "approvedCrops": [
       "Cotton",
-      "Paddy",
       "Maize",
-      "Groundnut",
+      "Ground nut",
       "Soybean",
-      "Chili",
-      "Tomato",
-      "Tea"
+      "Chilli",
+      "Tea",
+      "Tomato"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "cyclonex",
@@ -597,15 +533,21 @@
       "Apple"
     ],
     "approvedCrops": [
-      "Paddy",
-      "Cotton",
       "Sugarcane",
-      "Groundnut",
+      "Paddy",
       "Beans",
+      "Cotton",
+      "Groundnut",
+      "Brinjal",
+      "Cabbage",
+      "Onion",
+      "Apple",
+      "Ber",
       "Citrus",
-      "Vegetables"
+      "Tobacco",
+      "Grape"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "cyclonex-gold",
@@ -622,12 +564,10 @@
       "Cotton"
     ],
     "approvedCrops": [
-      "Cotton",
       "Paddy",
-      "Sugarcane",
-      "Vegetables"
+      "Cotton"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "fentrix",
@@ -642,13 +582,14 @@
     "catalogCrops": [],
     "approvedCrops": [
       "Cabbage",
-      "Chili",
-      "Cotton",
-      "Tea",
       "Okra",
-      "Tomato"
+      "Cotton",
+      "Chili",
+      "Mango",
+      "Cumin",
+      "Onion"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "frontonil-0-6",
@@ -666,11 +607,9 @@
     ],
     "approvedCrops": [
       "Paddy",
-      "Sugarcane",
-      "Wheat",
-      "Maize"
+      "Sugarcane"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "imigrow",
@@ -686,15 +625,16 @@
     "approvedCrops": [
       "Cotton",
       "Paddy",
-      "Sugarcane",
-      "Sunflower",
-      "Okra",
-      "Chili",
       "Tomato",
-      "Citrus",
-      "Mango"
+      "Chilli",
+      "Brinjal",
+      "Sugarcane",
+      "Groundnut",
+      "Mango",
+      "Grape",
+      "Citrus"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "interex",
@@ -712,13 +652,10 @@
     ],
     "approvedCrops": [
       "Cotton",
-      "Paddy",
-      "Sugarcane",
-      "Chili",
-      "Tomato",
-      "Okra"
+      "Groundnut",
+      "Paddy"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "ladayak",
@@ -737,11 +674,13 @@
       "Brinjal",
       "Okra",
       "Tomato",
-      "Chili",
-      "Onion",
-      "Mango"
+      "Grapes",
+      "Chilli",
+      "Saybean",
+      "Pomegranate",
+      "Cardomom"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "lakir",
@@ -758,14 +697,10 @@
       "Cotton"
     ],
     "approvedCrops": [
-      "Cotton",
-      "Tea",
-      "Tomato",
-      "Chili",
       "Paddy",
-      "Chickpea"
+      "Cotton"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "larbotin",
@@ -780,17 +715,16 @@
     "catalogCrops": [],
     "approvedCrops": [
       "Cotton",
-      "Paddy",
+      "Okra",
       "Cabbage",
       "Chili",
-      "Tomato",
       "Brinjal",
-      "Okra",
+      "Red Gram",
       "Chickpea",
       "Grapes",
       "Tea"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "leothrine",
@@ -805,13 +739,10 @@
     "catalogCrops": [],
     "approvedCrops": [
       "Cotton",
-      "Paddy",
-      "Sugarcane",
-      "Mustard",
-      "Apple",
-      "Tea"
+      "Rice",
+      "Sugarcane"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "libra",
@@ -827,15 +758,13 @@
       "Cotton"
     ],
     "approvedCrops": [
-      "Cotton",
-      "Paddy",
-      "Cabbage",
-      "Chili",
       "Tomato",
-      "Brinjal",
-      "Chickpea"
+      "Cotton",
+      "Chilli",
+      "Paddy",
+      "Soybean"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "profkel-super",
@@ -849,11 +778,9 @@
     "sourcePage": 12,
     "catalogCrops": [],
     "approvedCrops": [
-      "Cotton",
-      "Paddy",
-      "Vegetables"
+      "Cotton"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "promite",
@@ -867,14 +794,9 @@
     "sourcePage": 12,
     "catalogCrops": [],
     "approvedCrops": [
-      "Paddy",
-      "Cotton",
-      "Chili",
-      "Tomato",
-      "Brinjal",
-      "Citrus"
+      "Paddy"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "qvidic",
@@ -889,13 +811,12 @@
     "catalogCrops": [],
     "approvedCrops": [
       "Cotton",
-      "Chili",
-      "Tomato",
+      "Cabbage",
       "Okra",
-      "Citrus",
-      "Tea"
+      "Chilli",
+      "Paddy"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "sangro",
@@ -911,12 +832,9 @@
       "Cotton"
     ],
     "approvedCrops": [
-      "Cotton",
-      "Chili",
-      "Tomato",
-      "Brinjal"
+      "Cotton"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "sanmaan",
@@ -936,7 +854,7 @@
       "Paddy",
       "Sugarcane"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "shamsher",
@@ -951,10 +869,9 @@
     "catalogCrops": [],
     "approvedCrops": [
       "Sugarcane",
-      "Paddy",
-      "Cotton"
+      "Groundnut"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "tanja-50",
@@ -969,14 +886,18 @@
     "catalogCrops": [],
     "approvedCrops": [
       "Cotton",
-      "Paddy",
+      "Rice (Paddy)",
       "Brinjal",
-      "Okra",
       "Tomato",
-      "Mango",
-      "Chili"
+      "Chilli",
+      "Pigeon Pea",
+      "Onion",
+      "Okra",
+      "Chickpea",
+      "Groundnut",
+      "Mango"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "kingam-gold",
@@ -989,17 +910,8 @@
     "image": "/products/kingam-gold.jpg",
     "sourcePage": 19,
     "catalogCrops": [],
-    "approvedCrops": [
-      "Paddy",
-      "Wheat",
-      "Maize",
-      "Cotton",
-      "Citrus",
-      "Sugarcane",
-      "Pulses",
-      "Vegetables"
-    ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "approvedCrops": [],
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "suforty-90",
@@ -1018,14 +930,12 @@
       "Pulses"
     ],
     "approvedCrops": [
-      "All Agricultural Crops (Groundnut",
-      "Mustard",
-      "Pulses",
       "Sugarcane",
-      "Paddy",
-      "Wheat)"
+      "Onion",
+      "Garlic",
+      "Pulses"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "demsin",
@@ -1040,13 +950,11 @@
     "catalogCrops": [],
     "approvedCrops": [
       "Cotton",
-      "Potato",
-      "Grapes",
       "Brinjal",
-      "Tomato",
-      "Sugarcane"
+      "Potato",
+      "Grapes"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "feramitoz",
@@ -1067,16 +975,10 @@
     "approvedCrops": [
       "Cotton",
       "Chili",
-      "Tomato",
-      "Brinjal",
-      "Mango",
       "Grapes",
-      "Citrus",
-      "Pulses",
-      "Apple",
-      "Pineapple"
+      "Mango"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "powerkin",
@@ -1092,13 +994,9 @@
       "Mango"
     ],
     "approvedCrops": [
-      "Mango",
-      "Grapes",
-      "Citrus",
-      "Apple",
-      "Onion"
+      "Mango"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "xingg-gb",
@@ -1112,15 +1010,22 @@
     "sourcePage": 18,
     "catalogCrops": [],
     "approvedCrops": [
-      "Grapes",
       "Paddy",
       "Sugarcane",
       "Cotton",
+      "Groundnut",
+      "Banana",
       "Tomato",
       "Potato",
-      "Fruits"
+      "Cabbage",
+      "Cauliflower",
+      "Grape",
+      "Brinjal",
+      "bhendi",
+      "Tea",
+      "Mulbery"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "bakhtar",
@@ -1134,16 +1039,15 @@
     "sourcePage": 16,
     "catalogCrops": [],
     "approvedCrops": [
+      "Chili",
       "Cotton",
-      "Paddy",
-      "Wheat",
       "Maize",
-      "Sunflower",
       "Okra",
-      "Sorghum",
-      "Soybean"
+      "Soybean",
+      "sunflower",
+      "Wheat"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "virex",
@@ -1157,15 +1061,9 @@
     "sourcePage": 16,
     "catalogCrops": [],
     "approvedCrops": [
-      "Paddy",
-      "Wheat",
-      "Cotton",
-      "Soybean",
-      "Groundnut",
-      "Maize",
-      "Pulses"
+      "Soybean"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "liffwet",
@@ -1178,10 +1076,8 @@
     "image": "/products/liffwet.jpg",
     "sourcePage": 16,
     "catalogCrops": [],
-    "approvedCrops": [
-      "All Agricultural and Horticultural Crops"
-    ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "approvedCrops": [],
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "magnastik",
@@ -1194,10 +1090,8 @@
     "image": "/products/magnastik.jpg",
     "sourcePage": 16,
     "catalogCrops": [],
-    "approvedCrops": [
-      "All Agricultural and Horticultural Crops"
-    ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "approvedCrops": [],
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "atr-50",
@@ -1212,10 +1106,9 @@
     "catalogCrops": [],
     "approvedCrops": [
       "Maize (Corn)",
-      "Sugarcane",
-      "Sorghum"
+      "Sugarcane"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "buplon-32",
@@ -1229,13 +1122,9 @@
     "sourcePage": 19,
     "catalogCrops": [],
     "approvedCrops": [
-      "Soybean",
-      "Groundnut",
-      "Pulses (Pigeonpea",
-      "Blackgram",
-      "Greengram)"
+      "Soybean"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "chhalang",
@@ -1253,10 +1142,9 @@
       "Corn"
     ],
     "approvedCrops": [
-      "Maize (Corn)",
-      "Sugarcane"
+      "Maize"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "crop-grip",
@@ -1272,10 +1160,9 @@
       "Wheat"
     ],
     "approvedCrops": [
-      "Wheat",
-      "Paddy (Transplanted)"
+      "Wheat"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "croplod",
@@ -1290,10 +1177,8 @@
     "catalogCrops": [
       "Maize"
     ],
-    "approvedCrops": [
-      "Maize (Corn)"
-    ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "approvedCrops": [],
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "diclovira",
@@ -1311,7 +1196,7 @@
     "approvedCrops": [
       "Soybean"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "dipker",
@@ -1327,9 +1212,9 @@
       "Paddy"
     ],
     "approvedCrops": [
-      "Paddy (Transplanted and Direct Seeded)"
+      "Paddy"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "fiesta",
@@ -1347,7 +1232,7 @@
     "approvedCrops": [
       "Wheat"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "glykill",
@@ -1361,11 +1246,10 @@
     "sourcePage": 21,
     "catalogCrops": [],
     "approvedCrops": [
-      "Tea",
       "Non-Crop Areas",
       "Bunds and Fallow Land"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "gyprom-71",
@@ -1379,12 +1263,10 @@
     "sourcePage": 21,
     "catalogCrops": [],
     "approvedCrops": [
-      "Tea",
       "Non-Crop Areas",
-      "Orchards",
-      "Fallow Fields"
+      "Bunds and Fallow Land"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "itolon",
@@ -1402,7 +1284,7 @@
     "approvedCrops": [
       "Wheat"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "lawadin",
@@ -1416,13 +1298,10 @@
     "sourcePage": 22,
     "catalogCrops": [],
     "approvedCrops": [
-      "Soybean",
       "Groundnut",
-      "Pulses (Pigeonpea",
-      "Greengram",
-      "Blackgram)"
+      "Soybean"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "lucado",
@@ -1438,7 +1317,7 @@
     "approvedCrops": [
       "Wheat"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "lurma",
@@ -1461,11 +1340,12 @@
       "Wheat",
       "Maize",
       "Sorghum",
-      "Sugarcane",
       "Potato",
-      "Non-Crop Areas"
+      "Sugarcane",
+      "Aquatic weeds",
+      "non crop area"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "mesopower",
@@ -1483,10 +1363,11 @@
       "Corn"
     ],
     "approvedCrops": [
-      "Maize (Corn)",
-      "Sugarcane"
+      "Sugarcane",
+      "Maize",
+      "Corn"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "oxyflour",
@@ -1501,14 +1382,9 @@
     "limitedRecord": true,
     "catalogCrops": [],
     "approvedCrops": [
-      "Onion",
-      "Tea",
-      "Potato",
-      "Rice",
-      "Groundnut",
-      "Sugarcane"
+      "Onion"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "paraxone",
@@ -1522,15 +1398,9 @@
     "sourcePage": 23,
     "catalogCrops": [],
     "approvedCrops": [
-      "Tea",
-      "Coffee",
-      "Rubber",
-      "Sugarcane",
-      "Potato",
-      "Cotton (Pre-plant)",
       "Non-Crop Areas"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "pendee",
@@ -1545,16 +1415,12 @@
     "catalogCrops": [],
     "approvedCrops": [
       "Wheat",
-      "Paddy",
+      "Soyabean",
       "Cotton",
-      "Soybean",
-      "Groundnut",
-      "Chili",
-      "Onion",
-      "Garlic",
-      "Pulses"
+      "Pigeon Pea",
+      "Paddy"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "prabandh",
@@ -1570,9 +1436,9 @@
       "Paddy"
     ],
     "approvedCrops": [
-      "Paddy (Transplanted)"
+      "Paddy"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "samyojan",
@@ -1587,10 +1453,8 @@
     "catalogCrops": [
       "Paddy"
     ],
-    "approvedCrops": [
-      "Paddy (Transplanted and Direct Seeded)"
-    ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "approvedCrops": [],
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "samyojan-plus",
@@ -1607,7 +1471,7 @@
     "approvedCrops": [
       "Paddy (Transplanted and Direct Seeded)"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
   {
     "id": "toras",
@@ -1630,10 +1494,9 @@
       "Soybean",
       "Cotton",
       "Groundnut",
-      "Blackgram",
-      "Greengram",
+      "Black Gram",
       "Onion"
     ],
-    "cropMappingSource": "CIB&RC approved crop map supplied by CLSL"
+    "cropMappingSource": "CLSL manager-approved CIB crop update"
   }
 ]

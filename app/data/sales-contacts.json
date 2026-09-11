@@ -401,7 +401,7 @@
     "state": "Bihar",
     "territory": "Motihari",
     "city": "Motihari",
-    "email": "motihari@croplifescience.com",
+    "email": "motihari2@croplifescience.com",
     "phone": "+919523590067"
   },
   {
@@ -455,7 +455,7 @@
     "state": "Bihar",
     "territory": "Patna (Bihar)",
     "city": "Patna (Bihar)",
-    "email": "gchaurasiya@croplifescience.com",
+    "email": "g.chaurasiya@croplifescience.com",
     "phone": "+919523599101"
   },
   {
@@ -657,6 +657,15 @@
     "phone": "+917485944861"
   },
   {
+    "name": "Omnarayan Sharma",
+    "designation": "Manager",
+    "state": "Gujarat",
+    "territory": "Vadodara",
+    "city": "Vadodara",
+    "email": "marketing@croplifescience.com",
+    "phone": ""
+  },
+  {
     "name": "Rajeeokumar Pandey",
     "designation": "Head",
     "state": "Gujarat",
@@ -754,14 +763,5 @@
     "city": "shahjahanpur",
     "email": "shahjahanpur@croplifescience.com",
     "phone": "+916358133720"
-  },
-  {
-    "name": "Omnarayan Sharma",
-    "designation": "Marketing Manager",
-    "state": "Gujarat",
-    "territory": "Vadodara",
-    "city": "Vadodara",
-    "email": "",
-    "phone": "+91748597560"
   }
 ]

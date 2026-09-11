@@ -132,8 +132,8 @@ At the time this portal was added, PostgreSQL contains the supplied baseline cat
 | Item | Current baseline |
 |---|---:|
 | CLSL products | 73 |
-| Active crop master records | 413 |
-| Approved product–crop mappings | Managed from the approved PostgreSQL catalogue |
+| Manager-approved product–crop mappings | 283 |
+| Products without an approved crop in the latest CIB update | 7 (retained in catalogue; not crop-recommendable) |
 | Approved product–problem mappings | 204 |
 
 The portal reads these records. It does not invent products, registrations, doses or crop approvals from Gemini output.

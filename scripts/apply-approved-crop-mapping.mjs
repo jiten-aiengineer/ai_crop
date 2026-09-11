@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import path from 'node:path';
 
 function parseCsv(text) {
   const rows = [];
@@ -29,8 +28,17 @@ function parseCsv(text) {
 function cropList(value) {
   return String(value || '')
     .split(',')
-    .map((crop) => crop.trim())
+    .map((crop) => crop.replace(/\s+/g, ' ').trim().replace(/\.+$/, '').trim())
     .filter((crop) => crop && !/^(?:none(?: mentioned)?|n\/a|not mentioned|no crop)(?:\s*\([^)]*\))?$/i.test(crop));
+}
+
+function sourceText(filePath) {
+  const bytes = fs.readFileSync(filePath);
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes);
+  }
 }
 
 const [csvPath, productsPath] = process.argv.slice(2);
@@ -38,12 +46,12 @@ if (!csvPath || !productsPath) {
   throw new Error('Usage: node scripts/apply-approved-crop-mapping.mjs <mapping.csv> <products.json>');
 }
 
-const csv = parseCsv(fs.readFileSync(csvPath, 'utf8'));
+const csv = parseCsv(sourceText(csvPath));
 const headers = csv.shift().map((header) => header.trim());
 const records = csv.map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] || ''])));
 const idHeader = 'Product ID';
 const legacyHeader = 'Current Crops (Extracted from Catalouge)';
-const approvedHeader = 'Now Approved Crops as per CIB&RC';
+const approvedHeader = 'Updated crop (As per Cib)';
 for (const header of [idHeader, legacyHeader, approvedHeader]) {
   if (!headers.includes(header)) throw new Error(`Required mapping column is missing: ${header}`);
 }
@@ -58,15 +66,21 @@ if (unknownProducts.length || unusedRows.length) {
   throw new Error(`Mapping mismatch: ${unknownProducts.length} product(s) without a CSV row; ${unusedRows.length} CSV row(s) without an app product.`);
 }
 
+const canonicalCropLabels = new Map();
 for (const product of products) {
   const record = mapping.get(String(product.id).toLowerCase());
-  const approvedCrops = cropList(record[approvedHeader]);
-  if (!approvedCrops.length) throw new Error(`No approved crops found for ${product.id}.`);
+  const approvedCrops = [...new Map(cropList(record[approvedHeader]).map((crop) => {
+    const key = crop.toLocaleLowerCase('en-IN');
+    if (!canonicalCropLabels.has(key)) canonicalCropLabels.set(key, crop);
+    return [key, canonicalCropLabels.get(key)];
+  })).values()];
   product.catalogCrops = cropList(record[legacyHeader]);
   product.approvedCrops = approvedCrops;
-  product.cropMappingSource = 'CIB&RC approved crop map supplied by CLSL';
+  product.cropMappingSource = 'CLSL manager-approved CIB crop update';
 }
 
 fs.writeFileSync(productsPath, `${JSON.stringify(products, null, 2)}\n`);
 const totalApprovedLinks = products.reduce((sum, product) => sum + product.approvedCrops.length, 0);
-console.log(`Updated ${products.length} products with ${totalApprovedLinks} CIB&RC approved crop mappings.`);
+const productsWithoutApprovedCrops = products.filter((product) => !product.approvedCrops.length).map((product) => product.id);
+console.log(`Updated ${products.length} products with ${totalApprovedLinks} manager-approved CIB crop mappings.`);
+console.log(`Products with no approved crop in the final source column: ${productsWithoutApprovedCrops.join(', ') || 'none'}.`);

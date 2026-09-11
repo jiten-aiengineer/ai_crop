@@ -65,9 +65,12 @@ function cropVariants(value: string) {
 }
 
 function sharesCropAlias(first: string, second: string) {
+  const firstNormalized = normalize(first);
+  const secondNormalized = normalize(second);
   const firstAliases = cropVariants(first);
   const secondAliases = cropVariants(second);
-  return [...firstAliases].some((alias) => secondAliases.has(alias));
+  return [...firstAliases].some((alias) => secondAliases.has(alias))
+    || Boolean(firstNormalized && secondNormalized && (firstNormalized.includes(secondNormalized) || secondNormalized.includes(firstNormalized)));
 }
 
 /**
@@ -102,7 +105,7 @@ export function searchCatalogProducts(products: CatalogProduct[], query: string,
   const queryTokens = tokens(normalized);
   const categoryLower = category.toLowerCase();
   return products.map((product) => {
-    const cropText = `${(product.approvedCrops || []).join(' ')} ${(product.catalogCrops || []).join(' ')}`.toLowerCase();
+    const cropText = (product.approvedCrops || []).join(' ').toLowerCase();
     const haystack = `${product.name} ${product.category} ${product.commonName} ${product.useBenefits} ${product.dose} ${cropText}`.toLowerCase();
     let score = 0;
     if (normalized && haystack.includes(normalized)) score += 12;
