@@ -12,7 +12,7 @@ import type { FieldIdentity } from './lib/field-access';
 
 type View = 'home' | 'inspect' | 'assistant' | 'products' | 'tools' | 'history';
 type Diagnosis = {
-  crop: string; crop_confidence: number; issue_detected: boolean; issue_type: string; likely_issue: string;
+  crop: string; crop_confidence: number | null; issue_detected: boolean; issue_type: string; likely_issue: string;
   confidence: number; observed_symptoms: string[]; alternative_possibilities: string[];
   catalog_crop: string; plant_condition: string; problem_stage: string; probable_causes: string[];
   immediate_actions: string[]; prevention_tips: string[]; questions_for_farmer: string[];
@@ -20,6 +20,8 @@ type Diagnosis = {
   recommendations: CatalogProduct[];
   storage_status?: 'not_configured' | 'stored' | 'partial_failure' | 'failed';
   persistence_status?: 'saved' | 'skipped' | 'failed';
+  declared_crop?: string | null; crop_source?: 'field_officer' | 'general_user' | 'ai_optional';
+  confidence_level?: 'high' | 'medium' | 'low'; catalogue_source?: string;
 };
 type ChatMessage = { role: 'user' | 'assistant'; content: string; products?: CatalogProduct[]; contacts?: SalesContact[] };
 type StoredInspection = { id: string; createdAt: string; crop: string; issue: string; confidence: number; summary: string; result: Diagnosis };
@@ -87,7 +89,7 @@ async function optimiseImage(file: File) {
       image.onerror = () => reject(new Error('This photo could not be prepared.'));
     });
     const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
-    // The same prepared file is used for Gemini and private S3 storage. Keeping
+    // The same prepared file is used for live AI and private S3 storage. Keeping
     // its edge and byte size modest reduces phone upload and analysis time.
     if (longestSide <= OPTIMISED_IMAGE_MAX_SIDE && file.size <= OPTIMISED_IMAGE_MAX_BYTES) return file;
     const scale = Math.min(1, OPTIMISED_IMAGE_MAX_SIDE / longestSide);
@@ -154,6 +156,7 @@ export default function Home() {
   useEffect(() => {
     const employee = fieldSession.employee;
     if (!employee) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- verified field identity hydrates the local profile snapshot
     setProfile((current) => {
       const saved = {
         ...current,
@@ -356,7 +359,14 @@ function InspectionForm({ inputRef, files, crops, setFiles, onAnalyse, loading, 
   const [qualityMessage, setQualityMessage] = useState('');
   const salesMode = fieldIdentity?.collection_mode === 'sales_officer';
   const minimumImages = salesMode ? 4 : 1;
-  const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void onAnalyse(event.currentTarget); };
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (salesMode && !String(new FormData(event.currentTarget).get('crop') || '').trim()) {
+      setQualityMessage(t.fieldSelectCrop || 'Select the known crop before analysis.');
+      return;
+    }
+    void onAnalyse(event.currentTarget);
+  };
   const chooseFiles = async (selected: File[]) => {
     const available = selected.slice(0, Math.max(0, 5 - files.length));
     if (!available.length) return;

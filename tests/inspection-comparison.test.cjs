@@ -39,7 +39,10 @@ test('normalized output preserves legacy catalogue matching without invented pro
 
 test('null confidence is retained in comparison diagnosis',()=>{
   assert.equal(ai.normalizeDiagnosis({...data,confidence:undefined}).confidence,null);
-  assert.throws(()=>ai.normalizeDiagnosis({crop:'Tomato'}));
+  const incomplete=ai.normalizeDiagnosis({crop:'Tomato'});
+  assert.equal(incomplete.issue_type,'unknown');
+  assert.equal(incomplete.issue_detected,false);
+  assert.equal(incomplete.needs_more_information,true);
 });
 
 test('Gemini parsing ignores thought output and strips extra raw fields',async()=>{
@@ -49,13 +52,21 @@ test('Gemini parsing ignores thought output and strips extra raw fields',async()
   try{const result=await ai.geminiInspection(input);assert.equal(result.success,true);assert.equal(result.rawResponse.thinking,undefined);assert.equal(result.rawResponse.products,undefined);}finally{global.fetch=prior;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
 });
 
-test('shadow enqueue failure cannot change Gemini diagnosis',async()=>{
-  const names=['QWEN_ENABLED','QWEN_SHADOW_MODE','COMPARISON_SERVICE_URL','COMPARISON_SERVICE_TOKEN'];
-  const old=Object.fromEntries(names.map(n=>[n,process.env[n]]));const prior=global.fetch;
-  Object.assign(process.env,{QWEN_ENABLED:'true',QWEN_SHADOW_MODE:'true',COMPARISON_SERVICE_URL:'http://private.invalid',COMPARISON_SERVICE_TOKEN:'test-only'});
-  const gemini={provider:'gemini',success:true,diagnosis:ai.normalizeDiagnosis(data)};
-  global.fetch=async()=>{throw new Error('offline');};
-  try{const result=await ai.queueShadow(input,gemini,'test-case');assert.equal(result.status,'unavailable');assert.equal(gemini.success,true);assert.equal(gemini.diagnosis.probable_issue,'Early blight');}finally{global.fetch=prior;for(const n of names){if(old[n]===undefined)delete process.env[n];else process.env[n]=old[n];}}
+test('declared field crop remains authoritative across wrapped and array output',()=>{
+  const wrapped=ai.normalizeDiagnosis([{assessment:{...data,crop:'Rice',cropConfidence:'98%',confidence:'84%',needsMoreInformation:false}}],'Tomato');
+  assert.equal(wrapped.crop,'Tomato');
+  assert.equal(wrapped.crop_confidence,null);
+  assert.equal(wrapped.confidence,.84);
+  assert.equal(wrapped.needs_more_information,false);
+  assert.equal(ai.canMatchProducts(wrapped,'Tomato'),true);
+});
+
+test('low-confidence or incomplete evidence cannot trigger product matching',()=>{
+  const low=ai.normalizeDiagnosis({...data,confidence:59,needs_more_information:false},'Tomato');
+  assert.equal(ai.diagnosisConfidenceLevel(low.confidence),'low');
+  assert.equal(ai.canMatchProducts(low,'Tomato'),false);
+  const incomplete=ai.normalizeDiagnosis({crop:'Tomato'},'Tomato');
+  assert.equal(ai.canMatchProducts(incomplete,'Tomato'),false);
 });
 
 test('administrator proxy fails closed before any service request',async()=>{

@@ -66,6 +66,8 @@ export async function persistInspection(input: PersistInspectionInput): Promise<
       raw_json: input.provider.rawResponse || {},
       error_message: input.provider.error || '',
       diagnosis: input.provider.diagnosis || null,
+      input_tokens: input.provider.inputTokens ?? null,
+      output_tokens: input.provider.outputTokens ?? null,
     },
     recommendations: input.recommendations.map((product, index) => ({
       product_id: product.id,

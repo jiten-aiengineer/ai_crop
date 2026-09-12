@@ -90,11 +90,20 @@ def _product_rows(conn):
 
 def recommend(conn, diagnosis: dict[str, Any]) -> list[dict[str, Any]]:
     confidence = diagnosis.get("confidence")
-    if diagnosis.get("issue_detected") is not True or not isinstance(confidence, (int, float)) or confidence < 0.42:
+    needs_more_information = diagnosis.get("needs_more_information") is True or diagnosis.get("additional_information_required") is True
+    issue_type = normalize(diagnosis.get("issue_type"))
+    if (
+        diagnosis.get("issue_detected") is not True
+        or needs_more_information
+        or not isinstance(confidence, (int, float))
+        or confidence < 0.60
+        or issue_type in {"", "unknown", "none", "insufficient evidence"}
+    ):
         return []
 
     crop = str(diagnosis.get("catalog_crop") or diagnosis.get("crop") or "")
-    issue_type = normalize(diagnosis.get("issue_type"))
+    if not crop:
+        return []
     likely_issue = normalize(diagnosis.get("likely_issue"))
     issue_text = " ".join(
         str(part or "")

@@ -1,4 +1,6 @@
 'use client';
+
+/* eslint-disable react-hooks/set-state-in-effect -- A page change intentionally resets the request status before fetching. */
 import { useEffect, useState } from 'react';
 type Photo = { inspection_id: string; image_order: number; byte_size: number; created_at: string; farmer_crop_text?: string; location_text?: string; employee_name?: string; capture_role?: string; collection_mode?: string; photo_requirements_met?: boolean };
 export default function InspectionGallery() {

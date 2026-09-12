@@ -138,4 +138,40 @@ export function getLanguage(value?: string): LanguageCode {
   return value && (languages.some((item) => item.code === value) ? value as LanguageCode : aliases[value]) || 'en';
 }
 
-export function getCopy(language: LanguageCode) { return { ...en, ...translations[language], ...(mascotTranslations[language] || {}), ...fieldCollectionTranslations[language] }; }
+const modelNeutralInspectionCopy: Partial<Record<LanguageCode, Record<string, string>>> = {
+  en: {
+    imageAssessment: 'AI image assessment', geminiPowered: 'AI powered',
+    inspectIntro: 'Upload clear photos. Crop Life AI assesses visible evidence, then products are matched only from the approved CLSL catalogue.',
+    identify: 'Select the crop', identified: 'Declared crop',
+    stageIdentify: 'Reviewing the crop and visible symptoms',
+    resultDisclaimer: 'Crop Life AI explains the probable problem. Products are matched deterministically from the approved CLSL catalogue. Verify the label and consult a crop expert before treatment.',
+  },
+  hi: {
+    imageAssessment: 'एआई फोटो जाँच', geminiPowered: 'एआई संचालित',
+    inspectIntro: 'साफ फोटो अपलोड करें। Crop Life AI दिखाई देने वाले लक्षण जाँचता है और उत्पाद केवल स्वीकृत CLSL कैटलॉग से मिलाए जाते हैं।',
+    identify: 'फसल चुनें', identified: 'चुनी गई फसल', stageIdentify: 'फसल और दिखने वाले लक्षण जाँचे जा रहे हैं',
+    resultDisclaimer: 'Crop Life AI संभावित समस्या समझाता है। उत्पाद स्वीकृत CLSL कैटलॉग से नियम-आधारित तरीके से मिलते हैं। उपचार से पहले लेबल और फसल विशेषज्ञ की सलाह जाँचें।',
+  },
+  gu: {
+    imageAssessment: 'એઆઈ ફોટો તપાસ', geminiPowered: 'એઆઈ સંચાલિત', identify: 'પાક પસંદ કરો', identified: 'પસંદ કરેલો પાક',
+  },
+  mr: {
+    imageAssessment: 'एआय फोटो तपासणी', geminiPowered: 'एआय संचालित', identify: 'पीक निवडा', identified: 'निवडलेले पीक',
+  },
+  bn: {
+    imageAssessment: 'এআই ছবি পরীক্ষা', geminiPowered: 'এআই পরিচালিত', identify: 'ফসল নির্বাচন করুন', identified: 'নির্বাচিত ফসল',
+  },
+  bho: {
+    imageAssessment: 'एआई फोटो जाँच', geminiPowered: 'एआई से चले वाला', identify: 'फसल चुनीं', identified: 'चुनल फसल',
+  },
+};
+
+export function getCopy(language: LanguageCode) {
+  return {
+    ...en,
+    ...translations[language],
+    ...(mascotTranslations[language] || {}),
+    ...fieldCollectionTranslations[language],
+    ...(modelNeutralInspectionCopy[language] || modelNeutralInspectionCopy.en),
+  };
+}

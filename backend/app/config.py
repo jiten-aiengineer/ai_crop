@@ -48,6 +48,22 @@ GPU_TRAINING_SERVICE_TOKEN = os.getenv("GPU_TRAINING_SERVICE_TOKEN", "")
 MODEL_TRAINING_DATASET_TARGET = max(1, int(os.getenv("MODEL_TRAINING_DATASET_TARGET", "1000")))
 MODEL_TRAINING_AUTOSTART = os.getenv("MODEL_TRAINING_AUTOSTART", "false").strip().lower() in {"1", "true", "yes"}
 
+# Live and shadow Google-model roles. The API key remains server-side only.
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMMA_MODEL = os.getenv("GEMMA_MODEL", os.getenv("PRIMARY_VISION_MODEL", "gemma-4-26b-a4b-it")).strip() or "gemma-4-26b-a4b-it"
+GEMINI_SHADOW_ENABLED = os.getenv("GEMINI_SHADOW_ENABLED", "true").strip().lower() in {"1", "true", "yes"}
+GEMINI_SHADOW_MODEL = os.getenv("GEMINI_SHADOW_MODEL", os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")).strip() or "gemini-3.5-flash-lite"
+GEMINI_SHADOW_MAX_ATTEMPTS = max(1, min(10, int(os.getenv("GEMINI_SHADOW_MAX_ATTEMPTS", "3"))))
+GEMINI_SHADOW_POLL_SECONDS = max(2, min(300, int(os.getenv("GEMINI_SHADOW_POLL_SECONDS", "8"))))
+ASSISTANT_DAILY_LIMIT = max(1, min(500, int(os.getenv("ASSISTANT_DAILY_LIMIT", "30"))))
+ASSISTANT_BURST_LIMIT = max(1, min(60, int(os.getenv("ASSISTANT_BURST_LIMIT", "6"))))
+GEMMA_PLANNING_RPM = max(1, int(os.getenv("GEMMA_PLANNING_RPM", "30")))
+GEMMA_PLANNING_TPM = max(1, int(os.getenv("GEMMA_PLANNING_TPM", "16000")))
+GEMMA_PLANNING_RPD = max(1, int(os.getenv("GEMMA_PLANNING_RPD", "14400")))
+GEMINI_PLANNING_RPM = max(1, int(os.getenv("GEMINI_PLANNING_RPM", "15")))
+GEMINI_PLANNING_TPM = max(1, int(os.getenv("GEMINI_PLANNING_TPM", "250000")))
+GEMINI_PLANNING_RPD = max(1, int(os.getenv("GEMINI_PLANNING_RPD", "500")))
+
 # Private Qwen shadow evaluation. Qwen diagnoses only; the deterministic CLSL
 # catalogue engine remains the sole product-selection authority.
 QWEN_ENABLED = os.getenv("QWEN_ENABLED", "false").strip().lower() in {"1", "true", "yes"}

@@ -9,6 +9,11 @@ from psycopg.types.json import Jsonb
 
 from .catalog_engine import recommend
 from .config import (
+    ASSISTANT_BURST_LIMIT,
+    ASSISTANT_DAILY_LIMIT,
+    GEMINI_SHADOW_ENABLED,
+    GEMINI_SHADOW_MAX_ATTEMPTS,
+    GEMINI_SHADOW_MODEL,
     INTERNAL_SERVICE_TOKEN,
     QWEN_ENABLED,
     QWEN_MAX_ATTEMPTS,
@@ -16,6 +21,7 @@ from .config import (
     QWEN_SHADOW_MODE,
 )
 from .db import connection
+from .model_consensus import refresh_consensus
 from .admin import router as admin_router
 
 
@@ -54,13 +60,15 @@ class StoragePayload(BaseModel):
 
 
 class ProviderPayload(BaseModel):
-    provider: Literal["gemini", "qwen"]
+    provider: Literal["gemma", "gemini", "qwen"]
     model: str = Field(min_length=1, max_length=120)
     success: bool
     latency_ms: int = Field(ge=0, le=120000)
     raw_json: dict[str, Any] = Field(default_factory=dict)
     error_message: str = Field(default="", max_length=2000)
     diagnosis: dict[str, Any] | None = None
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
 
 
 class RecommendationPayload(BaseModel):
@@ -78,6 +86,22 @@ class InspectionPersistencePayload(BaseModel):
     storage: StoragePayload
     provider: ProviderPayload
     recommendations: list[RecommendationPayload] = Field(default_factory=list, max_length=12)
+
+
+class AssistantReservationPayload(BaseModel):
+    employee_code: str = Field(default="", max_length=32)
+    client_key_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    mode: Literal["crop", "company"] = "crop"
+    provider: Literal["gemma"] = "gemma"
+    model_name: str = Field(min_length=1, max_length=120)
+
+
+class AssistantCompletionPayload(BaseModel):
+    status: Literal["completed", "failed", "fallback"]
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    latency_ms: int | None = Field(default=None, ge=0, le=120000)
+    error_code: str = Field(default="", max_length=100)
 
 
 def _require_internal_service_token(value: str | None):
@@ -126,6 +150,77 @@ def health():
     with connection() as conn:
         row = conn.execute("SELECT current_database() AS database").fetchone()
     return {"status": "ok", "database": row["database"]}
+
+
+@app.post("/api/v1/assistant/reserve", status_code=201)
+def reserve_assistant_request(
+    payload: AssistantReservationPayload,
+    x_inspection_persistence_token: str | None = Header(default=None),
+):
+    """Atomically reserve a privacy-limited daily/burst chat request.
+
+    Chat text is deliberately not accepted or stored by this endpoint.
+    """
+    _require_internal_service_token(x_inspection_persistence_token)
+    with connection() as conn:
+        conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (payload.client_key_hash,))
+        employee_id = None
+        if payload.employee_code:
+            employee = conn.execute(
+                "SELECT id FROM employees WHERE employee_code=%s AND status <> 'inactive'",
+                (payload.employee_code,),
+            ).fetchone()
+            employee_id = employee["id"] if employee else None
+        usage = conn.execute(
+            """
+            SELECT
+              count(*) FILTER (WHERE (created_at AT TIME ZONE 'Asia/Kolkata')::date =
+                                     (now() AT TIME ZONE 'Asia/Kolkata')::date) AS used_today,
+              count(*) FILTER (WHERE created_at >= now() - interval '1 minute') AS used_last_minute
+            FROM assistant_requests WHERE client_key_hash=%s
+            """,
+            (payload.client_key_hash,),
+        ).fetchone()
+        if int(usage["used_today"] or 0) >= ASSISTANT_DAILY_LIMIT:
+            raise HTTPException(429, f"Daily AI Assistant limit reached ({ASSISTANT_DAILY_LIMIT} messages). Try again tomorrow.")
+        if int(usage["used_last_minute"] or 0) >= ASSISTANT_BURST_LIMIT:
+            raise HTTPException(429, "Please wait a moment before sending another AI Assistant message.")
+        row = conn.execute(
+            """
+            INSERT INTO assistant_requests(employee_id, client_key_hash, mode, provider, model_name)
+            VALUES (%s, %s, %s, %s, %s) RETURNING id
+            """,
+            (employee_id, payload.client_key_hash, payload.mode, payload.provider, payload.model_name),
+        ).fetchone()
+        conn.commit()
+    return {
+        "request_id": str(row["id"]),
+        "daily_limit": ASSISTANT_DAILY_LIMIT,
+        "remaining_today": max(0, ASSISTANT_DAILY_LIMIT - int(usage["used_today"] or 0) - 1),
+    }
+
+
+@app.post("/api/v1/assistant/{request_id}/complete")
+def complete_assistant_request(
+    request_id: UUID,
+    payload: AssistantCompletionPayload,
+    x_inspection_persistence_token: str | None = Header(default=None),
+):
+    _require_internal_service_token(x_inspection_persistence_token)
+    with connection() as conn:
+        updated = conn.execute(
+            """
+            UPDATE assistant_requests SET status=%s, input_tokens=%s, output_tokens=%s,
+                latency_ms=%s, error_code=%s, completed_at=now()
+            WHERE id=%s RETURNING id
+            """,
+            (payload.status, payload.input_tokens, payload.output_tokens, payload.latency_ms,
+             payload.error_code or None, request_id),
+        ).fetchone()
+        if not updated:
+            raise HTTPException(404, "Assistant request was not found.")
+        conn.commit()
+    return {"request_id": str(request_id), "status": payload.status}
 
 
 @app.get('/api/v1/field/identity')
@@ -232,6 +327,9 @@ def persist_inspection(
     _require_internal_service_token(x_inspection_persistence_token)
     if payload.context.collection_mode == 'sales_officer' and payload.photo_count < 4:
         raise HTTPException(422, 'Sales Officer inspections require all four structured crop photos.')
+    declared_crop = _clean(payload.context.crop, 160)
+    if payload.context.collection_mode == 'sales_officer' and not declared_crop:
+        raise HTTPException(422, 'Sales Officer inspections require a selected crop.')
     diagnosis = payload.provider.diagnosis or {}
     detected_crop = _clean(diagnosis.get("crop"), 160)
     probable_issue = _clean(diagnosis.get("probable_issue"), 180)
@@ -240,7 +338,7 @@ def persist_inspection(
     failure_message = None if payload.provider.success else (_clean(payload.provider.error_message, 2000) or "AI provider failed.")
 
     with connection() as conn:
-        crop_id = _crop_id(conn, detected_crop or _clean(payload.context.crop, 160))
+        crop_id = _crop_id(conn, declared_crop or detected_crop)
         employee_id = None
         if payload.context.employee_code:
             employee = conn.execute("SELECT id FROM employees WHERE employee_code=%s AND status <> 'inactive'", (payload.context.employee_code,)).fetchone()
@@ -253,10 +351,13 @@ def persist_inspection(
                 id, employee_id, crop_id, farmer_crop_text, plant_text, symptom_notes,
                 location_text, preferred_language, status, photo_count, failure_message,
                 completed_at, image_storage_status, image_storage_failures,
-                collection_mode, photo_requirements_met, photo_guidance_version
+                collection_mode, photo_requirements_met, photo_guidance_version,
+                declared_crop_text, crop_source, diagnosis_confidence,
+                ai_needs_more_information, expert_review_status, training_eligible
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    CASE WHEN %s = 'completed' THEN now() ELSE NULL END, %s, %s, %s, %s, %s)
+                    CASE WHEN %s = 'completed' THEN now() ELSE NULL END, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, 'not_reviewed', false)
             ON CONFLICT (id) DO UPDATE SET
                 employee_id = COALESCE(inspections.employee_id, EXCLUDED.employee_id),
                 crop_id = EXCLUDED.crop_id,
@@ -274,6 +375,10 @@ def persist_inspection(
                 collection_mode = EXCLUDED.collection_mode,
                 photo_requirements_met = EXCLUDED.photo_requirements_met,
                 photo_guidance_version = EXCLUDED.photo_guidance_version,
+                declared_crop_text = EXCLUDED.declared_crop_text,
+                crop_source = EXCLUDED.crop_source,
+                diagnosis_confidence = EXCLUDED.diagnosis_confidence,
+                ai_needs_more_information = EXCLUDED.ai_needs_more_information,
                 updated_at = now()
             """,
             (
@@ -294,6 +399,11 @@ def persist_inspection(
                 payload.context.collection_mode,
                 payload.photo_count >= (4 if payload.context.collection_mode == 'sales_officer' else 1),
                 'sales-field-v1' if payload.context.collection_mode == 'sales_officer' else None,
+                declared_crop,
+                ('field_officer' if declared_crop and payload.context.collection_mode == 'sales_officer'
+                 else 'general_user' if declared_crop else 'ai_optional' if detected_crop else 'not_supplied'),
+                _confidence(diagnosis.get("confidence")),
+                diagnosis.get("needs_more_information") is True,
             ),
         )
 
@@ -353,7 +463,7 @@ def persist_inspection(
 
         prediction_id = None
         if payload.provider.success and payload.provider.diagnosis:
-            prediction_crop_id = _crop_id(conn, detected_crop)
+            prediction_crop_id = _crop_id(conn, declared_crop or detected_crop)
             problem_id = _problem_id(conn, issue_type, probable_issue)
             row = conn.execute(
                 """
@@ -391,7 +501,7 @@ def persist_inspection(
                     payload.provider.provider,
                     payload.provider.model,
                     prediction_crop_id,
-                    detected_crop,
+                    declared_crop or detected_crop,
                     problem_id,
                     issue_type,
                     probable_issue,
@@ -410,6 +520,19 @@ def persist_inspection(
                 ),
             ).fetchone()
             prediction_id = row["id"]
+
+            conn.execute(
+                """
+                INSERT INTO ai_usage(inspection_id, prediction_id, employee_id, provider, model_name,
+                                     operation, input_tokens, output_tokens, image_count,
+                                     latency_ms, success, error_code)
+                VALUES (%s, %s, %s, %s, %s, 'live_diagnosis', %s, %s, %s, %s, true, NULL)
+                """,
+                (payload.inspection_id, prediction_id, employee_id, payload.provider.provider,
+                 payload.provider.model, payload.provider.input_tokens, payload.provider.output_tokens,
+                 payload.photo_count, payload.provider.latency_ms),
+            )
+            refresh_consensus(conn, payload.inspection_id)
 
         conn.execute("DELETE FROM inspection_recommendations WHERE inspection_id = %s", (payload.inspection_id,))
         if prediction_id:
@@ -440,7 +563,35 @@ def persist_inspection(
                         recommendation.product_id,
                     ),
                 )
-        shadow_status = "not_queued"
+        shadow_states: list[str] = []
+        if GEMINI_SHADOW_ENABLED and payload.provider.success and prediction_id and payload.storage.images:
+            gemini_job = conn.execute(
+                """
+                INSERT INTO gemini_shadow_jobs(
+                    inspection_id, model_name, status, max_attempts,
+                    next_attempt_at, error_category, last_error, updated_at
+                ) VALUES (%s, %s, 'pending', %s, now(), NULL, NULL, now())
+                ON CONFLICT (inspection_id) DO UPDATE SET
+                    model_name=EXCLUDED.model_name, max_attempts=EXCLUDED.max_attempts,
+                    status=CASE WHEN gemini_shadow_jobs.status IN ('completed','processing')
+                                THEN gemini_shadow_jobs.status ELSE 'pending' END,
+                    next_attempt_at=CASE WHEN gemini_shadow_jobs.status IN ('completed','processing')
+                                         THEN gemini_shadow_jobs.next_attempt_at ELSE now() END,
+                    error_category=CASE WHEN gemini_shadow_jobs.status IN ('completed','processing')
+                                        THEN gemini_shadow_jobs.error_category ELSE NULL END,
+                    last_error=CASE WHEN gemini_shadow_jobs.status IN ('completed','processing')
+                                    THEN gemini_shadow_jobs.last_error ELSE NULL END,
+                    updated_at=now()
+                RETURNING status
+                """,
+                (payload.inspection_id, GEMINI_SHADOW_MODEL, GEMINI_SHADOW_MAX_ATTEMPTS),
+            ).fetchone()
+            shadow_states.append(f"gemini:{gemini_job['status'] if gemini_job else 'not_queued'}")
+        elif GEMINI_SHADOW_ENABLED and payload.provider.success:
+            shadow_states.append("gemini:no_s3_evidence")
+        else:
+            shadow_states.append("gemini:disabled")
+
         if (
             QWEN_ENABLED
             and QWEN_SHADOW_MODE
@@ -482,16 +633,16 @@ def persist_inspection(
                 """,
                 (payload.inspection_id, QWEN_MODEL, QWEN_MAX_ATTEMPTS),
             ).fetchone()
-            shadow_status = queued["status"] if queued else "not_queued"
+            shadow_states.append(f"qwen:{queued['status'] if queued else 'not_queued'}")
         elif QWEN_ENABLED and QWEN_SHADOW_MODE and payload.provider.success:
-            shadow_status = "not_queued_no_s3_evidence"
+            shadow_states.append("qwen:no_s3_evidence")
         elif not (QWEN_ENABLED and QWEN_SHADOW_MODE):
-            shadow_status = "disabled"
+            shadow_states.append("qwen:disabled")
         conn.commit()
 
     return {
         "status": "saved",
         "inspection_id": str(payload.inspection_id),
         "stored_images": len(payload.storage.images),
-        "shadow_status": shadow_status,
+        "shadow_status": ";".join(shadow_states),
     }

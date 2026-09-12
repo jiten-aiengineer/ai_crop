@@ -40,6 +40,7 @@ from .config import (
     QWEN_WORKER_POLL_SECONDS,
 )
 from .db import connection
+from .model_consensus import refresh_consensus
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -132,12 +133,26 @@ def _text(value, limit=4000):
 
 
 def _confidence(value):
-    return float(value) if isinstance(value, (int, float)) and 0 <= float(value) <= 1 else None
+    if isinstance(value, str):
+        try:
+            value = float(value.strip().replace("%", ""))
+        except ValueError:
+            return None
+    if not isinstance(value, (int, float)) or value < 0:
+        return None
+    return float(value) if value <= 1 else float(value) / 100 if value <= 100 else None
 
 
-def normalize_diagnosis(value: object) -> dict:
+def normalize_diagnosis(value: object, declared_crop: str = "") -> dict:
+    if isinstance(value, list):
+        value = value[0] if value else {}
     if not isinstance(value, dict):
-        raise WorkerError("malformed_diagnosis", "Qwen diagnosis was not a JSON object.")
+        value = {}
+    for wrapper in ("diagnosis", "assessment", "result", "analysis", "crop_diagnosis", "cropDiagnosis", "data"):
+        nested = value.get(wrapper)
+        if isinstance(nested, dict):
+            value = nested
+            break
     aliases = {
         "condition": "plant_condition",
         "severity": "problem_stage",
@@ -151,35 +166,38 @@ def normalize_diagnosis(value: object) -> dict:
     for key, old_key in aliases.items():
         if key not in value and old_key in value:
             value[key] = value[old_key]
-    if "crop" not in value or "issue_type" not in value or not isinstance(value.get("issue_detected"), bool):
-        raise WorkerError("malformed_diagnosis", "Qwen diagnosis is missing required fields.")
     allowed_issue_types = set(SCHEMA["properties"]["issue_type"]["enum"])
-    issue_type = _text(value.get("issue_type"), 64)
+    issue_type = _text(value.get("issue_type") or value.get("problem_type") or value.get("problemType"), 64).lower().replace(" ", "_").replace("-", "_")
+    issue_type = {"insect": "insect_pest", "pest": "insect_pest", "mite": "insect_pest", "fungal": "fungal_disease", "bacterial": "bacterial_disease", "weed": "weed_problem", "deficiency": "nutrient_deficiency", "environmental_stress": "abiotic_stress"}.get(issue_type, issue_type)
     def string_list(key: str) -> list[str]:
         raw = value.get(key)
         return [_text(item, 1000) for item in raw if _text(item, 1000)][:20] if isinstance(raw, list) else []
+    confidence = _confidence(value.get("confidence") or value.get("problem_confidence") or value.get("problemConfidence"))
+    issue_type = issue_type if issue_type in allowed_issue_types else "unknown"
+    probable_issue = _text(value.get("probable_issue") or value.get("problem_name") or value.get("problemName") or value.get("issue_name"), 180) or None
+    low_evidence = confidence is None or confidence < 0.6 or issue_type == "unknown"
     return {
-        "crop": _text(value.get("crop"), 160) or None,
-        "crop_confidence": _confidence(value.get("crop_confidence")),
+        "crop": _text(declared_crop, 160) or _text(value.get("crop"), 160) or None,
+        "crop_confidence": None if declared_crop else _confidence(value.get("crop_confidence")),
         "condition": _text(value.get("condition"), 32) if _text(value.get("condition"), 32) in {"healthy", "affected", "stressed", "uncertain"} else "uncertain",
-        "issue_detected": value["issue_detected"],
-        "issue_type": issue_type if issue_type in allowed_issue_types else "unknown",
-        "probable_issue": _text(value.get("probable_issue"), 180) or None,
-        "confidence": _confidence(value.get("confidence")),
-        "severity": _text(value.get("severity"), 32) if _text(value.get("severity"), 32) in {"early", "mild", "moderate", "severe"} else None,
+        "issue_detected": bool(value.get("issue_detected", probable_issue and issue_type not in {"unknown", "none"})) if issue_type != "unknown" else False,
+        "issue_type": issue_type,
+        "probable_issue": probable_issue or ("Insufficient visual evidence" if low_evidence else None),
+        "confidence": confidence,
+        "severity": _text(value.get("severity"), 32) if _text(value.get("severity"), 32) in {"early", "mild", "moderate", "severe", "unknown"} else "unknown",
         "visible_symptoms": string_list("visible_symptoms"),
         "probable_causes": string_list("probable_causes"),
         "alternative_possibilities": string_list("alternative_possibilities"),
         "immediate_actions": string_list("immediate_actions"),
         "prevention_advice": string_list("prevention_advice"),
         "follow_up_questions": string_list("follow_up_questions"),
-        "needs_more_information": value.get("needs_more_information") is not False,
-        "summary": _text(value.get("summary")),
-        "recommended_next_action": _text(value.get("recommended_next_action")),
+        "needs_more_information": low_evidence or value.get("needs_more_information") is not False,
+        "summary": _text(value.get("summary")) or "The evaluation model could not make a reliable assessment.",
+        "recommended_next_action": _text(value.get("recommended_next_action")) or "Request clearer crop evidence for expert review.",
     }
 
 
-def parse_diagnosis(text: str) -> tuple[dict, dict]:
+def parse_diagnosis(text: str, declared_crop: str = "") -> tuple[dict, dict]:
     cleaned = text.strip()
     if cleaned.startswith("```"):
         cleaned = cleaned.split("\n", 1)[-1]
@@ -189,8 +207,8 @@ def parse_diagnosis(text: str) -> tuple[dict, dict]:
         raw = json.loads(cleaned.strip())
     except json.JSONDecodeError as error:
         raise WorkerError("malformed_diagnosis", "Qwen returned malformed diagnosis JSON.") from error
-    diagnosis = normalize_diagnosis(raw)
-    safe_raw = {key: raw.get(key) for key in SCHEMA["properties"]} if isinstance(raw, dict) else {}
+    diagnosis = normalize_diagnosis(raw, declared_crop)
+    safe_raw = {key: diagnosis.get(key) for key in SCHEMA["properties"]}
     return diagnosis, safe_raw
 
 
@@ -345,11 +363,11 @@ class QwenShadowWorker:
                 """,
                 (inspection_id,),
             ).fetchall()
-            gemini = conn.execute(
+            primary = conn.execute(
                 """
                 SELECT crop_text, issue_type, issue_name, severity, confidence
-                FROM ai_predictions WHERE inspection_id=%s AND provider='gemini'
-                ORDER BY created_at DESC LIMIT 1
+                FROM ai_predictions WHERE inspection_id=%s AND provider IN ('gemma','gemini')
+                ORDER BY CASE provider WHEN 'gemma' THEN 0 ELSE 1 END, created_at DESC LIMIT 1
                 """,
                 (inspection_id,),
             ).fetchone()
@@ -365,7 +383,7 @@ class QwenShadowWorker:
             "notes": "",
             "language": inspection["preferred_language"] or "en",
         }
-        return context, images, gemini
+        return context, images, primary
 
     def load_images(self, rows: list[dict]) -> list[dict]:
         result, total = [], 0
@@ -385,7 +403,11 @@ class QwenShadowWorker:
         return result
 
     def diagnose(self, context: dict, images: list[dict]) -> tuple[dict, dict, int]:
-        prompt = CONTRACT["prompt"] + "\nContext:\n" + json.dumps(context, ensure_ascii=False, separators=(",", ":"))
+        declared_crop = str(context.get("crop") or "").strip()
+        crop_rule = (f"\nThe crop was selected by the field employee. Known crop: {json.dumps(declared_crop)}. "
+                     "Do not identify, replace or change it. Diagnose only the visible problem."
+                     if declared_crop else "\nNo crop was declared; remain uncertain when evidence is insufficient.")
+        prompt = CONTRACT["prompt"] + crop_rule + "\nContext:\n" + json.dumps(context, ensure_ascii=False, separators=(",", ":"))
         started = time.monotonic()
         response = _http_json(
             f"{QWEN_BASE_URL}/api/chat",
@@ -403,7 +425,7 @@ class QwenShadowWorker:
         content = ((response.get("message") or {}).get("content"))
         if not isinstance(content, str) or not content.strip():
             raise WorkerError("malformed_diagnosis", "Qwen returned no final diagnosis.")
-        diagnosis, safe_raw = parse_diagnosis(content)
+        diagnosis, safe_raw = parse_diagnosis(content, declared_crop)
         return diagnosis, safe_raw, round((time.monotonic() - started) * 1000)
 
     def complete(self, job: dict, diagnosis: dict, safe_raw: dict, latency_ms: int, metrics: dict) -> None:
@@ -459,6 +481,7 @@ class QwenShadowWorker:
                 """,
                 (prediction["id"], latency_ms, Jsonb(metrics), job["id"]),
             )
+            refresh_consensus(conn, job["inspection_id"])
             conn.execute(
                 """
                 INSERT INTO ai_usage(inspection_id, prediction_id, provider, model_name, operation,
@@ -516,10 +539,10 @@ class QwenShadowWorker:
             return "empty"
         started = time.monotonic()
         try:
-            context, image_rows, gemini = self.evidence(job["inspection_id"])
+            context, image_rows, primary = self.evidence(job["inspection_id"])
             images = self.load_images(image_rows)
             diagnosis, safe_raw, latency_ms = self.diagnose(context, images)
-            self.complete(job, diagnosis, safe_raw, latency_ms, agreement(gemini, diagnosis))
+            self.complete(job, diagnosis, safe_raw, latency_ms, agreement(primary, diagnosis))
             LOG.info("qwen_job_completed job=%s inspection=%s latency_ms=%s", job["id"], job["inspection_id"], latency_ms)
             return "completed"
         except WorkerError as error:

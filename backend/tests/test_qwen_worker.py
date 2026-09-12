@@ -2,6 +2,7 @@ import json
 import sys
 import unittest
 from datetime import datetime
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
@@ -9,8 +10,13 @@ from zoneinfo import ZoneInfo
 
 # Unit tests exercise the pure worker contract without creating AWS clients.
 sys.modules.setdefault("boto3", SimpleNamespace(client=lambda *args, **kwargs: None))
+sys.modules.setdefault("psycopg", SimpleNamespace(connect=lambda *args, **kwargs: None))
+sys.modules.setdefault("psycopg.types", SimpleNamespace())
+sys.modules.setdefault("psycopg.types.json", SimpleNamespace(Jsonb=lambda value: value))
+sys.modules.setdefault("psycopg.rows", SimpleNamespace(dict_row=None))
 
 from backend.app import qwen_worker as worker
+from backend.app.model_consensus import _json_safe
 
 
 def diagnosis(**changes):
@@ -38,6 +44,12 @@ def diagnosis(**changes):
 
 
 class QwenWorkerContractTests(unittest.TestCase):
+    def test_consensus_rows_are_json_safe_for_postgresql_jsonb(self):
+        converted = _json_safe({"confidence": Decimal("0.8400"), "created_at": datetime(2026, 9, 12, 10, 30)})
+        self.assertEqual(converted["confidence"], 0.84)
+        self.assertEqual(converted["created_at"], "2026-09-12T10:30:00")
+        json.dumps(converted)
+
     def test_final_json_is_normalized_and_private_extras_are_dropped(self):
         value, safe_raw = worker.parse_diagnosis(
             "```json\n" + json.dumps({**diagnosis(), "thinking": "private", "products": ["invented"]}) + "\n```"
@@ -46,10 +58,23 @@ class QwenWorkerContractTests(unittest.TestCase):
         self.assertNotIn("thinking", safe_raw)
         self.assertNotIn("products", safe_raw)
 
-    def test_malformed_or_incomplete_output_fails_closed(self):
-        for value in ("not json", "[]", "{}", '{"crop":"Rice"}'):
-            with self.assertRaises(worker.WorkerError):
-                worker.parse_diagnosis(value)
+    def test_malformed_output_fails_and_incomplete_json_becomes_uncertain(self):
+        with self.assertRaises(worker.WorkerError):
+            worker.parse_diagnosis("not json")
+        for value in ("[]", "{}", '{"crop":"Rice"}'):
+            diagnosis_value, _ = worker.parse_diagnosis(value)
+            self.assertEqual(diagnosis_value["issue_type"], "unknown")
+            self.assertTrue(diagnosis_value["needs_more_information"])
+            self.assertIsNone(diagnosis_value["confidence"])
+
+    def test_declared_crop_overrides_wrapped_provider_crop(self):
+        value, _ = worker.parse_diagnosis(
+            json.dumps([{"analysis": diagnosis(crop="Rice", confidence="84%")}]),
+            declared_crop="Tomato",
+        )
+        self.assertEqual(value["crop"], "Tomato")
+        self.assertIsNone(value["crop_confidence"])
+        self.assertEqual(value["confidence"], 0.84)
 
     def test_agreement_does_not_treat_two_unknowns_as_a_match(self):
         gemini = {

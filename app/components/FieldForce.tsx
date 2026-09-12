@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable react-hooks/set-state-in-effect -- The parent refresh supplies authoritative report snapshots. */
+
 import { useEffect, useMemo, useState } from 'react';
 
 type Officer = {

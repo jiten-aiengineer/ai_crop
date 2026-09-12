@@ -31,6 +31,10 @@ from .config import (
     PORTAL_INVITE_URL, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USERNAME,
     SMTP_USE_TLS, GPU_TRAINING_SERVICE_URL, GPU_TRAINING_SERVICE_TOKEN,
     MODEL_TRAINING_AUTOSTART, MODEL_TRAINING_DATASET_TARGET,
+    ASSISTANT_DAILY_LIMIT, GEMMA_MODEL, GEMINI_SHADOW_ENABLED,
+    GEMINI_SHADOW_MODEL, GEMMA_PLANNING_RPD, GEMMA_PLANNING_RPM,
+    GEMMA_PLANNING_TPM, GEMINI_PLANNING_RPD, GEMINI_PLANNING_RPM,
+    GEMINI_PLANNING_TPM,
     QWEN_BASE_URL, QWEN_ENABLED, QWEN_GPU_INSTANCE_ID, QWEN_MODEL,
     QWEN_PROCESSING_WINDOW_ENABLED, QWEN_SCHEDULE_AUTOMATION,
     QWEN_SHADOW_MODE, QWEN_TIMEZONE, QWEN_WINDOW_END, QWEN_WINDOW_START,
@@ -96,6 +100,18 @@ class CatalogueProductInput(BaseModel):
                           or re.fullmatch(r"s3:product-images/[A-Za-z0-9][A-Za-z0-9._/-]*\.(?:jpg|jpeg|png|webp)", value, re.IGNORECASE)):
             raise ValueError("Use an approved package image or a private product image uploaded through this portal.")
         return value
+
+
+class ExpertInspectionReviewInput(BaseModel):
+    review_outcome: Literal["correct", "partially_correct", "incorrect", "corrected", "rejected_unusable"]
+    expert_crop: str = Field(default="", max_length=160)
+    expert_issue_type: str = Field(default="", max_length=64)
+    expert_issue_name: str = Field(default="", max_length=180)
+    expert_severity: str = Field(default="", max_length=32)
+    notes: str = Field(default="", max_length=4000)
+    image_quality_sufficient: bool = False
+    privacy_cleared: bool = False
+    training_eligible: bool = False
 
 
 class CatalogueChangeRequest(BaseModel):
@@ -630,7 +646,9 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
     with connection() as conn:
         rows = conn.execute(
             """
-            SELECT i.id, i.created_at, i.status, i.farmer_crop_text, i.location_text, i.photo_count,
+            SELECT i.id, i.created_at, i.status, i.farmer_crop_text, i.declared_crop_text,
+                   i.crop_source, i.diagnosis_confidence, i.ai_needs_more_information,
+                   i.expert_review_status, i.training_eligible, i.location_text, i.photo_count,
                    i.collection_mode, i.photo_requirements_met, i.photo_guidance_version,
                    employee.full_name AS employee_name, employee.employee_code,
                    i.image_storage_status, i.image_storage_failures, i.failure_message,
@@ -642,7 +660,15 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
                    prediction.crop_text AS detected_crop, prediction.issue_name AS probable_issue,
                    prediction.issue_type AS issue_type, prediction.severity AS severity,
                    prediction.confidence AS confidence, prediction.summary AS summary,
-                   prediction.recommended_next_action AS recommended_next_action
+                   prediction.recommended_next_action AS recommended_next_action,
+                   consensus.consensus_status, consensus.agreement_count,
+                   consensus.successful_models, consensus.consensus_issue_name,
+                   consensus.requires_expert_review,
+                   predictions.model_predictions,
+                   review.review_outcome, review.expert_crop_text,
+                   review.expert_issue_type, review.expert_issue_name,
+                   review.expert_severity, review.reviewer_notes,
+                   review.dataset_eligible AS expert_training_eligible
             FROM inspections i
             LEFT JOIN employees employee ON employee.id=i.employee_id
             LEFT JOIN inspection_images ii ON ii.inspection_id = i.id
@@ -651,16 +677,101 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
             LEFT JOIN LATERAL (
                 SELECT crop_text, issue_name, issue_type, severity, confidence, summary, recommended_next_action
                 FROM ai_predictions prediction
-                WHERE prediction.inspection_id = i.id AND prediction.provider = 'gemini'
-                ORDER BY prediction.created_at DESC
+                WHERE prediction.inspection_id = i.id AND prediction.provider IN ('gemma','gemini')
+                ORDER BY CASE prediction.provider WHEN 'gemma' THEN 0 ELSE 1 END, prediction.created_at DESC
                 LIMIT 1
             ) prediction ON true
+            LEFT JOIN inspection_model_consensus consensus ON consensus.inspection_id=i.id
+            LEFT JOIN LATERAL (
+                SELECT jsonb_agg(jsonb_build_object(
+                    'provider', p.provider, 'model', p.model_name, 'role', p.prediction_role,
+                    'crop', p.crop_text, 'issue_type', p.issue_type, 'issue_name', p.issue_name,
+                    'severity', p.severity, 'confidence', p.confidence,
+                    'needs_more_information', p.additional_information_required,
+                    'latency_ms', p.latency_ms, 'summary', p.summary
+                ) ORDER BY CASE p.provider WHEN 'gemma' THEN 0 WHEN 'gemini' THEN 1 ELSE 2 END) AS model_predictions
+                FROM ai_predictions p WHERE p.inspection_id=i.id
+                  AND p.provider IN ('gemma','gemini','qwen')
+            ) predictions ON true
+            LEFT JOIN LATERAL (
+                SELECT review_outcome,expert_crop_text,expert_issue_type,expert_issue_name,
+                       expert_severity,reviewer_notes,dataset_eligible
+                FROM expert_reviews r WHERE r.inspection_id=i.id
+                ORDER BY r.created_at DESC LIMIT 1
+            ) review ON true
             GROUP BY i.id, employee.id, prediction.crop_text, prediction.issue_name, prediction.issue_type,
-                     prediction.severity, prediction.confidence, prediction.summary, prediction.recommended_next_action
+                     prediction.severity, prediction.confidence, prediction.summary, prediction.recommended_next_action,
+                     consensus.inspection_id, predictions.model_predictions, review.review_outcome,
+                     review.expert_crop_text, review.expert_issue_type, review.expert_issue_name,
+                     review.expert_severity, review.reviewer_notes, review.dataset_eligible
             ORDER BY i.created_at DESC LIMIT 200
             """
         ).fetchall()
     return {"items": rows}
+
+
+@router.post("/inspections/{inspection_id}/expert-review")
+def save_expert_review(
+    inspection_id: UUID,
+    payload: ExpertInspectionReviewInput,
+    identity: AdminIdentity = Depends(_identity),
+):
+    """Store expert truth separately without overwriting any model output."""
+    _require(identity, INSPECTION_REVIEW_ROLES)
+    expert_crop = payload.expert_crop.strip()
+    expert_issue_type = payload.expert_issue_type.strip()
+    expert_issue_name = payload.expert_issue_name.strip()
+    expert_severity = payload.expert_severity.strip()
+    rejected = payload.review_outcome == "rejected_unusable"
+    training_eligible = bool(
+        payload.training_eligible and not rejected and expert_crop and expert_issue_type
+        and expert_issue_name and payload.image_quality_sufficient and payload.privacy_cleared
+    )
+    review_status = "rejected" if rejected else "verified" if payload.review_outcome == "correct" else "corrected"
+    diagnosis_correct = True if payload.review_outcome == "correct" else False if payload.review_outcome in {"incorrect", "corrected"} else None
+    with connection() as conn:
+        inspection = conn.execute("SELECT * FROM inspections WHERE id=%s FOR UPDATE", (inspection_id,)).fetchone()
+        if not inspection:
+            raise HTTPException(404, "Inspection not found.")
+        prediction = conn.execute(
+            """
+            SELECT id FROM ai_predictions WHERE inspection_id=%s AND provider='gemma'
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (inspection_id,),
+        ).fetchone()
+        crop = conn.execute("SELECT id FROM crops WHERE lower(name)=lower(%s) LIMIT 1", (expert_crop,)).fetchone() if expert_crop else None
+        problem = conn.execute(
+            "SELECT id FROM problems WHERE issue_type=%s AND lower(name)=lower(%s) LIMIT 1",
+            (expert_issue_type, expert_issue_name),
+        ).fetchone() if expert_issue_type and expert_issue_name else None
+        review = conn.execute(
+            """
+            INSERT INTO expert_reviews(
+                inspection_id,prediction_id,reviewer_employee_id,verified_crop_id,verified_problem_id,
+                verified_severity,review_status,diagnosis_correct,reviewer_notes,dataset_eligible,
+                review_outcome,expert_crop_text,expert_issue_type,expert_issue_name,expert_severity,
+                image_quality_sufficient,privacy_cleared,reviewed_at,updated_at
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now(),now())
+            RETURNING id
+            """,
+            (inspection_id, prediction["id"] if prediction else None, _employee_actor_id(identity),
+             crop["id"] if crop else None, problem["id"] if problem else None,
+             expert_severity or None, review_status, diagnosis_correct, payload.notes.strip() or None,
+             training_eligible, payload.review_outcome, expert_crop or None, expert_issue_type or None,
+             expert_issue_name or None, expert_severity or None, payload.image_quality_sufficient,
+             payload.privacy_cleared),
+        ).fetchone()
+        conn.execute(
+            "UPDATE inspections SET expert_review_status=%s,training_eligible=%s,updated_at=now() WHERE id=%s",
+            (payload.review_outcome, training_eligible, inspection_id),
+        )
+        _audit(conn, identity, "expert_review_inspection", "inspection", str(inspection_id), None,
+               {"review_id": str(review["id"]), "outcome": payload.review_outcome,
+                "training_eligible": training_eligible})
+        conn.commit()
+    return {"inspection_id": str(inspection_id), "review_status": payload.review_outcome,
+            "training_eligible": training_eligible}
 
 
 @router.get("/inspections/{inspection_id}/images/{image_order}")
@@ -855,28 +966,24 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
         ).fetchall()
         comparisons = conn.execute(
             """
-            SELECT count(*) FILTER (
-                       WHERE status='completed'
-                         AND COALESCE((agreement_json->>'evaluated_weight')::integer, 0) > 0
-                   ) AS paired_cases,
-                   count(*) FILTER (WHERE agreement_json->>'crop_match'='true') AS crop_match,
-                   count(*) FILTER (WHERE agreement_json->>'issue_type_match'='true') AS issue_type_match,
-                   count(*) FILTER (WHERE agreement_json->>'issue_match'='true') AS issue_match,
-                   count(*) FILTER (WHERE agreement_json->>'severity_match'='true') AS severity_match,
-                   round(avg((agreement_json->>'confidence_difference')::numeric) * 100, 1) AS mean_confidence_gap
-            FROM qwen_shadow_jobs
+            SELECT count(*) AS evaluated_cases,
+                   count(*) FILTER (WHERE consensus_status='three_of_three_agree') AS three_of_three,
+                   count(*) FILTER (WHERE consensus_status='two_of_three_agree') AS two_of_three,
+                   count(*) FILTER (WHERE consensus_status='provisional_two_model') AS provisional,
+                   count(*) FILTER (WHERE consensus_status='all_disagree') AS all_disagree,
+                   count(*) FILTER (WHERE requires_expert_review) AS expert_review_required,
+                   round(avg(agreement_count::numeric * 100 / NULLIF(successful_models,0)),1) AS mean_consensus_percent
+            FROM inspection_model_consensus
             """
         ).fetchone()
         history = conn.execute(
             """
-            SELECT (completed_at AT TIME ZONE 'Asia/Kolkata')::date AS day,
-                   count(*) FILTER (
-                       WHERE COALESCE((agreement_json->>'evaluated_weight')::integer, 0) > 0
-                   ) AS paired_cases,
-                   count(*) FILTER (WHERE agreement_json->>'crop_match'='true') AS crop_match,
-                   count(*) FILTER (WHERE agreement_json->>'issue_match'='true') AS issue_match
-            FROM qwen_shadow_jobs
-            WHERE status='completed' AND completed_at >= now() - interval '30 days'
+            SELECT (updated_at AT TIME ZONE 'Asia/Kolkata')::date AS day,
+                   count(*) AS evaluated_cases,
+                   count(*) FILTER (WHERE consensus_status IN ('two_of_three_agree','three_of_three_agree')) AS majority_cases,
+                   count(*) FILTER (WHERE consensus_status='all_disagree') AS disagreement_cases
+            FROM inspection_model_consensus
+            WHERE updated_at >= now() - interval '30 days'
             GROUP BY day ORDER BY day
             """
         ).fetchall()
@@ -941,8 +1048,8 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
                    job.started_at, job.completed_at, job.next_attempt_at,
                    inspection.farmer_crop_text, employee.employee_code,
                    employee.full_name AS employee_name,
-                   gemini.crop_text AS gemini_crop, gemini.issue_name AS gemini_issue,
-                   gemini.confidence AS gemini_confidence,
+                   gemma.crop_text AS gemma_crop, gemma.issue_name AS gemma_issue,
+                   gemma.confidence AS gemma_confidence,
                    qwen.crop_text AS qwen_crop, qwen.issue_name AS qwen_issue,
                    qwen.confidence AS qwen_confidence
             FROM qwen_shadow_jobs job
@@ -950,9 +1057,9 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
             LEFT JOIN employees employee ON employee.id = inspection.employee_id
             LEFT JOIN LATERAL (
                 SELECT crop_text, issue_name, confidence FROM ai_predictions
-                WHERE inspection_id = job.inspection_id AND provider = 'gemini'
+                WHERE inspection_id = job.inspection_id AND provider = 'gemma'
                 ORDER BY created_at DESC LIMIT 1
-            ) gemini ON true
+            ) gemma ON true
             LEFT JOIN LATERAL (
                 SELECT crop_text, issue_name, confidence FROM ai_predictions
                 WHERE inspection_id = job.inspection_id AND provider = 'qwen'
@@ -961,6 +1068,86 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
             ORDER BY job.created_at DESC LIMIT 25
             """
         ).fetchall()
+        gemini_queue = conn.execute(
+            """
+            SELECT count(*) AS total,
+                   count(*) FILTER (WHERE status IN ('pending','retry')) AS waiting,
+                   count(*) FILTER (WHERE status='processing') AS processing,
+                   count(*) FILTER (WHERE status='completed') AS completed,
+                   count(*) FILTER (WHERE status='failed') AS failed,
+                   round(avg(latency_ms) FILTER (WHERE status='completed'),1) AS average_latency_ms,
+                   max(completed_at) FILTER (WHERE status='completed') AS latest_completed_at
+            FROM gemini_shadow_jobs
+            """
+        ).fetchone()
+        gemini_runtime = conn.execute(
+            "SELECT status,details,updated_at FROM ai_runtime_status WHERE status_key='gemini_shadow_worker'"
+        ).fetchone()
+        gemini_jobs = conn.execute(
+            """
+            SELECT job.id,job.inspection_id,job.status,job.attempt_count,job.max_attempts,
+                   job.latency_ms,job.error_category,job.last_error,job.created_at,job.completed_at,
+                   inspection.declared_crop_text,employee.full_name AS employee_name,
+                   prediction.issue_type,prediction.issue_name,prediction.confidence
+            FROM gemini_shadow_jobs job
+            JOIN inspections inspection ON inspection.id=job.inspection_id
+            LEFT JOIN employees employee ON employee.id=inspection.employee_id
+            LEFT JOIN LATERAL (
+                SELECT issue_type,issue_name,confidence FROM ai_predictions
+                WHERE inspection_id=job.inspection_id AND provider='gemini'
+                ORDER BY created_at DESC LIMIT 1
+            ) prediction ON true
+            ORDER BY job.created_at DESC LIMIT 25
+            """
+        ).fetchall()
+        evaluation_cases = conn.execute(
+            """
+            SELECT inspection.id,inspection.created_at,inspection.declared_crop_text,
+                   inspection.crop_source,inspection.photo_count,inspection.location_text,
+                   employee.full_name AS employee_name,employee.employee_code,
+                   consensus.consensus_status,consensus.available_models,consensus.successful_models,
+                   consensus.agreement_count,consensus.consensus_issue_type,
+                   consensus.consensus_issue_name,consensus.consensus_severity,
+                   consensus.requires_expert_review,consensus.updated_at,
+                   COALESCE(predictions.items,'[]'::jsonb) AS predictions,
+                   review.review_outcome,review.expert_crop_text,review.expert_issue_type,
+                   review.expert_issue_name,review.expert_severity,review.dataset_eligible
+            FROM inspections inspection
+            LEFT JOIN employees employee ON employee.id=inspection.employee_id
+            LEFT JOIN inspection_model_consensus consensus ON consensus.inspection_id=inspection.id
+            LEFT JOIN LATERAL (
+                SELECT jsonb_agg(jsonb_build_object(
+                    'provider',p.provider,'model',p.model_name,'role',p.prediction_role,
+                    'crop',p.crop_text,'issue_type',p.issue_type,'issue_name',p.issue_name,
+                    'severity',p.severity,'confidence',p.confidence,
+                    'needs_more_information',p.additional_information_required,
+                    'latency_ms',p.latency_ms,'summary',p.summary
+                ) ORDER BY CASE p.provider WHEN 'gemma' THEN 0 WHEN 'gemini' THEN 1 ELSE 2 END) AS items
+                FROM ai_predictions p WHERE p.inspection_id=inspection.id
+                  AND p.provider IN ('gemma','gemini','qwen')
+            ) predictions ON true
+            LEFT JOIN LATERAL (
+                SELECT review_outcome,expert_crop_text,expert_issue_type,expert_issue_name,
+                       expert_severity,dataset_eligible
+                FROM expert_reviews r WHERE r.inspection_id=inspection.id
+                ORDER BY created_at DESC LIMIT 1
+            ) review ON true
+            WHERE EXISTS (SELECT 1 FROM ai_provider_results result WHERE result.inspection_id=inspection.id)
+            ORDER BY inspection.created_at DESC LIMIT 50
+            """
+        ).fetchall()
+        assistant_usage = conn.execute(
+            """
+            SELECT count(*) FILTER (WHERE (created_at AT TIME ZONE 'Asia/Kolkata')::date=(now() AT TIME ZONE 'Asia/Kolkata')::date) AS requests_today,
+                   count(*) FILTER (WHERE status='completed' AND (created_at AT TIME ZONE 'Asia/Kolkata')::date=(now() AT TIME ZONE 'Asia/Kolkata')::date) AS completed_today,
+                   count(*) FILTER (WHERE status IN ('failed','fallback') AND (created_at AT TIME ZONE 'Asia/Kolkata')::date=(now() AT TIME ZONE 'Asia/Kolkata')::date) AS failed_or_fallback_today,
+                   count(DISTINCT employee_id) FILTER (WHERE employee_id IS NOT NULL AND created_at>=now()-interval '30 days') AS employees_30d,
+                   round(avg(latency_ms) FILTER (WHERE status='completed' AND created_at>=now()-interval '30 days'),1) AS average_latency_ms_30d,
+                   COALESCE(sum(input_tokens) FILTER (WHERE created_at>=now()-interval '30 days'),0) AS input_tokens_30d,
+                   COALESCE(sum(output_tokens) FILTER (WHERE created_at>=now()-interval '30 days'),0) AS output_tokens_30d
+            FROM assistant_requests
+            """
+        ).fetchone()
     eligible = int(dataset["dataset_eligible_inspections"] or 0)
     readiness = min(100, round(eligible * 100 / MODEL_TRAINING_DATASET_TARGET, 1))
     connector_configured = bool(GPU_TRAINING_SERVICE_URL and len(GPU_TRAINING_SERVICE_TOKEN) >= 32)
@@ -979,8 +1166,20 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
             qwen_health = {"status": "offline", "model": QWEN_MODEL}
     return {
         "providers": providers,
-        "gemini_qwen_comparison": comparisons,
+        "model_roles": {
+            "primary": {"provider": "gemma", "model": GEMMA_MODEL, "farmer_facing": True},
+            "fast_shadow": {"provider": "gemini", "model": GEMINI_SHADOW_MODEL, "farmer_facing": False},
+            "private_shadow": {"provider": "qwen", "model": QWEN_MODEL, "farmer_facing": False},
+            "product_authority": "deterministic_active_approved_clsl_catalogue_only",
+            "planning_quotas": {
+                "gemma": {"rpm": GEMMA_PLANNING_RPM, "tpm": GEMMA_PLANNING_TPM, "rpd": GEMMA_PLANNING_RPD},
+                "gemini": {"rpm": GEMINI_PLANNING_RPM, "tpm": GEMINI_PLANNING_TPM, "rpd": GEMINI_PLANNING_RPD},
+                "note": "Configured planning limits; verify the active project tier in Google AI Studio.",
+            },
+        },
+        "model_consensus": comparisons,
         "comparison_history": history,
+        "evaluation_cases": evaluation_cases,
         "dataset": dataset,
         "training_runs": training_runs,
         "training_readiness": {
@@ -1009,6 +1208,21 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
                 "instance_configured": bool(QWEN_GPU_INSTANCE_ID),
             },
             "governance": "evaluation_only_no_product_selection",
+        },
+        "gemini_shadow": {
+            "enabled": GEMINI_SHADOW_ENABLED,
+            "model": GEMINI_SHADOW_MODEL,
+            "queue": gemini_queue,
+            "runtime": gemini_runtime,
+            "jobs": gemini_jobs,
+            "governance": "evaluation_only_no_product_selection",
+        },
+        "assistant_usage": {
+            **dict(assistant_usage),
+            "provider": "gemma",
+            "model": GEMMA_MODEL,
+            "daily_limit_per_user": ASSISTANT_DAILY_LIMIT,
+            "stores_chat_text": False,
         },
     }
 

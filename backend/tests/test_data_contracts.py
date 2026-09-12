@@ -14,6 +14,7 @@ MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "001_initial.
 OPERATIONAL_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "002_operational_data.sql"
 S3_PERSISTENCE_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "003_s3_inspection_persistence.sql"
 MODEL_TRAINING_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "012_model_training_registry.sql"
+MODEL_EVALUATION_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "014_gemma_primary_evaluation_quality.sql"
 
 
 class ProductImportContractTests(unittest.TestCase):
@@ -141,6 +142,16 @@ class MigrationContractTests(unittest.TestCase):
             "issue_accuracy", "severity_accuracy",
         }:
             self.assertIn(field, sql)
+
+    def test_model_evaluation_keeps_prediction_consensus_and_expert_truth_separate(self):
+        sql = MODEL_EVALUATION_MIGRATION.read_text(encoding="utf-8").lower()
+        self.assertIn("declared_crop_text", sql)
+        self.assertIn("create table if not exists gemini_shadow_jobs", sql)
+        self.assertIn("create table if not exists inspection_model_consensus", sql)
+        self.assertIn("review_outcome", sql)
+        self.assertIn("expert_issue_name", sql)
+        self.assertIn("training_eligible boolean not null default false", sql)
+        self.assertIn("evaluation artifact", sql)
 
 
 if __name__ == "__main__":

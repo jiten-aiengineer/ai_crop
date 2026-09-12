@@ -1,0 +1,22 @@
+[Unit]
+Description=Crop Life AI Gemini shadow evaluation worker
+After=network-online.target docker.service crop-life-ai.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/apps/ai_crop
+EnvironmentFile=/home/ubuntu/apps/ai_crop/.env
+Environment=PYTHONPATH=/home/ubuntu/apps/ai_crop
+Environment=POSTGRES_HOST=127.0.0.1
+Environment=POSTGRES_HOST_PORT=5434
+ExecStart=/home/ubuntu/apps/ai_crop/.venv-qwen-worker/bin/python -m backend.app.gemini_shadow_worker
+Restart=on-failure
+RestartSec=8
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
