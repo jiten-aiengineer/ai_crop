@@ -35,6 +35,7 @@ next-env.d.ts
 /dist/
 /.wrangler/
 /outputs/
+/.tmp/
 /work/
 /.npm-cache/
 /.vercel-global/
