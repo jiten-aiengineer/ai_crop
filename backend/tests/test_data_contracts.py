@@ -16,7 +16,10 @@ S3_PERSISTENCE_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" 
 MODEL_TRAINING_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "012_model_training_registry.sql"
 MODEL_EVALUATION_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "014_gemma_primary_evaluation_quality.sql"
 EXPERT_REVIEW_WORKFLOW_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "015_expert_review_workflow.sql"
+CONTINUOUS_PIPELINE_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "016_continuous_model_pipeline.sql"
 ADMIN_API = PROJECT_ROOT / "backend" / "app" / "admin.py"
+QWEN_WORKER = PROJECT_ROOT / "backend" / "app" / "qwen_worker.py"
+ADMIN_PORTAL = PROJECT_ROOT / "app" / "components" / "AdminPortal.tsx"
 
 
 class ProductImportContractTests(unittest.TestCase):
@@ -169,14 +172,38 @@ class MigrationContractTests(unittest.TestCase):
         }:
             self.assertIn(audit_field, sql)
 
-    def test_admin_api_keeps_expert_truth_and_final_training_approval_separate(self):
+    def test_active_admin_api_uses_automatic_model_pipeline(self):
         source = ADMIN_API.read_text(encoding="utf-8")
         self.assertIn('DATASET_FINAL_APPROVAL_ROLES = {"super_admin"}', source)
-        self.assertIn('@router.post("/inspections/{inspection_id}/expert-review")', source)
-        self.assertIn('@router.post("/inspections/{inspection_id}/review-decision")', source)
-        self.assertIn("Senior validation is required before final dataset approval.", source)
-        self.assertIn("UPDATE inspection_images SET consent_for_training=false", source)
-        self.assertIn("UPDATE inspection_images SET consent_for_training=true", source)
+        self.assertIn('@router.post("/models/automation")', source)
+        self.assertNotIn('@router.post("/inspections/{inspection_id}/expert-review")', source)
+        self.assertNotIn('@router.post("/inspections/{inspection_id}/review-decision")', source)
+
+    def test_continuous_pipeline_has_auditable_dataset_training_and_release_state(self):
+        sql = CONTINUOUS_PIPELINE_MIGRATION.read_text(encoding="utf-8").lower()
+        for table in {
+            "auto_training_candidates", "model_training_events",
+            "model_versions", "model_pipeline_state", "model_metric_history",
+        }:
+            self.assertIn(f"create table if not exists {table}", sql)
+        for field in {
+            "quality_score", "issue_name_similarity", "candidate_metrics",
+            "quality_gate_json", "promotion_status", "deployment_status",
+        }:
+            self.assertIn(field, sql)
+
+    def test_active_admin_lab_is_two_model_and_automatic(self):
+        api_source = ADMIN_API.read_text(encoding="utf-8")
+        portal_source = ADMIN_PORTAL.read_text(encoding="utf-8")
+        worker_source = QWEN_WORKER.read_text(encoding="utf-8")
+        self.assertIn('@router.post("/models/automation")', api_source)
+        self.assertIn('result.provider IN (\'gemma\',\'qwen\')', api_source)
+        self.assertIn("<AutomatedModelLab", portal_source)
+        self.assertNotIn("<ExpertReview", portal_source)
+        health_check = worker_source.index("health = provider_health()")
+        window_check = worker_source.index("scheduled_now = within_processing_window()", health_check)
+        self.assertLess(health_check, window_check)
+        self.assertIn("process_immediately_whenever_reachable", worker_source)
 
 
 if __name__ == "__main__":

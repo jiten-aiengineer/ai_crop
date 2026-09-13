@@ -1,4 +1,4 @@
-"""Three-model evaluation consensus for the private AI Lab.
+"""Gemma-versus-Qwen evaluation consensus for the private AI Lab.
 
 Consensus is deliberately administrative metadata. Farmer results and product
 matching never read this table.
@@ -14,7 +14,7 @@ from uuid import UUID
 from psycopg.types.json import Jsonb
 
 
-PROVIDERS = ("gemma", "gemini", "qwen")
+PROVIDERS = ("gemma", "qwen")
 
 
 def _json_safe(value: Any) -> Any:
@@ -77,13 +77,8 @@ def refresh_consensus(conn, inspection_id) -> dict:
     agreement_count = max(type_count, name_count)
     if successful < 2:
         status = "awaiting_models"
-    elif successful == 2:
+    elif name_count == 2 or (name_count == 0 and type_count == 2):
         status = "provisional_two_model"
-    elif name_count == 3 or (name_count == 0 and type_count == 3):
-        status = "three_of_three_agree"
-        agreement_count = 3
-    elif name_count >= 2 or type_count >= 2:
-        status = "two_of_three_agree"
         agreement_count = 2
     elif not any((type_count, name_count, severity_count)):
         status = "insufficient_comparable_output"
@@ -91,7 +86,7 @@ def refresh_consensus(conn, inspection_id) -> dict:
         status = "all_disagree"
         agreement_count = 1
     comparison = _json_safe({
-        "governance": "evaluation_only_not_farmer_truth_or_product_authority",
+        "governance": "automatic_quality_gate_not_product_authority",
         "models": rows,
         "attempts": [dict(row) for row in attempts],
         "majority": {"issue_type": issue_type, "issue_name": issue_name, "severity": severity},
@@ -103,7 +98,7 @@ def refresh_consensus(conn, inspection_id) -> dict:
             inspection_id, available_models, successful_models, consensus_status,
             consensus_issue_type, consensus_issue_name, consensus_severity,
             agreement_count, comparison_json, requires_expert_review, updated_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, true, now())
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, false, now())
         ON CONFLICT (inspection_id) DO UPDATE SET
             available_models=EXCLUDED.available_models,
             successful_models=EXCLUDED.successful_models,
@@ -113,7 +108,7 @@ def refresh_consensus(conn, inspection_id) -> dict:
             consensus_severity=EXCLUDED.consensus_severity,
             agreement_count=EXCLUDED.agreement_count,
             comparison_json=EXCLUDED.comparison_json,
-            requires_expert_review=true,
+            requires_expert_review=false,
             updated_at=now()
         RETURNING *
         """,

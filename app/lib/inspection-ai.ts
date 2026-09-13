@@ -11,7 +11,7 @@ export type NormalizedDiagnosis = {
   immediate_actions: string[]; prevention_advice: string[]; follow_up_questions: string[];
   needs_more_information: boolean; summary: string; recommended_next_action: string;
 };
-export type ProviderName = 'gemma' | 'gemini' | 'qwen';
+export type ProviderName = 'gemma' | 'qwen';
 export type ProviderResult = {
   provider: ProviderName; model: string; success: boolean; latencyMs: number; timestamp: string;
   diagnosis?: NormalizedDiagnosis; rawResponse?: unknown; error?: string;
@@ -127,7 +127,7 @@ function safeRaw(diagnosis: NormalizedDiagnosis) {
   return Object.fromEntries(Object.keys(contract.schema.properties).map((key) => [key, diagnosis[key as keyof NormalizedDiagnosis] ?? null]));
 }
 
-async function googleInspection(input: InspectionInput, provider: 'gemma' | 'gemini', model: string): Promise<ProviderResult> {
+async function googleInspection(input: InspectionInput, provider: 'gemma', model: string): Promise<ProviderResult> {
   const start = Date.now();
   const base = { provider, model, timestamp: new Date().toISOString() };
   try {
@@ -158,11 +158,6 @@ async function googleInspection(input: InspectionInput, provider: 'gemma' | 'gem
 export function gemmaInspection(input: InspectionInput) {
   const model = process.env.PRIMARY_VISION_MODEL || process.env.GEMMA_MODEL || 'gemma-4-26b-a4b-it';
   return googleInspection(input, 'gemma', model);
-}
-
-export function geminiInspection(input: InspectionInput) {
-  const model = process.env.GEMINI_MODEL || process.env.GEMINI_VISION_MODEL || 'gemini-3.5-flash-lite';
-  return googleInspection(input, 'gemini', model);
 }
 
 export function diagnosisConfidenceLevel(confidence: number | null) {

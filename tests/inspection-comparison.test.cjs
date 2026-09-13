@@ -49,7 +49,7 @@ test('Gemini parsing ignores thought output and strips extra raw fields',async()
   const prior=global.fetch; const oldKey=process.env.GEMINI_API_KEY;
   process.env.GEMINI_API_KEY='test-only';
   global.fetch=async()=>Response.json({candidates:[{content:{parts:[{thought:true,text:'hidden'},{text:JSON.stringify({...data,thinking:'hidden',products:['invented']})}]}}]});
-  try{const result=await ai.geminiInspection(input);assert.equal(result.success,true);assert.equal(result.rawResponse.thinking,undefined);assert.equal(result.rawResponse.products,undefined);}finally{global.fetch=prior;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
+  try{const result=await ai.gemmaInspection(input);assert.equal(result.success,true);assert.equal(result.rawResponse.thinking,undefined);assert.equal(result.rawResponse.products,undefined);}finally{global.fetch=prior;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
 });
 
 test('declared field crop remains authoritative across wrapped and array output',()=>{

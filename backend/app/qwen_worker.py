@@ -23,6 +23,7 @@ import boto3
 from psycopg.types.json import Jsonb
 
 from .config import (
+    MODEL_PIPELINE_POLL_SECONDS,
     QWEN_BASE_URL,
     QWEN_EARLY_STOP_ENABLED,
     QWEN_ENABLED,
@@ -39,6 +40,7 @@ from .config import (
     QWEN_WINDOW_START,
     QWEN_WORKER_POLL_SECONDS,
 )
+from .continuous_training import refresh_training_candidate, run_pipeline_cycle
 from .db import connection
 from .model_consensus import refresh_consensus
 
@@ -225,25 +227,25 @@ def _canonical(value: object, field: str) -> str | None:
     return text
 
 
-def agreement(gemini: dict | None, qwen: dict) -> dict:
-    if not gemini:
+def agreement(primary: dict | None, qwen: dict) -> dict:
+    if not primary:
         return {"evaluated": False}
     metrics: dict[str, object] = {"evaluated": True}
     points = coverage = 0
-    for key, gemini_key, qwen_key, field, weight in (
+    for key, primary_key, qwen_key, field, weight in (
         ("crop_match", "crop_text", "crop", "crop", 25),
         ("issue_type_match", "issue_type", "issue_type", "issue_type", 20),
         ("issue_match", "issue_name", "probable_issue", "probable_issue", 35),
         ("severity_match", "severity", "severity", "severity", 10),
     ):
-        left = _canonical(gemini.get(gemini_key), field)
+        left = _canonical(primary.get(primary_key), field)
         right = _canonical(qwen.get(qwen_key), field)
         match = left == right if left is not None and right is not None else None
         metrics[key] = match
         if match is not None:
             coverage += weight
             points += weight if match else 0
-    left_confidence = gemini.get("confidence")
+    left_confidence = primary.get("confidence")
     right_confidence = qwen.get("confidence")
     difference = (
         abs(float(left_confidence) - float(right_confidence))
@@ -270,6 +272,7 @@ class QwenShadowWorker:
         self.session_id: uuid.UUID | None = None
         self.warmed = False
         self.idle_since: float | None = None
+        self.last_pipeline_cycle = 0.0
 
     def heartbeat(self, status: str, **details) -> None:
         safe_details = {"worker_id": self.worker_id, "model": QWEN_MODEL, **details}
@@ -348,7 +351,7 @@ class QwenShadowWorker:
         with connection() as conn:
             inspection = conn.execute(
                 """
-                SELECT id, farmer_crop_text, plant_text, symptom_notes, location_text, preferred_language
+                SELECT id, declared_crop_text, farmer_crop_text, plant_text, symptom_notes, location_text, preferred_language
                 FROM inspections WHERE id=%s
                 """,
                 (inspection_id,),
@@ -366,8 +369,8 @@ class QwenShadowWorker:
             primary = conn.execute(
                 """
                 SELECT crop_text, issue_type, issue_name, severity, confidence
-                FROM ai_predictions WHERE inspection_id=%s AND provider IN ('gemma','gemini')
-                ORDER BY CASE provider WHEN 'gemma' THEN 0 ELSE 1 END, created_at DESC LIMIT 1
+                FROM ai_predictions WHERE inspection_id=%s AND provider='gemma'
+                ORDER BY created_at DESC LIMIT 1
                 """,
                 (inspection_id,),
             ).fetchone()
@@ -376,7 +379,7 @@ class QwenShadowWorker:
         if not images:
             raise WorkerError("images_missing", "No retained private S3 images are available.", False)
         context = {
-            "crop": inspection["farmer_crop_text"] or "",
+            "crop": inspection["declared_crop_text"] or inspection["farmer_crop_text"] or "",
             "plant": inspection["plant_text"] or "",
             "description": inspection["symptom_notes"] or "",
             "location": inspection["location_text"] or "",
@@ -482,6 +485,7 @@ class QwenShadowWorker:
                 (prediction["id"], latency_ms, Jsonb(metrics), job["id"]),
             )
             refresh_consensus(conn, job["inspection_id"])
+            refresh_training_candidate(conn, job["inspection_id"])
             conn.execute(
                 """
                 INSERT INTO ai_usage(inspection_id, prediction_id, provider, model_name, operation,
@@ -593,16 +597,21 @@ class QwenShadowWorker:
             return 0
         self.recover()
         try:
+            run_pipeline_cycle()
+            self.last_pipeline_cycle = time.monotonic()
+        except Exception:
+            LOG.exception("continuous_pipeline_initial_sync_failed")
+        try:
             while True:
-                if not ignore_window and not within_processing_window():
-                    self.heartbeat("outside_window", window=f"{QWEN_WINDOW_START}-{QWEN_WINDOW_END} {QWEN_TIMEZONE}")
-                    if once:
-                        return 0
-                    time.sleep(QWEN_WORKER_POLL_SECONDS)
-                    continue
                 health = provider_health()
                 if health["status"] != "available":
-                    self.heartbeat("gpu_offline", provider_status=health["status"])
+                    scheduled_now = within_processing_window()
+                    self.heartbeat(
+                        "gpu_offline" if scheduled_now else "waiting_for_gpu",
+                        provider_status=health["status"],
+                        policy="process_immediately_whenever_reachable",
+                        scheduled_window=f"{QWEN_WINDOW_START}-{QWEN_WINDOW_END} {QWEN_TIMEZONE}",
+                    )
                     if once:
                         return 2
                     time.sleep(max(15, QWEN_WORKER_POLL_SECONDS))
@@ -621,6 +630,12 @@ class QwenShadowWorker:
                         continue
                 self.heartbeat("processing")
                 outcome = self.process_one()
+                if outcome != "empty" or time.monotonic() - self.last_pipeline_cycle >= MODEL_PIPELINE_POLL_SECONDS:
+                    try:
+                        run_pipeline_cycle()
+                        self.last_pipeline_cycle = time.monotonic()
+                    except Exception:
+                        LOG.exception("continuous_pipeline_cycle_failed")
                 if outcome == "empty":
                     self.idle_since = self.idle_since or time.monotonic()
                     self.heartbeat("idle", idle_seconds=round(time.monotonic() - self.idle_since))
@@ -640,7 +655,7 @@ class QwenShadowWorker:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Process private PostgreSQL-backed Qwen shadow jobs.")
     parser.add_argument("--once", action="store_true", help="Process at most one queued job.")
-    parser.add_argument("--ignore-window", action="store_true", help="Administrator-only manual test outside the scheduled window.")
+    parser.add_argument("--ignore-window", action="store_true", help="Compatibility flag; an online GPU is always used immediately.")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     raise SystemExit(QwenShadowWorker().run(once=args.once, ignore_window=args.ignore_window))

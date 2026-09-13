@@ -41,17 +41,25 @@ SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").strip().lower() not in {"0", "false", "no"}
 
-# Future private GPU training connector. Until its URL and token are supplied,
-# the portal reports dataset readiness but never claims that training is active.
+# Private GPU continuous-training connector. The main worker exports only
+# automatically quality-gated S3 examples and promotes only metric-gated models.
 GPU_TRAINING_SERVICE_URL = os.getenv("GPU_TRAINING_SERVICE_URL", "").strip()
 GPU_TRAINING_SERVICE_TOKEN = os.getenv("GPU_TRAINING_SERVICE_TOKEN", "")
 MODEL_TRAINING_DATASET_TARGET = max(1, int(os.getenv("MODEL_TRAINING_DATASET_TARGET", "1000")))
-MODEL_TRAINING_AUTOSTART = os.getenv("MODEL_TRAINING_AUTOSTART", "false").strip().lower() in {"1", "true", "yes"}
+MODEL_TRAINING_AUTOSTART = os.getenv("MODEL_TRAINING_AUTOSTART", "true").strip().lower() in {"1", "true", "yes"}
+MODEL_TRAINING_MIN_NEW_CASES = max(5, int(os.getenv("MODEL_TRAINING_MIN_NEW_CASES", "20")))
+MODEL_PIPELINE_POLL_SECONDS = max(10, min(600, int(os.getenv("MODEL_PIPELINE_POLL_SECONDS", "30"))))
+MODEL_PIPELINE_MIN_CONFIDENCE = max(0.5, min(0.99, float(os.getenv("MODEL_PIPELINE_MIN_CONFIDENCE", "0.70"))))
+MODEL_PIPELINE_MIN_ISSUE_SIMILARITY = max(0.3, min(1.0, float(os.getenv("MODEL_PIPELINE_MIN_ISSUE_SIMILARITY", "0.55"))))
+MODEL_AUTO_PROMOTE_MIN_ACCURACY = max(0.5, min(1.0, float(os.getenv("MODEL_AUTO_PROMOTE_MIN_ACCURACY", "0.78"))))
+MODEL_AUTO_PROMOTE_MIN_MACRO_F1 = max(0.5, min(1.0, float(os.getenv("MODEL_AUTO_PROMOTE_MIN_MACRO_F1", "0.72"))))
+MODEL_AUTO_PROMOTE_MIN_ISSUE_ACCURACY = max(0.5, min(1.0, float(os.getenv("MODEL_AUTO_PROMOTE_MIN_ISSUE_ACCURACY", "0.75"))))
+MODEL_AUTO_DEPLOY_ENABLED = os.getenv("MODEL_AUTO_DEPLOY_ENABLED", "true").strip().lower() in {"1", "true", "yes"}
 
 # Live and shadow Google-model roles. The API key remains server-side only.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMMA_MODEL = os.getenv("GEMMA_MODEL", os.getenv("PRIMARY_VISION_MODEL", "gemma-4-26b-a4b-it")).strip() or "gemma-4-26b-a4b-it"
-GEMINI_SHADOW_ENABLED = os.getenv("GEMINI_SHADOW_ENABLED", "true").strip().lower() in {"1", "true", "yes"}
+GEMINI_SHADOW_ENABLED = os.getenv("GEMINI_SHADOW_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
 GEMINI_SHADOW_MODEL = os.getenv("GEMINI_SHADOW_MODEL", os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")).strip() or "gemini-3.5-flash-lite"
 GEMINI_SHADOW_MAX_ATTEMPTS = max(1, min(10, int(os.getenv("GEMINI_SHADOW_MAX_ATTEMPTS", "3"))))
 GEMINI_SHADOW_POLL_SECONDS = max(2, min(300, int(os.getenv("GEMINI_SHADOW_POLL_SECONDS", "8"))))

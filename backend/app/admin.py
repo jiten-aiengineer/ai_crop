@@ -30,15 +30,16 @@ from .config import (
     ADMIN_ALLOWED_EMAIL_DOMAIN, ADMIN_GATEWAY_TOKEN, PORTAL_INVITE_EMAIL_FROM,
     PORTAL_INVITE_URL, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USERNAME,
     SMTP_USE_TLS, GPU_TRAINING_SERVICE_URL, GPU_TRAINING_SERVICE_TOKEN,
-    MODEL_TRAINING_AUTOSTART, MODEL_TRAINING_DATASET_TARGET,
-    ASSISTANT_DAILY_LIMIT, GEMMA_MODEL, GEMINI_SHADOW_ENABLED,
-    GEMINI_SHADOW_MODEL, GEMMA_PLANNING_RPD, GEMMA_PLANNING_RPM,
-    GEMMA_PLANNING_TPM, GEMINI_PLANNING_RPD, GEMINI_PLANNING_RPM,
-    GEMINI_PLANNING_TPM,
+    MODEL_TRAINING_AUTOSTART,
+    MODEL_TRAINING_MIN_NEW_CASES, MODEL_PIPELINE_MIN_CONFIDENCE,
+    MODEL_PIPELINE_MIN_ISSUE_SIMILARITY, MODEL_AUTO_DEPLOY_ENABLED,
+    MODEL_AUTO_PROMOTE_MIN_ACCURACY, MODEL_AUTO_PROMOTE_MIN_MACRO_F1,
+    MODEL_AUTO_PROMOTE_MIN_ISSUE_ACCURACY,
+    GEMMA_MODEL,
     QWEN_BASE_URL, QWEN_ENABLED, QWEN_GPU_INSTANCE_ID, QWEN_MODEL,
-    QWEN_PROCESSING_WINDOW_ENABLED, QWEN_SCHEDULE_AUTOMATION,
-    QWEN_SHADOW_MODE, QWEN_TIMEZONE, QWEN_WINDOW_END, QWEN_WINDOW_START,
+    QWEN_SHADOW_MODE,
 )
+from .continuous_training import run_pipeline_cycle
 from .db import connection
 
 
@@ -56,7 +57,6 @@ CATALOGUE_READ_ROLES = CATALOGUE_MANAGER_ROLES | {
 }
 ADMIN_READ_ROLES = CATALOGUE_READ_ROLES | {"super_admin"}
 INSPECTION_REVIEW_ROLES = {"manager", "expert_review_approver", "senior_catalogue_manager", "managing_director"}
-DATASET_VALIDATION_ROLES = {"expert_review_approver", "senior_catalogue_manager", "managing_director"}
 DATASET_FINAL_APPROVAL_ROLES = {"super_admin"}
 INSPECTION_DELETE_ROLES = {"super_admin"}
 SALES_ACTIVITY_ROLES = {"manager", "senior_catalogue_manager", "managing_director"}
@@ -104,21 +104,8 @@ class CatalogueProductInput(BaseModel):
         return value
 
 
-class ExpertInspectionReviewInput(BaseModel):
-    review_outcome: Literal["correct", "partially_correct", "incorrect", "corrected", "rejected_unusable"]
-    expert_crop: str = Field(default="", max_length=160)
-    expert_issue_type: str = Field(default="", max_length=64)
-    expert_issue_name: str = Field(default="", max_length=180)
-    expert_severity: str = Field(default="", max_length=32)
-    notes: str = Field(default="", max_length=4000)
-    image_quality_sufficient: bool = False
-    privacy_cleared: bool = False
-    training_eligible: bool = False
-
-
-class ExpertReviewWorkflowDecision(BaseModel):
-    decision: Literal["validate", "reject", "final_approve"]
-    note: str = Field(default="", max_length=2000)
+class ModelAutomationCommand(BaseModel):
+    action: Literal["dispatch", "retry_failed", "train_now", "refresh_metrics"] = "dispatch"
 
 
 class CatalogueChangeRequest(BaseModel):
@@ -361,12 +348,10 @@ def current_admin(identity: AdminIdentity = Depends(_identity)):
             "send_catalogue_changes_to_final_publisher": _can(identity, SENIOR_CATALOGUE_MANAGER_ROLES),
             "finalise_catalogue_release": _can(identity, FINAL_CATALOGUE_PUBLISHER_ROLES),
             "view_inspections": _can(identity, INSPECTION_REVIEW_ROLES),
-            "submit_expert_review": _can(identity, INSPECTION_REVIEW_ROLES),
-            "validate_expert_review": _can(identity, DATASET_VALIDATION_ROLES),
-            "finalise_training_dataset": _can(identity, DATASET_FINAL_APPROVAL_ROLES),
             "delete_inspections": _can(identity, INSPECTION_DELETE_ROLES),
             "view_sales_officer_activity": _can(identity, SALES_ACTIVITY_ROLES),
             "view_model_observability": _can(identity, INSPECTION_REVIEW_ROLES),
+            "control_model_pipeline": _can(identity, DATASET_FINAL_APPROVAL_ROLES),
             "view_employee_access": _can(identity, {"employee_access_approver"}),
             "manage_employee_roles": _can(identity, {"super_admin"}),
         },
@@ -732,227 +717,6 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
     return {"items": rows}
 
 
-@router.post("/inspections/{inspection_id}/expert-review")
-def save_expert_review(
-    inspection_id: UUID,
-    payload: ExpertInspectionReviewInput,
-    identity: AdminIdentity = Depends(_identity),
-):
-    """Store expert truth separately without overwriting any model output."""
-    _require(identity, INSPECTION_REVIEW_ROLES)
-    expert_crop = payload.expert_crop.strip()
-    expert_issue_type = payload.expert_issue_type.strip()
-    expert_issue_name = payload.expert_issue_name.strip()
-    expert_severity = payload.expert_severity.strip()
-    rejected = payload.review_outcome == "rejected_unusable"
-    requested_for_training = bool(
-        payload.training_eligible and not rejected and expert_crop and expert_issue_type
-        and expert_issue_name and payload.image_quality_sufficient and payload.privacy_cleared
-    )
-    review_status = "rejected" if rejected else "verified" if payload.review_outcome == "correct" else "corrected"
-    diagnosis_correct = True if payload.review_outcome == "correct" else False if payload.review_outcome in {"incorrect", "corrected"} else None
-    with connection() as conn:
-        inspection = conn.execute("SELECT * FROM inspections WHERE id=%s FOR UPDATE", (inspection_id,)).fetchone()
-        if not inspection:
-            raise HTTPException(404, "Inspection not found.")
-        prediction = conn.execute(
-            """
-            SELECT id FROM ai_predictions WHERE inspection_id=%s AND provider='gemma'
-            ORDER BY created_at DESC LIMIT 1
-            """,
-            (inspection_id,),
-        ).fetchone()
-        crop = conn.execute("SELECT id FROM crops WHERE lower(name)=lower(%s) LIMIT 1", (expert_crop,)).fetchone() if expert_crop else None
-        problem = conn.execute(
-            "SELECT id FROM problems WHERE issue_type=%s AND lower(name)=lower(%s) LIMIT 1",
-            (expert_issue_type, expert_issue_name),
-        ).fetchone() if expert_issue_type and expert_issue_name else None
-        review = conn.execute(
-            """
-            INSERT INTO expert_reviews(
-                inspection_id,prediction_id,reviewer_employee_id,verified_crop_id,verified_problem_id,
-                verified_severity,review_status,diagnosis_correct,reviewer_notes,dataset_eligible,
-                review_outcome,expert_crop_text,expert_issue_type,expert_issue_name,expert_severity,
-                image_quality_sufficient,privacy_cleared,reviewed_at,updated_at
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now(),now())
-            RETURNING id
-            """,
-            (inspection_id, prediction["id"] if prediction else None, _employee_actor_id(identity),
-             crop["id"] if crop else None, problem["id"] if problem else None,
-             expert_severity or None, review_status, diagnosis_correct, payload.notes.strip() or None,
-             False, payload.review_outcome, expert_crop or None, expert_issue_type or None,
-             expert_issue_name or None, expert_severity or None, payload.image_quality_sufficient,
-             payload.privacy_cleared),
-        ).fetchone()
-        # A revised human label invalidates every earlier dataset approval for this
-        # inspection. The replacement review must pass the complete hierarchy again.
-        conn.execute(
-            "UPDATE expert_reviews SET dataset_eligible=false,updated_at=now() "
-            "WHERE inspection_id=%s AND id<>%s",
-            (inspection_id, review["id"]),
-        )
-        conn.execute(
-            "UPDATE inspection_images SET consent_for_training=false WHERE inspection_id=%s",
-            (inspection_id,),
-        )
-        workflow_status = "rejected" if rejected else "expert_reviewed"
-        conn.execute(
-            """
-            INSERT INTO inspection_review_workflow(
-                inspection_id,workflow_status,expert_review_id,requested_for_training,
-                reviewed_by_name,reviewed_by_email,reviewed_at,
-                validation_note,validated_by_name,validated_by_email,validated_at,
-                final_note,final_approved_by_name,final_approved_by_email,final_approved_at,
-                rejection_note,rejected_by_name,rejected_by_email,rejected_at,updated_at
-            ) VALUES (%s,%s,%s,%s,%s,%s,now(),NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
-                      %s,%s,%s,%s,now())
-            ON CONFLICT (inspection_id) DO UPDATE SET
-                workflow_status=EXCLUDED.workflow_status,
-                expert_review_id=EXCLUDED.expert_review_id,
-                requested_for_training=EXCLUDED.requested_for_training,
-                reviewed_by_name=EXCLUDED.reviewed_by_name,
-                reviewed_by_email=EXCLUDED.reviewed_by_email,
-                reviewed_at=EXCLUDED.reviewed_at,
-                validation_note=NULL,validated_by_name=NULL,validated_by_email=NULL,validated_at=NULL,
-                final_note=NULL,final_approved_by_name=NULL,final_approved_by_email=NULL,final_approved_at=NULL,
-                rejection_note=EXCLUDED.rejection_note,rejected_by_name=EXCLUDED.rejected_by_name,
-                rejected_by_email=EXCLUDED.rejected_by_email,rejected_at=EXCLUDED.rejected_at,
-                updated_at=now()
-            """,
-            (inspection_id, workflow_status, review["id"], requested_for_training,
-             identity.full_name, identity.email,
-             (payload.notes.strip() or None) if rejected else None,
-             identity.full_name if rejected else None,
-             identity.email if rejected else None,
-             datetime.now(ZoneInfo("Asia/Kolkata")) if rejected else None),
-        )
-        conn.execute(
-            "UPDATE inspections SET expert_review_status=%s,training_eligible=%s,updated_at=now() WHERE id=%s",
-            (workflow_status, False, inspection_id),
-        )
-        _audit(conn, identity, "expert_review_inspection", "inspection", str(inspection_id), None,
-               {"review_id": str(review["id"]), "outcome": payload.review_outcome,
-                "requested_for_training": requested_for_training, "workflow_status": workflow_status})
-        conn.commit()
-    return {"inspection_id": str(inspection_id), "review_status": payload.review_outcome,
-            "workflow_status": workflow_status, "requested_for_training": requested_for_training,
-            "training_eligible": False}
-
-
-@router.post("/inspections/{inspection_id}/review-decision")
-def decide_expert_review_workflow(
-    inspection_id: UUID,
-    payload: ExpertReviewWorkflowDecision,
-    identity: AdminIdentity = Depends(_identity),
-):
-    """Validate, reject or finally release one human-reviewed dataset record."""
-    if payload.decision == "validate":
-        _require(identity, DATASET_VALIDATION_ROLES)
-    elif payload.decision == "final_approve":
-        _require(identity, DATASET_FINAL_APPROVAL_ROLES)
-    else:
-        _require(identity, DATASET_VALIDATION_ROLES | DATASET_FINAL_APPROVAL_ROLES)
-    note = payload.note.strip()
-    if payload.decision == "reject" and not note:
-        raise HTTPException(status_code=422, detail="Record a reason before rejecting this dataset case.")
-
-    with connection() as conn:
-        inspection = conn.execute("SELECT id FROM inspections WHERE id=%s FOR UPDATE", (inspection_id,)).fetchone()
-        if not inspection:
-            raise HTTPException(status_code=404, detail="Inspection not found.")
-        workflow = conn.execute(
-            """
-            SELECT workflow.*, review.review_outcome, review.expert_crop_text,
-                   review.expert_issue_type, review.expert_issue_name, review.expert_severity,
-                   review.image_quality_sufficient, review.privacy_cleared
-            FROM inspection_review_workflow workflow
-            LEFT JOIN expert_reviews review ON review.id=workflow.expert_review_id
-            WHERE workflow.inspection_id=%s FOR UPDATE OF workflow
-            """,
-            (inspection_id,),
-        ).fetchone()
-        if not workflow:
-            raise HTTPException(status_code=409, detail="An expert review must be completed first.")
-        previous_status = workflow["workflow_status"]
-
-        if payload.decision == "validate":
-            if previous_status != "expert_reviewed":
-                raise HTTPException(status_code=409, detail="Only an expert-reviewed case can be senior validated.")
-            conn.execute(
-                """
-                UPDATE inspection_review_workflow
-                SET workflow_status='senior_validated',validation_note=%s,
-                    validated_by_name=%s,validated_by_email=%s,validated_at=now(),updated_at=now()
-                WHERE inspection_id=%s
-                """,
-                (note or None, identity.full_name, identity.email, inspection_id),
-            )
-            next_status = "senior_validated"
-            training_eligible = False
-        elif payload.decision == "final_approve":
-            if previous_status != "senior_validated":
-                raise HTTPException(status_code=409, detail="Senior validation is required before final dataset approval.")
-            prerequisites = (
-                workflow["requested_for_training"]
-                and workflow["expert_crop_text"] and workflow["expert_issue_type"]
-                and workflow["expert_issue_name"] and workflow["expert_severity"]
-                and workflow["image_quality_sufficient"] and workflow["privacy_cleared"]
-                and workflow["review_outcome"] != "rejected_unusable"
-            )
-            if not prerequisites:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Training approval requires a complete expert label, sufficient image quality, privacy clearance and the training-use request.",
-                )
-            conn.execute(
-                """
-                UPDATE inspection_review_workflow
-                SET workflow_status='final_approved',final_note=%s,
-                    final_approved_by_name=%s,final_approved_by_email=%s,
-                    final_approved_at=now(),updated_at=now()
-                WHERE inspection_id=%s
-                """,
-                (note or None, identity.full_name, identity.email, inspection_id),
-            )
-            conn.execute("UPDATE expert_reviews SET dataset_eligible=true,updated_at=now() WHERE id=%s", (workflow["expert_review_id"],))
-            conn.execute(
-                "UPDATE inspection_images SET consent_for_training=true WHERE inspection_id=%s AND retention_status='retained'",
-                (inspection_id,),
-            )
-            next_status = "final_approved"
-            training_eligible = True
-        else:
-            if previous_status not in {"expert_reviewed", "senior_validated"}:
-                raise HTTPException(status_code=409, detail="Only a reviewed or validated case can be rejected.")
-            conn.execute(
-                """
-                UPDATE inspection_review_workflow
-                SET workflow_status='rejected',rejection_note=%s,
-                    rejected_by_name=%s,rejected_by_email=%s,rejected_at=now(),updated_at=now()
-                WHERE inspection_id=%s
-                """,
-                (note, identity.full_name, identity.email, inspection_id),
-            )
-            if workflow["expert_review_id"]:
-                conn.execute("UPDATE expert_reviews SET dataset_eligible=false,updated_at=now() WHERE id=%s", (workflow["expert_review_id"],))
-            conn.execute("UPDATE inspection_images SET consent_for_training=false WHERE inspection_id=%s", (inspection_id,))
-            next_status = "rejected"
-            training_eligible = False
-
-        conn.execute(
-            "UPDATE inspections SET expert_review_status=%s,training_eligible=%s,updated_at=now() WHERE id=%s",
-            (next_status, training_eligible, inspection_id),
-        )
-        _audit(
-            conn, identity, f"{payload.decision}_expert_review", "inspection", str(inspection_id),
-            {"workflow_status": previous_status},
-            {"workflow_status": next_status, "training_eligible": training_eligible, "note": note or None},
-        )
-        conn.commit()
-    return {"inspection_id": str(inspection_id), "workflow_status": next_status,
-            "training_eligible": training_eligible}
-
-
 @router.get("/inspections/{inspection_id}/images/{image_order}")
 def inspection_image_metadata(inspection_id: UUID, image_order: int, identity: AdminIdentity = Depends(_identity)):
     _require(identity, INSPECTION_REVIEW_ROLES)
@@ -1118,301 +882,231 @@ def sales_officer_activity(
     return {"items": rows, "report_day": selected_day, "anonymous_day_uploads": anonymous["day_uploads"]}
 
 
+@router.post("/models/automation")
+def control_model_automation(
+    payload: ModelAutomationCommand,
+    identity: AdminIdentity = Depends(_identity),
+):
+    """Synchronise the queue or start a metric-gated continuous-training cycle."""
+    _require(identity, DATASET_FINAL_APPROVAL_ROLES)
+    result = run_pipeline_cycle(
+        force_training=payload.action == "train_now",
+        reset_failed=payload.action == "retry_failed",
+    )
+    with connection() as conn:
+        _audit(
+            conn, identity, f"model_automation_{payload.action}", "model_pipeline",
+            "continuous_qwen_pipeline", None, result,
+        )
+        conn.commit()
+    return result
+
+
 @router.get("/models")
-def model_observability(identity: AdminIdentity = Depends(_identity)):
+def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
+    """Two-model operations, automatic dataset and continuous-training telemetry."""
     _require(identity, INSPECTION_REVIEW_ROLES)
     with connection() as conn:
         providers = conn.execute(
             """
-            SELECT result.provider, result.model_name, count(*) AS attempts,
+            SELECT result.provider,result.model_name,count(*) AS attempts,
                    count(*) FILTER (WHERE result.success) AS successful,
                    count(*) FILTER (WHERE NOT result.success) AS failed,
-                   round(count(*) FILTER (WHERE result.success)::numeric * 100 / NULLIF(count(*), 0), 1) AS success_rate_percent,
-                   round(avg(result.latency_ms) FILTER (WHERE result.success), 1) AS average_latency_ms,
-                   round(avg(prediction.confidence) * 100, 1) AS average_confidence_percent,
-                   count(prediction.confidence) AS confidence_samples,
-                   max(result.created_at) AS latest_attempt
+                   round(count(*) FILTER (WHERE result.success)::numeric*100/NULLIF(count(*),0),1) AS success_rate_percent,
+                   round(avg(result.latency_ms) FILTER (WHERE result.success),1) AS average_latency_ms,
+                   round(avg(prediction.confidence)*100,1) AS average_confidence_percent,
+                   count(prediction.confidence) AS confidence_samples,max(result.created_at) AS latest_attempt
             FROM ai_provider_results result
             LEFT JOIN LATERAL (
-                SELECT confidence FROM ai_predictions prediction
-                WHERE prediction.inspection_id = result.inspection_id
-                  AND prediction.provider = result.provider AND prediction.model_name = result.model_name
-                ORDER BY prediction.created_at DESC LIMIT 1
+                SELECT confidence FROM ai_predictions p
+                WHERE p.inspection_id=result.inspection_id AND p.provider=result.provider
+                ORDER BY p.created_at DESC LIMIT 1
             ) prediction ON true
-            GROUP BY result.provider, result.model_name
-            ORDER BY result.provider, result.model_name
+            WHERE result.provider IN ('gemma','qwen')
+            GROUP BY result.provider,result.model_name
+            ORDER BY CASE result.provider WHEN 'gemma' THEN 0 ELSE 1 END,result.model_name
             """
         ).fetchall()
-        comparisons = conn.execute(
-            """
-            SELECT count(*) AS evaluated_cases,
-                   count(*) FILTER (WHERE consensus_status='three_of_three_agree') AS three_of_three,
-                   count(*) FILTER (WHERE consensus_status='two_of_three_agree') AS two_of_three,
-                   count(*) FILTER (WHERE consensus_status='provisional_two_model') AS provisional,
-                   count(*) FILTER (WHERE consensus_status='all_disagree') AS all_disagree,
-                   count(*) FILTER (WHERE requires_expert_review) AS expert_review_required,
-                   round(avg(agreement_count::numeric * 100 / NULLIF(successful_models,0)),1) AS mean_consensus_percent
-            FROM inspection_model_consensus
-            """
-        ).fetchone()
-        history = conn.execute(
-            """
-            SELECT (updated_at AT TIME ZONE 'Asia/Kolkata')::date AS day,
-                   count(*) AS evaluated_cases,
-                   count(*) FILTER (WHERE consensus_status IN ('two_of_three_agree','three_of_three_agree')) AS majority_cases,
-                   count(*) FILTER (WHERE consensus_status='all_disagree') AS disagreement_cases
-            FROM inspection_model_consensus
-            WHERE updated_at >= now() - interval '30 days'
-            GROUP BY day ORDER BY day
-            """
-        ).fetchall()
-        dataset = conn.execute(
-            """
-            SELECT
-              (SELECT count(*) FROM inspections) AS total_inspections,
-              (SELECT count(*) FROM inspection_images WHERE retention_status = 'retained') AS retained_images,
-              (SELECT count(*) FROM inspection_images WHERE retention_status = 'retained' AND consent_for_training) AS consented_images,
-              (SELECT count(DISTINCT inspection_id) FROM inspection_images WHERE retention_status = 'retained' AND consent_for_training) AS consented_inspections,
-              (SELECT count(DISTINCT inspection_id) FROM expert_reviews WHERE review_status IN ('verified', 'corrected')) AS expert_reviewed_inspections,
-              (SELECT count(DISTINCT inspection_id) FROM expert_reviews WHERE review_status IN ('verified', 'corrected') AND dataset_eligible) AS dataset_eligible_inspections,
-              (SELECT count(*) FROM expert_reviews WHERE diagnosis_correct IS TRUE) AS diagnosis_correct,
-              (SELECT count(*) FROM expert_reviews WHERE diagnosis_correct IS FALSE) AS diagnosis_incorrect,
-              (SELECT count(DISTINCT verified_crop_id) FROM expert_reviews WHERE dataset_eligible AND verified_crop_id IS NOT NULL) AS verified_crop_classes,
-              (SELECT count(DISTINCT verified_problem_id) FROM expert_reviews WHERE dataset_eligible AND verified_problem_id IS NOT NULL) AS verified_problem_classes,
-              (SELECT count(*) FROM inspections inspection
-                 LEFT JOIN inspection_review_workflow workflow ON workflow.inspection_id=inspection.id
-                WHERE COALESCE(workflow.workflow_status,'pending_expert_review')='pending_expert_review') AS pending_expert_reviews,
-              (SELECT count(*) FROM inspection_review_workflow WHERE workflow_status='expert_reviewed') AS awaiting_senior_validation,
-              (SELECT count(*) FROM inspection_review_workflow WHERE workflow_status='senior_validated') AS awaiting_final_approval,
-              (SELECT count(*) FROM inspection_review_workflow WHERE workflow_status='final_approved') AS final_approved_cases,
-              (SELECT count(*) FROM inspection_review_workflow WHERE workflow_status='rejected') AS rejected_review_cases
-            """
-        ).fetchone()
-        training_runs = conn.execute(
-            """
-            SELECT id, external_run_id, run_name, connector, model_family, base_model, dataset_version,
-                   status, trigger_source, training_examples, validation_examples, training_images,
-                   progress_percent, current_epoch, total_epochs, train_loss, validation_loss,
-                   validation_accuracy, validation_macro_f1, crop_accuracy, issue_accuracy,
-                   severity_accuracy, started_at, completed_at, created_at, error_message
-            FROM model_training_runs ORDER BY created_at DESC LIMIT 25
-            """
-        ).fetchall()
-        queue_summary = conn.execute(
+        queue = conn.execute(
             """
             SELECT count(*) AS total,
                    count(*) FILTER (WHERE status IN ('pending','retry','deferred')) AS waiting,
-                   count(*) FILTER (WHERE status = 'processing') AS processing,
-                   count(*) FILTER (WHERE status = 'completed') AS completed,
-                   count(*) FILTER (WHERE status = 'failed') AS failed,
+                   count(*) FILTER (WHERE status='processing') AS processing,
+                   count(*) FILTER (WHERE status='completed') AS completed,
+                   count(*) FILTER (WHERE status='failed') AS failed,
                    min(created_at) FILTER (WHERE status IN ('pending','retry','deferred')) AS oldest_waiting_at,
-                   round(avg(latency_ms) FILTER (WHERE status = 'completed'), 1) AS average_latency_ms,
-                   max(completed_at) FILTER (WHERE status = 'completed') AS latest_completed_at
+                   round(avg(latency_ms) FILTER (WHERE status='completed'),1) AS average_latency_ms,
+                   max(completed_at) FILTER (WHERE status='completed') AS latest_completed_at
             FROM qwen_shadow_jobs
             """
         ).fetchone()
         runtime = conn.execute(
-            """
-            SELECT status, details, updated_at
-            FROM ai_runtime_status WHERE status_key = 'qwen_worker'
-            """
+            "SELECT status,details,updated_at FROM ai_runtime_status WHERE status_key='qwen_worker'"
         ).fetchone()
-        processing_sessions = conn.execute(
-            """
-            SELECT id, worker_id, instance_id, model_name, status, jobs_claimed,
-                   jobs_completed, jobs_failed, started_at, last_heartbeat_at,
-                   completed_at, stop_reason, error_message
-            FROM gpu_processing_sessions ORDER BY started_at DESC LIMIT 12
-            """
-        ).fetchall()
-        queue_jobs = conn.execute(
-            """
-            SELECT job.id, job.inspection_id, job.status, job.attempt_count,
-                   job.max_attempts, job.latency_ms, job.agreement_json,
-                   job.error_category, job.last_error, job.created_at,
-                   job.started_at, job.completed_at, job.next_attempt_at,
-                   inspection.farmer_crop_text, employee.employee_code,
-                   employee.full_name AS employee_name,
-                   gemma.crop_text AS gemma_crop, gemma.issue_name AS gemma_issue,
-                   gemma.confidence AS gemma_confidence,
-                   qwen.crop_text AS qwen_crop, qwen.issue_name AS qwen_issue,
-                   qwen.confidence AS qwen_confidence
-            FROM qwen_shadow_jobs job
-            JOIN inspections inspection ON inspection.id = job.inspection_id
-            LEFT JOIN employees employee ON employee.id = inspection.employee_id
-            LEFT JOIN LATERAL (
-                SELECT crop_text, issue_name, confidence FROM ai_predictions
-                WHERE inspection_id = job.inspection_id AND provider = 'gemma'
-                ORDER BY created_at DESC LIMIT 1
-            ) gemma ON true
-            LEFT JOIN LATERAL (
-                SELECT crop_text, issue_name, confidence FROM ai_predictions
-                WHERE inspection_id = job.inspection_id AND provider = 'qwen'
-                ORDER BY created_at DESC LIMIT 1
-            ) qwen ON true
-            ORDER BY job.created_at DESC LIMIT 25
-            """
-        ).fetchall()
-        gemini_queue = conn.execute(
+        pipeline = conn.execute(
+            "SELECT * FROM model_pipeline_state WHERE state_key='continuous_qwen_pipeline'"
+        ).fetchone()
+        candidate_summary = conn.execute(
             """
             SELECT count(*) AS total,
-                   count(*) FILTER (WHERE status IN ('pending','retry')) AS waiting,
-                   count(*) FILTER (WHERE status='processing') AS processing,
-                   count(*) FILTER (WHERE status='completed') AS completed,
-                   count(*) FILTER (WHERE status='failed') AS failed,
-                   round(avg(latency_ms) FILTER (WHERE status='completed'),1) AS average_latency_ms,
-                   max(completed_at) FILTER (WHERE status='completed') AS latest_completed_at
-            FROM gemini_shadow_jobs
+                   count(*) FILTER (WHERE candidate_status='eligible') AS eligible,
+                   count(*) FILTER (WHERE candidate_status='excluded') AS excluded,
+                   count(*) FILTER (WHERE candidate_status IN ('exported','training')) AS in_training,
+                   count(*) FILTER (WHERE candidate_status='used') AS used,
+                   round(avg(quality_score) FILTER (WHERE candidate_status<>'excluded')*100,1) AS mean_quality_percent,
+                   count(DISTINCT crop_text) FILTER (WHERE candidate_status<>'excluded') AS crop_classes,
+                   count(DISTINCT issue_type) FILTER (WHERE candidate_status<>'excluded') AS issue_classes
+            FROM auto_training_candidates
             """
         ).fetchone()
-        gemini_runtime = conn.execute(
-            "SELECT status,details,updated_at FROM ai_runtime_status WHERE status_key='gemini_shadow_worker'"
-        ).fetchone()
-        gemini_jobs = conn.execute(
+        candidates = conn.execute(
+            """
+            SELECT candidate.inspection_id,candidate.candidate_status,candidate.crop_text,
+                   candidate.issue_type,candidate.issue_name,candidate.severity,
+                   candidate.gemma_model,candidate.qwen_model,candidate.gemma_confidence,
+                   candidate.qwen_confidence,candidate.issue_name_similarity,
+                   candidate.quality_score,candidate.image_count,candidate.exclusion_reason,
+                   candidate.assigned_run_id,candidate.updated_at,
+                   employee.full_name AS employee_name,employee.employee_code
+            FROM auto_training_candidates candidate
+            JOIN inspections inspection ON inspection.id=candidate.inspection_id
+            LEFT JOIN employees employee ON employee.id=inspection.employee_id
+            ORDER BY candidate.updated_at DESC LIMIT 100
+            """
+        ).fetchall()
+        jobs = conn.execute(
             """
             SELECT job.id,job.inspection_id,job.status,job.attempt_count,job.max_attempts,
-                   job.latency_ms,job.error_category,job.last_error,job.created_at,job.completed_at,
-                   inspection.declared_crop_text,employee.full_name AS employee_name,
-                   prediction.issue_type,prediction.issue_name,prediction.confidence
-            FROM gemini_shadow_jobs job
+                   job.latency_ms,job.agreement_json,job.error_category,job.last_error,
+                   job.created_at,job.started_at,job.completed_at,job.next_attempt_at,
+                   COALESCE(inspection.declared_crop_text,inspection.farmer_crop_text) AS declared_crop,
+                   employee.full_name AS employee_name,employee.employee_code,
+                   gemma.model_name AS gemma_model,gemma.issue_type AS gemma_issue_type,
+                   gemma.issue_name AS gemma_issue,gemma.confidence AS gemma_confidence,
+                   qwen.model_name AS qwen_model,qwen.issue_type AS qwen_issue_type,
+                   qwen.issue_name AS qwen_issue,qwen.confidence AS qwen_confidence
+            FROM qwen_shadow_jobs job
             JOIN inspections inspection ON inspection.id=job.inspection_id
             LEFT JOIN employees employee ON employee.id=inspection.employee_id
             LEFT JOIN LATERAL (
-                SELECT issue_type,issue_name,confidence FROM ai_predictions
-                WHERE inspection_id=job.inspection_id AND provider='gemini'
-                ORDER BY created_at DESC LIMIT 1
-            ) prediction ON true
-            ORDER BY job.created_at DESC LIMIT 25
+                SELECT model_name,issue_type,issue_name,confidence FROM ai_predictions
+                WHERE inspection_id=job.inspection_id AND provider='gemma' ORDER BY created_at DESC LIMIT 1
+            ) gemma ON true
+            LEFT JOIN LATERAL (
+                SELECT model_name,issue_type,issue_name,confidence FROM ai_predictions
+                WHERE inspection_id=job.inspection_id AND provider='qwen' ORDER BY created_at DESC LIMIT 1
+            ) qwen ON true
+            ORDER BY job.created_at DESC LIMIT 100
             """
         ).fetchall()
-        evaluation_cases = conn.execute(
+        training_runs = conn.execute(
             """
-            SELECT inspection.id,inspection.created_at,inspection.declared_crop_text,
-                   inspection.crop_source,inspection.photo_count,inspection.location_text,
-                   employee.full_name AS employee_name,employee.employee_code,
-                   consensus.consensus_status,consensus.available_models,consensus.successful_models,
-                   consensus.agreement_count,consensus.consensus_issue_type,
-                   consensus.consensus_issue_name,consensus.consensus_severity,
-                   consensus.requires_expert_review,consensus.updated_at,
-                   COALESCE(predictions.items,'[]'::jsonb) AS predictions,
-                   review.review_outcome,review.expert_crop_text,review.expert_issue_type,
-                   review.expert_issue_name,review.expert_severity,review.dataset_eligible,
-                   workflow.workflow_status,workflow.requested_for_training,
-                   workflow.reviewed_by_name,workflow.reviewed_at,
-                   workflow.validated_by_name,workflow.validated_at,
-                   workflow.final_approved_by_name,workflow.final_approved_at
-            FROM inspections inspection
-            LEFT JOIN employees employee ON employee.id=inspection.employee_id
-            LEFT JOIN inspection_model_consensus consensus ON consensus.inspection_id=inspection.id
-            LEFT JOIN LATERAL (
-                SELECT jsonb_agg(jsonb_build_object(
-                    'provider',p.provider,'model',p.model_name,'role',p.prediction_role,
-                    'crop',p.crop_text,'issue_type',p.issue_type,'issue_name',p.issue_name,
-                    'severity',p.severity,'confidence',p.confidence,
-                    'needs_more_information',p.additional_information_required,
-                    'latency_ms',p.latency_ms,'summary',p.summary
-                ) ORDER BY CASE p.provider WHEN 'gemma' THEN 0 WHEN 'gemini' THEN 1 ELSE 2 END) AS items
-                FROM ai_predictions p WHERE p.inspection_id=inspection.id
-                  AND p.provider IN ('gemma','gemini','qwen')
-            ) predictions ON true
-            LEFT JOIN LATERAL (
-                SELECT review_outcome,expert_crop_text,expert_issue_type,expert_issue_name,
-                       expert_severity,dataset_eligible
-                FROM expert_reviews r WHERE r.inspection_id=inspection.id
-                ORDER BY created_at DESC LIMIT 1
-            ) review ON true
-            LEFT JOIN inspection_review_workflow workflow ON workflow.inspection_id=inspection.id
-            WHERE EXISTS (SELECT 1 FROM ai_provider_results result WHERE result.inspection_id=inspection.id)
-            ORDER BY inspection.created_at DESC LIMIT 50
+            SELECT id,external_run_id,run_name,connector,model_family,base_model,dataset_version,
+                   status,trigger_source,training_examples,validation_examples,training_images,
+                   progress_percent,current_epoch,total_epochs,train_loss,validation_loss,
+                   validation_accuracy,validation_macro_f1,crop_accuracy,issue_accuracy,
+                   severity_accuracy,baseline_model,candidate_model,baseline_metrics,
+                   candidate_metrics,quality_gate_json,promotion_status,deployment_status,
+                   model_artifact_uri,started_at,completed_at,promoted_at,created_at,error_message
+            FROM model_training_runs ORDER BY created_at DESC LIMIT 50
             """
         ).fetchall()
+        training_events = conn.execute(
+            """
+            SELECT event.id,event.run_id,event.event_type,event.stage,event.progress_percent,
+                   event.train_loss,event.validation_loss,event.metrics,event.message,event.created_at,
+                   run.run_name
+            FROM model_training_events event
+            LEFT JOIN model_training_runs run ON run.id=event.run_id
+            ORDER BY event.created_at DESC LIMIT 200
+            """
+        ).fetchall()
+        versions = conn.execute(
+            "SELECT * FROM model_versions ORDER BY COALESCE(deployed_at,created_at) DESC"
+        ).fetchall()
+        history = conn.execute(
+            """
+            WITH days AS (
+                SELECT (result.created_at AT TIME ZONE 'Asia/Kolkata')::date AS day,
+                       result.provider,result.model_name,count(*) AS attempts,
+                       count(*) FILTER (WHERE result.success) AS successful,
+                       avg(prediction.confidence) AS confidence,
+                       avg(result.latency_ms) FILTER (WHERE result.success) AS latency_ms,
+                       avg(CASE WHEN result.provider='qwen' AND job.agreement_json ? 'overall_agreement_score'
+                                THEN (job.agreement_json->>'overall_agreement_score')::numeric/100 END) AS agreement
+                FROM ai_provider_results result
+                LEFT JOIN LATERAL (
+                    SELECT confidence FROM ai_predictions p WHERE p.inspection_id=result.inspection_id
+                      AND p.provider=result.provider ORDER BY created_at DESC LIMIT 1
+                ) prediction ON true
+                LEFT JOIN qwen_shadow_jobs job ON job.inspection_id=result.inspection_id
+                WHERE result.provider IN ('gemma','qwen') AND result.created_at>=now()-interval '30 days'
+                GROUP BY day,result.provider,result.model_name
+            )
+            SELECT day,provider,model_name,attempts,successful,
+                   round(successful::numeric*100/NULLIF(attempts,0),1) AS success_rate_percent,
+                   round(confidence*100,1) AS confidence_percent,round(latency_ms,1) AS latency_ms,
+                   round(agreement*100,1) AS agreement_percent
+            FROM days ORDER BY day,CASE provider WHEN 'gemma' THEN 0 ELSE 1 END
+            """
+        ).fetchall()
+        dataset = conn.execute(
+            """
+            SELECT (SELECT count(*) FROM inspections) AS total_inspections,
+                   (SELECT count(*) FROM inspection_images WHERE storage_provider='s3' AND retention_status='retained') AS retained_images,
+                   (SELECT count(DISTINCT inspection_id) FROM qwen_shadow_jobs WHERE status='completed') AS paired_evaluations,
+                   (SELECT count(*) FROM auto_training_candidates WHERE candidate_status='eligible') AS automatic_training_cases,
+                   (SELECT count(*) FROM auto_training_candidates WHERE candidate_status='excluded') AS quality_gate_rejections
+            """
+        ).fetchone()
         assistant_usage = conn.execute(
             """
             SELECT count(*) FILTER (WHERE (created_at AT TIME ZONE 'Asia/Kolkata')::date=(now() AT TIME ZONE 'Asia/Kolkata')::date) AS requests_today,
                    count(*) FILTER (WHERE status='completed' AND (created_at AT TIME ZONE 'Asia/Kolkata')::date=(now() AT TIME ZONE 'Asia/Kolkata')::date) AS completed_today,
-                   count(*) FILTER (WHERE status IN ('failed','fallback') AND (created_at AT TIME ZONE 'Asia/Kolkata')::date=(now() AT TIME ZONE 'Asia/Kolkata')::date) AS failed_or_fallback_today,
-                   count(DISTINCT employee_id) FILTER (WHERE employee_id IS NOT NULL AND created_at>=now()-interval '30 days') AS employees_30d,
-                   round(avg(latency_ms) FILTER (WHERE status='completed' AND created_at>=now()-interval '30 days'),1) AS average_latency_ms_30d,
-                   COALESCE(sum(input_tokens) FILTER (WHERE created_at>=now()-interval '30 days'),0) AS input_tokens_30d,
-                   COALESCE(sum(output_tokens) FILTER (WHERE created_at>=now()-interval '30 days'),0) AS output_tokens_30d
+                   count(*) FILTER (WHERE status IN ('failed','fallback') AND (created_at AT TIME ZONE 'Asia/Kolkata')::date=(now() AT TIME ZONE 'Asia/Kolkata')::date) AS failed_or_fallback_today
             FROM assistant_requests
             """
         ).fetchone()
-    eligible = int(dataset["dataset_eligible_inspections"] or 0)
-    readiness = min(100, round(eligible * 100 / MODEL_TRAINING_DATASET_TARGET, 1))
-    connector_configured = bool(GPU_TRAINING_SERVICE_URL and len(GPU_TRAINING_SERVICE_TOKEN) >= 32)
+
     qwen_health = {"status": "disabled", "model": QWEN_MODEL}
     if QWEN_ENABLED and QWEN_SHADOW_MODE:
         try:
             request = Request(f"{QWEN_BASE_URL}/api/tags", headers={"Accept": "application/json"})
             with urlopen(request, timeout=3) as response:
-                payload = json.loads(response.read(512 * 1024))
-            names = [item.get("name") for item in payload.get("models", []) if isinstance(item, dict)]
-            qwen_health = {
-                "status": "available" if QWEN_MODEL in names else "model_missing",
-                "model": QWEN_MODEL,
-            }
+                value = json.loads(response.read(512 * 1024))
+            names = [item.get("name") for item in value.get("models", []) if isinstance(item, dict)]
+            qwen_health = {"status": "available" if QWEN_MODEL in names else "model_missing", "model": QWEN_MODEL}
         except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError):
             qwen_health = {"status": "offline", "model": QWEN_MODEL}
     return {
         "providers": providers,
-        "model_roles": {
-            "primary": {"provider": "gemma", "model": GEMMA_MODEL, "farmer_facing": True},
-            "fast_shadow": {"provider": "gemini", "model": GEMINI_SHADOW_MODEL, "farmer_facing": False},
-            "private_shadow": {"provider": "qwen", "model": QWEN_MODEL, "farmer_facing": False},
-            "product_authority": "deterministic_active_approved_clsl_catalogue_only",
-            "planning_quotas": {
-                "gemma": {"rpm": GEMMA_PLANNING_RPM, "tpm": GEMMA_PLANNING_TPM, "rpd": GEMMA_PLANNING_RPD},
-                "gemini": {"rpm": GEMINI_PLANNING_RPM, "tpm": GEMINI_PLANNING_TPM, "rpd": GEMINI_PLANNING_RPD},
-                "note": "Configured planning limits; verify the active project tier in Google AI Studio.",
-            },
+        "models": {
+            "live": {"provider": "gemma", "model": GEMMA_MODEL, "role": "farmer_facing_primary"},
+            "private_evaluator": {"provider": "qwen", "model": QWEN_MODEL, "role": "automatic_evaluation_and_training"},
         },
-        "model_consensus": comparisons,
-        "comparison_history": history,
-        "evaluation_cases": evaluation_cases,
+        "qwen": {"health": qwen_health, "runtime": runtime, "queue": queue, "jobs": jobs},
+        "pipeline": pipeline,
+        "candidate_summary": candidate_summary,
+        "candidates": candidates,
         "dataset": dataset,
         "training_runs": training_runs,
-        "training_readiness": {
-            "target_expert_approved_cases": MODEL_TRAINING_DATASET_TARGET,
-            "eligible_cases": eligible,
-            "progress_percent": readiness,
-        },
-        "training_connector": {
-            "configured": connector_configured,
-            "auto_start_enabled": bool(MODEL_TRAINING_AUTOSTART and connector_configured),
-            "status": "ready" if connector_configured else "waiting_for_gpu_server",
-        },
-        "qwen_shadow": {
-            "enabled": bool(QWEN_ENABLED and QWEN_SHADOW_MODE),
-            "provider_health": qwen_health,
-            "queue": queue_summary,
-            "runtime": runtime,
-            "sessions": processing_sessions,
-            "jobs": queue_jobs,
-            "schedule": {
-                "window_enabled": QWEN_PROCESSING_WINDOW_ENABLED,
-                "start": QWEN_WINDOW_START,
-                "end": QWEN_WINDOW_END,
-                "timezone": QWEN_TIMEZONE,
-                "automation": QWEN_SCHEDULE_AUTOMATION,
-                "instance_configured": bool(QWEN_GPU_INSTANCE_ID),
+        "training_events": training_events,
+        "model_versions": versions,
+        "performance_history": history,
+        "assistant_usage": {**dict(assistant_usage), "provider": "gemma", "model": GEMMA_MODEL},
+        "automation": {
+            "queue_policy": "process_immediately_whenever_gpu_is_reachable",
+            "automatic_training": MODEL_TRAINING_AUTOSTART,
+            "automatic_deployment": MODEL_AUTO_DEPLOY_ENABLED,
+            "training_connector_configured": bool(GPU_TRAINING_SERVICE_URL and len(GPU_TRAINING_SERVICE_TOKEN) >= 32),
+            "minimum_new_cases": MODEL_TRAINING_MIN_NEW_CASES,
+            "minimum_confidence": MODEL_PIPELINE_MIN_CONFIDENCE,
+            "minimum_issue_similarity": MODEL_PIPELINE_MIN_ISSUE_SIMILARITY,
+            "promotion_gates": {
+                "validation_accuracy": MODEL_AUTO_PROMOTE_MIN_ACCURACY,
+                "macro_f1": MODEL_AUTO_PROMOTE_MIN_MACRO_F1,
+                "issue_accuracy": MODEL_AUTO_PROMOTE_MIN_ISSUE_ACCURACY,
             },
-            "governance": "evaluation_only_no_product_selection",
-        },
-        "gemini_shadow": {
-            "enabled": GEMINI_SHADOW_ENABLED,
-            "model": GEMINI_SHADOW_MODEL,
-            "queue": gemini_queue,
-            "runtime": gemini_runtime,
-            "jobs": gemini_jobs,
-            "governance": "evaluation_only_no_product_selection",
-        },
-        "assistant_usage": {
-            **dict(assistant_usage),
-            "provider": "gemma",
-            "model": GEMMA_MODEL,
-            "daily_limit_per_user": ASSISTANT_DAILY_LIMIT,
-            "stores_chat_text": False,
         },
     }
 

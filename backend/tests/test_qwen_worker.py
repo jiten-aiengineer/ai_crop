@@ -77,22 +77,22 @@ class QwenWorkerContractTests(unittest.TestCase):
         self.assertEqual(value["confidence"], 0.84)
 
     def test_agreement_does_not_treat_two_unknowns_as_a_match(self):
-        gemini = {
+        primary = {
             "crop_text": None,
             "issue_type": "fungal_disease",
             "issue_name": "Early blight",
             "severity": "moderate",
             "confidence": 0.84,
         }
-        result = worker.agreement(gemini, diagnosis(crop=None))
+        result = worker.agreement(primary, diagnosis(crop=None))
         self.assertTrue(result["evaluated"])
         self.assertIsNone(result["crop_match"])
         self.assertEqual(result["overall_agreement_score"], 75)
         self.assertEqual(result["evaluated_weight"], 75)
 
     def test_agreement_with_no_comparable_fields_is_not_evaluated(self):
-        gemini = {"crop_text": None, "issue_type": "unknown", "issue_name": None, "severity": None, "confidence": None}
-        result = worker.agreement(gemini, diagnosis(crop=None, issue_type="unknown", probable_issue=None, severity=None, confidence=None))
+        primary = {"crop_text": None, "issue_type": "unknown", "issue_name": None, "severity": None, "confidence": None}
+        result = worker.agreement(primary, diagnosis(crop=None, issue_type="unknown", probable_issue=None, severity=None, confidence=None))
         self.assertFalse(result["evaluated"])
         self.assertIsNone(result["overall_agreement_score"])
         self.assertEqual(result["evaluated_weight"], 0)
