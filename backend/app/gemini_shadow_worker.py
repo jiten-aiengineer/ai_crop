@@ -23,6 +23,7 @@ from .config import (
     GEMINI_SHADOW_POLL_SECONDS,
 )
 from .db import connection
+from .continuous_training import refresh_training_candidate
 from .model_consensus import refresh_consensus
 from .qwen_worker import WorkerError, parse_diagnosis
 
@@ -229,6 +230,7 @@ class GeminiShadowWorker:
                  usage.get("promptTokenCount"), usage.get("candidatesTokenCount"), job["inspection_id"], latency_ms),
             )
             refresh_consensus(conn, job["inspection_id"])
+            refresh_training_candidate(conn, job["inspection_id"])
             conn.commit()
 
     def fail(self, job, error: WorkerError, latency_ms=0):
@@ -254,6 +256,7 @@ class GeminiShadowWorker:
                 (job["inspection_id"], GEMINI_SHADOW_MODEL, latency_ms or None, str(error)[:1000]),
             )
             refresh_consensus(conn, job["inspection_id"])
+            refresh_training_candidate(conn, job["inspection_id"])
             conn.commit()
 
     def process_one(self):

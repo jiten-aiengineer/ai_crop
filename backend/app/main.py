@@ -11,6 +11,9 @@ from .catalog_engine import recommend
 from .config import (
     ASSISTANT_BURST_LIMIT,
     ASSISTANT_DAILY_LIMIT,
+    GEMINI_SHADOW_ENABLED,
+    GEMINI_SHADOW_MAX_ATTEMPTS,
+    GEMINI_SHADOW_MODEL,
     INTERNAL_SERVICE_TOKEN,
     QWEN_ENABLED,
     QWEN_MAX_ATTEMPTS,
@@ -561,6 +564,39 @@ def persist_inspection(
                     ),
                 )
         shadow_states: list[str] = []
+        if (
+            GEMINI_SHADOW_ENABLED
+            and payload.provider.success
+            and prediction_id
+            and payload.storage.images
+        ):
+            queued = conn.execute(
+                """
+                INSERT INTO gemini_shadow_jobs(
+                    inspection_id, model_name, status, max_attempts,
+                    next_attempt_at, error_category, last_error, updated_at
+                ) VALUES (%s, %s, 'pending', %s, now(), NULL, NULL, now())
+                ON CONFLICT (inspection_id) DO UPDATE SET
+                    model_name=EXCLUDED.model_name,
+                    max_attempts=EXCLUDED.max_attempts,
+                    status=CASE WHEN gemini_shadow_jobs.status IN ('completed','processing')
+                                THEN gemini_shadow_jobs.status ELSE 'pending' END,
+                    next_attempt_at=CASE WHEN gemini_shadow_jobs.status IN ('completed','processing')
+                                         THEN gemini_shadow_jobs.next_attempt_at ELSE now() END,
+                    error_category=CASE WHEN gemini_shadow_jobs.status IN ('completed','processing')
+                                        THEN gemini_shadow_jobs.error_category ELSE NULL END,
+                    last_error=CASE WHEN gemini_shadow_jobs.status IN ('completed','processing')
+                                    THEN gemini_shadow_jobs.last_error ELSE NULL END,
+                    updated_at=now()
+                RETURNING status
+                """,
+                (payload.inspection_id, GEMINI_SHADOW_MODEL, GEMINI_SHADOW_MAX_ATTEMPTS),
+            ).fetchone()
+            shadow_states.append(f"gemini:{queued['status'] if queued else 'not_queued'}")
+        elif GEMINI_SHADOW_ENABLED and payload.provider.success:
+            shadow_states.append("gemini:no_s3_evidence")
+        elif not GEMINI_SHADOW_ENABLED:
+            shadow_states.append("gemini:disabled")
         if (
             QWEN_ENABLED
             and QWEN_SHADOW_MODE

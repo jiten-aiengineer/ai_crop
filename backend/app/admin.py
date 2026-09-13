@@ -35,7 +35,7 @@ from .config import (
     MODEL_PIPELINE_MIN_ISSUE_SIMILARITY, MODEL_AUTO_DEPLOY_ENABLED,
     MODEL_AUTO_PROMOTE_MIN_ACCURACY, MODEL_AUTO_PROMOTE_MIN_MACRO_F1,
     MODEL_AUTO_PROMOTE_MIN_ISSUE_ACCURACY,
-    GEMMA_MODEL,
+    GEMMA_MODEL, GEMINI_SHADOW_ENABLED, GEMINI_SHADOW_MODEL,
     QWEN_BASE_URL, QWEN_ENABLED, QWEN_GPU_INSTANCE_ID, QWEN_MODEL,
     QWEN_SHADOW_MODE,
 )
@@ -904,7 +904,7 @@ def control_model_automation(
 
 @router.get("/models")
 def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
-    """Two-model operations, automatic dataset and continuous-training telemetry."""
+    """Three-model operations, majority labels and continuous-training telemetry."""
     _require(identity, INSPECTION_REVIEW_ROLES)
     with connection() as conn:
         providers = conn.execute(
@@ -922,9 +922,9 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
                 WHERE p.inspection_id=result.inspection_id AND p.provider=result.provider
                 ORDER BY p.created_at DESC LIMIT 1
             ) prediction ON true
-            WHERE result.provider IN ('gemma','qwen')
+            WHERE result.provider IN ('gemma','gemini','qwen')
             GROUP BY result.provider,result.model_name
-            ORDER BY CASE result.provider WHEN 'gemma' THEN 0 ELSE 1 END,result.model_name
+            ORDER BY CASE result.provider WHEN 'gemma' THEN 0 WHEN 'gemini' THEN 1 ELSE 2 END,result.model_name
             """
         ).fetchall()
         queue = conn.execute(
@@ -943,6 +943,22 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
         runtime = conn.execute(
             "SELECT status,details,updated_at FROM ai_runtime_status WHERE status_key='qwen_worker'"
         ).fetchone()
+        gemini_queue = conn.execute(
+            """
+            SELECT count(*) AS total,
+                   count(*) FILTER (WHERE status IN ('pending','retry')) AS waiting,
+                   count(*) FILTER (WHERE status='processing') AS processing,
+                   count(*) FILTER (WHERE status='completed') AS completed,
+                   count(*) FILTER (WHERE status='failed') AS failed,
+                   min(created_at) FILTER (WHERE status IN ('pending','retry')) AS oldest_waiting_at,
+                   round(avg(latency_ms) FILTER (WHERE status='completed'),1) AS average_latency_ms,
+                   max(completed_at) FILTER (WHERE status='completed') AS latest_completed_at
+            FROM gemini_shadow_jobs
+            """
+        ).fetchone()
+        gemini_runtime = conn.execute(
+            "SELECT status,details,updated_at FROM ai_runtime_status WHERE status_key='gemini_shadow_worker'"
+        ).fetchone()
         pipeline = conn.execute(
             "SELECT * FROM model_pipeline_state WHERE state_key='continuous_qwen_pipeline'"
         ).fetchone()
@@ -951,6 +967,7 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
             SELECT count(*) AS total,
                    count(*) FILTER (WHERE candidate_status='eligible') AS eligible,
                    count(*) FILTER (WHERE candidate_status='excluded') AS excluded,
+                   count(*) FILTER (WHERE candidate_status='waiting_models') AS waiting_models,
                    count(*) FILTER (WHERE candidate_status IN ('exported','training')) AS in_training,
                    count(*) FILTER (WHERE candidate_status='used') AS used,
                    round(avg(quality_score) FILTER (WHERE candidate_status<>'excluded')*100,1) AS mean_quality_percent,
@@ -963,8 +980,9 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
             """
             SELECT candidate.inspection_id,candidate.candidate_status,candidate.crop_text,
                    candidate.issue_type,candidate.issue_name,candidate.severity,
-                   candidate.gemma_model,candidate.qwen_model,candidate.gemma_confidence,
-                   candidate.qwen_confidence,candidate.issue_name_similarity,
+                   candidate.label_source,candidate.gemma_model,candidate.gemini_model,candidate.qwen_model,
+                   candidate.gemma_confidence,candidate.gemini_confidence,candidate.qwen_confidence,
+                   candidate.majority_count,candidate.agreeing_providers,candidate.issue_name_similarity,
                    candidate.quality_score,candidate.image_count,candidate.exclusion_reason,
                    candidate.assigned_run_id,candidate.updated_at,
                    employee.full_name AS employee_name,employee.employee_code
@@ -977,25 +995,38 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
         jobs = conn.execute(
             """
             SELECT job.id,job.inspection_id,job.status,job.attempt_count,job.max_attempts,
-                   job.latency_ms,job.agreement_json,job.error_category,job.last_error,
-                   job.created_at,job.started_at,job.completed_at,job.next_attempt_at,
-                   COALESCE(inspection.declared_crop_text,inspection.farmer_crop_text) AS declared_crop,
-                   employee.full_name AS employee_name,employee.employee_code,
-                   gemma.model_name AS gemma_model,gemma.issue_type AS gemma_issue_type,
-                   gemma.issue_name AS gemma_issue,gemma.confidence AS gemma_confidence,
-                   qwen.model_name AS qwen_model,qwen.issue_type AS qwen_issue_type,
-                   qwen.issue_name AS qwen_issue,qwen.confidence AS qwen_confidence
+                    job.latency_ms,job.agreement_json,job.error_category,job.last_error,
+                    job.created_at,job.started_at,job.completed_at,job.next_attempt_at,
+                    gemini_job.status AS gemini_status,gemini_job.attempt_count AS gemini_attempt_count,
+                    gemini_job.latency_ms AS gemini_latency_ms,gemini_job.last_error AS gemini_last_error,
+                    COALESCE(inspection.declared_crop_text,inspection.farmer_crop_text) AS declared_crop,
+                    employee.full_name AS employee_name,employee.employee_code,
+                    gemma.model_name AS gemma_model,gemma.issue_type AS gemma_issue_type,
+                    gemma.issue_name AS gemma_issue,gemma.confidence AS gemma_confidence,
+                    gemini.model_name AS gemini_model,gemini.issue_type AS gemini_issue_type,
+                    gemini.issue_name AS gemini_issue,gemini.confidence AS gemini_confidence,
+                    qwen.model_name AS qwen_model,qwen.issue_type AS qwen_issue_type,
+                    qwen.issue_name AS qwen_issue,qwen.confidence AS qwen_confidence,
+                    consensus.consensus_status,consensus.consensus_issue_type,
+                    consensus.consensus_issue_name,consensus.consensus_severity,
+                    consensus.agreement_count
             FROM qwen_shadow_jobs job
             JOIN inspections inspection ON inspection.id=job.inspection_id
             LEFT JOIN employees employee ON employee.id=inspection.employee_id
+            LEFT JOIN gemini_shadow_jobs gemini_job ON gemini_job.inspection_id=job.inspection_id
             LEFT JOIN LATERAL (
                 SELECT model_name,issue_type,issue_name,confidence FROM ai_predictions
                 WHERE inspection_id=job.inspection_id AND provider='gemma' ORDER BY created_at DESC LIMIT 1
             ) gemma ON true
             LEFT JOIN LATERAL (
                 SELECT model_name,issue_type,issue_name,confidence FROM ai_predictions
+                WHERE inspection_id=job.inspection_id AND provider='gemini' ORDER BY created_at DESC LIMIT 1
+            ) gemini ON true
+            LEFT JOIN LATERAL (
+                SELECT model_name,issue_type,issue_name,confidence FROM ai_predictions
                 WHERE inspection_id=job.inspection_id AND provider='qwen' ORDER BY created_at DESC LIMIT 1
             ) qwen ON true
+            LEFT JOIN inspection_model_consensus consensus ON consensus.inspection_id=job.inspection_id
             ORDER BY job.created_at DESC LIMIT 100
             """
         ).fetchall()
@@ -1032,29 +1063,28 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
                        count(*) FILTER (WHERE result.success) AS successful,
                        avg(prediction.confidence) AS confidence,
                        avg(result.latency_ms) FILTER (WHERE result.success) AS latency_ms,
-                       avg(CASE WHEN result.provider='qwen' AND job.agreement_json ? 'overall_agreement_score'
-                                THEN (job.agreement_json->>'overall_agreement_score')::numeric/100 END) AS agreement
+                        avg(consensus.agreement_count::numeric/3) AS agreement
                 FROM ai_provider_results result
                 LEFT JOIN LATERAL (
                     SELECT confidence FROM ai_predictions p WHERE p.inspection_id=result.inspection_id
                       AND p.provider=result.provider ORDER BY created_at DESC LIMIT 1
                 ) prediction ON true
-                LEFT JOIN qwen_shadow_jobs job ON job.inspection_id=result.inspection_id
-                WHERE result.provider IN ('gemma','qwen') AND result.created_at>=now()-interval '30 days'
+                LEFT JOIN inspection_model_consensus consensus ON consensus.inspection_id=result.inspection_id
+                WHERE result.provider IN ('gemma','gemini','qwen') AND result.created_at>=now()-interval '30 days'
                 GROUP BY day,result.provider,result.model_name
             )
             SELECT day,provider,model_name,attempts,successful,
                    round(successful::numeric*100/NULLIF(attempts,0),1) AS success_rate_percent,
                    round(confidence*100,1) AS confidence_percent,round(latency_ms,1) AS latency_ms,
                    round(agreement*100,1) AS agreement_percent
-            FROM days ORDER BY day,CASE provider WHEN 'gemma' THEN 0 ELSE 1 END
+            FROM days ORDER BY day,CASE provider WHEN 'gemma' THEN 0 WHEN 'gemini' THEN 1 ELSE 2 END
             """
         ).fetchall()
         dataset = conn.execute(
             """
             SELECT (SELECT count(*) FROM inspections) AS total_inspections,
                    (SELECT count(*) FROM inspection_images WHERE storage_provider='s3' AND retention_status='retained') AS retained_images,
-                   (SELECT count(DISTINCT inspection_id) FROM qwen_shadow_jobs WHERE status='completed') AS paired_evaluations,
+                   (SELECT count(*) FROM inspection_model_consensus WHERE successful_models=3) AS three_model_evaluations,
                    (SELECT count(*) FROM auto_training_candidates WHERE candidate_status='eligible') AS automatic_training_cases,
                    (SELECT count(*) FROM auto_training_candidates WHERE candidate_status='excluded') AS quality_gate_rejections
             """
@@ -1082,8 +1112,10 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
         "providers": providers,
         "models": {
             "live": {"provider": "gemma", "model": GEMMA_MODEL, "role": "farmer_facing_primary"},
+            "fast_evaluator": {"provider": "gemini", "model": GEMINI_SHADOW_MODEL, "role": "background_evaluation"},
             "private_evaluator": {"provider": "qwen", "model": QWEN_MODEL, "role": "automatic_evaluation_and_training"},
         },
+        "gemini": {"enabled": GEMINI_SHADOW_ENABLED, "runtime": gemini_runtime, "queue": gemini_queue},
         "qwen": {"health": qwen_health, "runtime": runtime, "queue": queue, "jobs": jobs},
         "pipeline": pipeline,
         "candidate_summary": candidate_summary,

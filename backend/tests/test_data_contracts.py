@@ -17,6 +17,7 @@ MODEL_TRAINING_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" 
 MODEL_EVALUATION_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "014_gemma_primary_evaluation_quality.sql"
 EXPERT_REVIEW_WORKFLOW_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "015_expert_review_workflow.sql"
 CONTINUOUS_PIPELINE_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "016_continuous_model_pipeline.sql"
+THREE_MODEL_PIPELINE_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "017_three_model_majority_pipeline.sql"
 ADMIN_API = PROJECT_ROOT / "backend" / "app" / "admin.py"
 QWEN_WORKER = PROJECT_ROOT / "backend" / "app" / "qwen_worker.py"
 ADMIN_PORTAL = PROJECT_ROOT / "app" / "components" / "AdminPortal.tsx"
@@ -192,12 +193,16 @@ class MigrationContractTests(unittest.TestCase):
         }:
             self.assertIn(field, sql)
 
-    def test_active_admin_lab_is_two_model_and_automatic(self):
+    def test_active_admin_lab_is_three_model_majority_and_automatic(self):
         api_source = ADMIN_API.read_text(encoding="utf-8")
         portal_source = ADMIN_PORTAL.read_text(encoding="utf-8")
         worker_source = QWEN_WORKER.read_text(encoding="utf-8")
         self.assertIn('@router.post("/models/automation")', api_source)
-        self.assertIn('result.provider IN (\'gemma\',\'qwen\')', api_source)
+        self.assertIn("result.provider IN ('gemma','gemini','qwen')", api_source)
+        majority_sql = THREE_MODEL_PIPELINE_MIGRATION.read_text(encoding="utf-8").lower()
+        self.assertIn("three_model_majority_2_of_3", majority_sql)
+        self.assertIn("gemini_confidence", majority_sql)
+        self.assertIn("majority_count", majority_sql)
         self.assertIn("<AutomatedModelLab", portal_source)
         self.assertNotIn("<ExpertReview", portal_source)
         health_check = worker_source.index("health = provider_health()")

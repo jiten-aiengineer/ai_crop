@@ -1,9 +1,9 @@
-"""Automatic Qwen evaluation, dataset curation, training and promotion pipeline.
+"""Automatic three-model evaluation, dataset curation and promotion pipeline.
 
 The pipeline never controls CLSL product selection. It creates automated
-consensus labels only when Gemma and Qwen independently agree with sufficient
-confidence, then hands immutable private-S3 references to the configured GPU
-training service. Candidate deployment is allowed only after metric gates pass.
+labels only after Gemma, Gemini Flash-Lite and Qwen have all returned and at
+least two independently agree with sufficient confidence. It then hands
+immutable private-S3 references to the configured GPU training service.
 """
 from __future__ import annotations
 
@@ -20,6 +20,9 @@ from uuid import UUID, uuid4
 from psycopg.types.json import Jsonb
 
 from .config import (
+    GEMINI_SHADOW_ENABLED,
+    GEMINI_SHADOW_MAX_ATTEMPTS,
+    GEMINI_SHADOW_MODEL,
     GPU_TRAINING_SERVICE_TOKEN,
     GPU_TRAINING_SERVICE_URL,
     MODEL_AUTO_DEPLOY_ENABLED,
@@ -81,6 +84,42 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _provider_row(row: dict, provider: str) -> dict:
+    return {
+        "provider": provider,
+        "model": row.get(f"{provider}_model"),
+        "issue_type": row.get(f"{provider}_issue_type"),
+        "issue_name": row.get(f"{provider}_issue_name"),
+        "severity": row.get(f"{provider}_severity"),
+        "confidence": _confidence(row.get(f"{provider}_confidence")),
+        "needs_more": bool(row.get(f"{provider}_needs_more")),
+    }
+
+
+def _pair_result(left: dict, right: dict) -> dict:
+    left_type, right_type = _canonical(left["issue_type"]), _canonical(right["issue_type"])
+    left_severity, right_severity = _canonical(left["severity"]), _canonical(right["severity"])
+    similarity = _similarity(left["issue_name"], right["issue_name"])
+    confidences = [left["confidence"], right["confidence"]]
+    type_match = bool(left_type and left_type not in {"unknown", "uncertain"} and left_type == right_type)
+    severity_match = bool(left_severity and left_severity != "unknown" and left_severity == right_severity)
+    confidence_ready = all(value is not None and value >= MODEL_PIPELINE_MIN_CONFIDENCE for value in confidences)
+    qualifies = all((type_match, severity_match, similarity >= MODEL_PIPELINE_MIN_ISSUE_SIMILARITY,
+                     confidence_ready, not left["needs_more"], not right["needs_more"]))
+    average_confidence = sum(value or 0 for value in confidences) / 2
+    quality = round(min(1.0, average_confidence * 0.55 + similarity * 0.30 + (0.15 if severity_match else 0)), 4)
+    representative = max((left, right), key=lambda item: item["confidence"] or 0)
+    return {
+        "providers": [left["provider"], right["provider"]],
+        "qualifies": qualifies,
+        "type_match": type_match,
+        "severity_match": severity_match,
+        "similarity": similarity,
+        "quality": quality,
+        "representative": representative,
+    }
+
+
 def refresh_training_candidate(conn, inspection_id: UUID | str) -> dict:
     row = conn.execute(
         """
@@ -91,9 +130,14 @@ def refresh_training_candidate(conn, inspection_id: UUID | str) -> dict:
                gemma.model_name AS gemma_model,gemma.issue_type AS gemma_issue_type,
                gemma.issue_name AS gemma_issue_name,gemma.severity AS gemma_severity,
                gemma.confidence AS gemma_confidence,gemma.additional_information_required AS gemma_needs_more,
+               gemini.model_name AS gemini_model,gemini.issue_type AS gemini_issue_type,
+               gemini.issue_name AS gemini_issue_name,gemini.severity AS gemini_severity,
+               gemini.confidence AS gemini_confidence,gemini.additional_information_required AS gemini_needs_more,
+               gemini_job.status AS gemini_job_status,
                qwen.model_name AS qwen_model,qwen.issue_type AS qwen_issue_type,
                qwen.issue_name AS qwen_issue_name,qwen.severity AS qwen_severity,
-               qwen.confidence AS qwen_confidence,qwen.additional_information_required AS qwen_needs_more
+               qwen.confidence AS qwen_confidence,qwen.additional_information_required AS qwen_needs_more,
+               qwen_job.status AS qwen_job_status
         FROM inspections inspection
         LEFT JOIN LATERAL (
             SELECT model_name,issue_type,issue_name,severity,confidence,additional_information_required
@@ -102,9 +146,16 @@ def refresh_training_candidate(conn, inspection_id: UUID | str) -> dict:
         ) gemma ON true
         LEFT JOIN LATERAL (
             SELECT model_name,issue_type,issue_name,severity,confidence,additional_information_required
+            FROM ai_predictions WHERE inspection_id=inspection.id AND provider='gemini'
+            ORDER BY created_at DESC LIMIT 1
+        ) gemini ON true
+        LEFT JOIN gemini_shadow_jobs gemini_job ON gemini_job.inspection_id=inspection.id
+        LEFT JOIN LATERAL (
+            SELECT model_name,issue_type,issue_name,severity,confidence,additional_information_required
             FROM ai_predictions WHERE inspection_id=inspection.id AND provider='qwen'
             ORDER BY created_at DESC LIMIT 1
         ) qwen ON true
+        LEFT JOIN qwen_shadow_jobs qwen_job ON qwen_job.inspection_id=inspection.id
         WHERE inspection.id=%s
         """,
         (inspection_id,),
@@ -112,71 +163,76 @@ def refresh_training_candidate(conn, inspection_id: UUID | str) -> dict:
     if not row:
         return {"status": "missing", "eligible": False}
 
+    row = dict(row)
     declared_crop = str(row["declared_crop"] or "").strip()
-    gemma_confidence = _confidence(row["gemma_confidence"])
-    qwen_confidence = _confidence(row["qwen_confidence"])
-    issue_type_match = bool(
-        _canonical(row["gemma_issue_type"])
-        and _canonical(row["gemma_issue_type"]) == _canonical(row["qwen_issue_type"])
-        and _canonical(row["gemma_issue_type"]) not in {"unknown", "uncertain"}
-    )
-    issue_similarity = _similarity(row["gemma_issue_name"], row["qwen_issue_name"])
-    severity_match = bool(
-        _canonical(row["gemma_severity"])
-        and _canonical(row["gemma_severity"]) == _canonical(row["qwen_severity"])
-        and _canonical(row["gemma_severity"]) != "unknown"
-    )
-    confidence_ready = bool(
-        gemma_confidence is not None and qwen_confidence is not None
-        and gemma_confidence >= MODEL_PIPELINE_MIN_CONFIDENCE
-        and qwen_confidence >= MODEL_PIPELINE_MIN_CONFIDENCE
-    )
-    issue_name_ready = issue_similarity >= MODEL_PIPELINE_MIN_ISSUE_SIMILARITY
+    model_rows = [_provider_row(row, provider) for provider in ("gemma", "gemini", "qwen")]
+    model_output_ready = all(item["model"] for item in model_rows)
+    pair_results = [
+        _pair_result(model_rows[left], model_rows[right])
+        for left, right in ((0, 1), (0, 2), (1, 2))
+    ] if model_output_ready else []
+    matching_pairs = sorted((item for item in pair_results if item["qualifies"]), key=lambda item: item["quality"], reverse=True)
+    selected = matching_pairs[0] if matching_pairs else None
+    majority_count = 3 if len(matching_pairs) == 3 else 2 if selected else 0
+    agreeing_providers = (["gemma", "gemini", "qwen"] if majority_count == 3
+                          else selected["providers"] if selected else [])
+    representative = selected["representative"] if selected else None
+    issue_similarity = selected["similarity"] if selected else max((item["similarity"] for item in pair_results), default=0)
     evidence_ready = bool(declared_crop and int(row["image_count"] or 0) > 0)
-    model_output_ready = bool(row["gemma_model"] and row["qwen_model"])
-    no_more_information = not bool(row["gemma_needs_more"] or row["qwen_needs_more"])
-    eligible = all((evidence_ready, model_output_ready, confidence_ready, issue_type_match,
-                    issue_name_ready, severity_match, no_more_information))
+    eligible = bool(evidence_ready and model_output_ready and selected)
 
     reasons = []
     if not evidence_ready: reasons.append("missing declared crop or retained S3 evidence")
-    if not model_output_ready: reasons.append("both model results are not complete")
-    if not confidence_ready: reasons.append("confidence below automatic threshold")
-    if not issue_type_match: reasons.append("issue categories disagree")
-    if not issue_name_ready: reasons.append("issue names do not sufficiently agree")
-    if not severity_match: reasons.append("severity does not agree")
-    if not no_more_information: reasons.append("a model requested more information")
-    average_confidence = ((gemma_confidence or 0) + (qwen_confidence or 0)) / 2
-    quality_score = round(min(1.0, average_confidence * 0.55 + issue_similarity * 0.30 + (0.15 if severity_match else 0)), 4)
-    status = "eligible" if eligible else "excluded"
+    terminal_provider_failure = any(row.get(f"{provider}_job_status") == "failed" and not row.get(f"{provider}_model")
+                                    for provider in ("gemini", "qwen"))
+    if not model_output_ready:
+        missing = [item["provider"] for item in model_rows if not item["model"]]
+        reasons.append(("terminal provider failure for " if terminal_provider_failure else "waiting for ") +
+                       f"{', '.join(missing)} result")
+    elif not selected:
+        reasons.append("no two models passed the category, issue, severity and confidence agreement gates")
+    quality_score = selected["quality"] if selected else 0
+    status = "eligible" if eligible else "waiting_models" if not model_output_ready and not terminal_provider_failure else "excluded"
+    gemma = model_rows[0]
+    gemini = model_rows[1]
+    qwen = model_rows[2]
     result = conn.execute(
         """
         INSERT INTO auto_training_candidates(
-            inspection_id,candidate_status,crop_text,issue_type,issue_name,severity,
-            gemma_model,qwen_model,gemma_confidence,qwen_confidence,
-            issue_name_similarity,quality_score,image_count,exclusion_reason,updated_at
-        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now())
+            inspection_id,candidate_status,label_source,crop_text,issue_type,issue_name,severity,
+            gemma_model,gemini_model,qwen_model,gemma_confidence,gemini_confidence,qwen_confidence,
+            issue_name_similarity,quality_score,majority_count,agreeing_providers,image_count,
+            exclusion_reason,updated_at
+        ) VALUES (%s,%s,'three_model_majority_2_of_3',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now())
         ON CONFLICT (inspection_id) DO UPDATE SET
             candidate_status=CASE
                 WHEN auto_training_candidates.candidate_status IN ('exported','training','used') AND EXCLUDED.candidate_status='eligible'
                     THEN auto_training_candidates.candidate_status
                 ELSE EXCLUDED.candidate_status END,
+            label_source=EXCLUDED.label_source,
             crop_text=EXCLUDED.crop_text,issue_type=EXCLUDED.issue_type,
             issue_name=EXCLUDED.issue_name,severity=EXCLUDED.severity,
-            gemma_model=EXCLUDED.gemma_model,qwen_model=EXCLUDED.qwen_model,
-            gemma_confidence=EXCLUDED.gemma_confidence,qwen_confidence=EXCLUDED.qwen_confidence,
+            gemma_model=EXCLUDED.gemma_model,gemini_model=EXCLUDED.gemini_model,qwen_model=EXCLUDED.qwen_model,
+            gemma_confidence=EXCLUDED.gemma_confidence,gemini_confidence=EXCLUDED.gemini_confidence,
+            qwen_confidence=EXCLUDED.qwen_confidence,majority_count=EXCLUDED.majority_count,
+            agreeing_providers=EXCLUDED.agreeing_providers,
             issue_name_similarity=EXCLUDED.issue_name_similarity,quality_score=EXCLUDED.quality_score,
             image_count=EXCLUDED.image_count,exclusion_reason=EXCLUDED.exclusion_reason,updated_at=now()
         RETURNING candidate_status,quality_score,exclusion_reason
         """,
-        (inspection_id, status, declared_crop or None, row["gemma_issue_type"], row["gemma_issue_name"],
-         row["gemma_severity"], row["gemma_model"], row["qwen_model"], gemma_confidence,
-         qwen_confidence, issue_similarity, quality_score, int(row["image_count"] or 0),
+        (inspection_id, status, declared_crop or None,
+         representative["issue_type"] if representative else None,
+         representative["issue_name"] if representative else None,
+         representative["severity"] if representative else None,
+         gemma["model"], gemini["model"], qwen["model"], gemma["confidence"],
+         gemini["confidence"], qwen["confidence"], issue_similarity, quality_score,
+         majority_count, Jsonb(agreeing_providers), int(row["image_count"] or 0),
          "; ".join(reasons)[:240] or None),
     ).fetchone()
     conn.execute(
         "UPDATE inspections SET training_eligible=%s,expert_review_status=%s,updated_at=now() WHERE id=%s",
-        (eligible, "automatic_consensus_eligible" if eligible else "automatic_quality_gate", inspection_id),
+        (eligible, "automatic_consensus_eligible" if eligible else
+         "automatic_consensus_waiting" if status == "waiting_models" else "automatic_quality_gate", inspection_id),
     )
     return {"status": result["candidate_status"], "eligible": eligible,
             "quality_score": float(result["quality_score"] or 0),
@@ -189,15 +245,48 @@ def sync_all_candidates(conn) -> dict:
         SELECT DISTINCT inspection.id
         FROM inspections inspection
         WHERE EXISTS (SELECT 1 FROM ai_predictions p WHERE p.inspection_id=inspection.id AND p.provider='gemma')
-          AND EXISTS (SELECT 1 FROM ai_predictions p WHERE p.inspection_id=inspection.id AND p.provider='qwen')
+          AND EXISTS (SELECT 1 FROM inspection_images image WHERE image.inspection_id=inspection.id
+                       AND image.storage_provider='s3' AND image.retention_status='retained')
         """
     ).fetchall()
-    eligible = excluded = 0
+    eligible = excluded = waiting = 0
     for item in inspection_ids:
         result = refresh_training_candidate(conn, item["id"])
         if result["eligible"]: eligible += 1
+        elif result["status"] == "waiting_models": waiting += 1
         else: excluded += 1
-    return {"evaluated": len(inspection_ids), "eligible": eligible, "excluded": excluded}
+    return {"evaluated": len(inspection_ids), "eligible": eligible, "excluded": excluded, "waiting_models": waiting}
+
+
+def sync_gemini_queue(conn, reset_failed: bool = False) -> dict:
+    if not GEMINI_SHADOW_ENABLED:
+        return {"new_jobs": 0, "retried_jobs": 0, "disabled": True}
+    if reset_failed:
+        reset = conn.execute(
+            """
+            UPDATE gemini_shadow_jobs SET status='retry',attempt_count=0,next_attempt_at=now(),
+                   error_category=NULL,last_error=NULL,completed_at=NULL,updated_at=now()
+            WHERE status='failed' RETURNING id
+            """
+        ).fetchall()
+    else:
+        reset = []
+    queued = conn.execute(
+        """
+        INSERT INTO gemini_shadow_jobs(inspection_id,model_name,status,max_attempts,next_attempt_at,updated_at)
+        SELECT inspection.id,%s,'pending',%s,now(),now()
+        FROM inspections inspection
+        WHERE inspection.status='completed'
+          AND EXISTS (SELECT 1 FROM ai_predictions p WHERE p.inspection_id=inspection.id AND p.provider='gemma')
+          AND EXISTS (SELECT 1 FROM inspection_images image WHERE image.inspection_id=inspection.id
+                       AND image.storage_provider='s3' AND image.retention_status='retained'
+                       AND image.storage_bucket IS NOT NULL)
+        ON CONFLICT (inspection_id) DO NOTHING
+        RETURNING id
+        """,
+        (GEMINI_SHADOW_MODEL, GEMINI_SHADOW_MAX_ATTEMPTS),
+    ).fetchall()
+    return {"new_jobs": len(queued), "retried_jobs": len(reset)}
 
 
 def sync_qwen_queue(conn, reset_failed: bool = False) -> dict:
@@ -238,15 +327,15 @@ def record_daily_metrics(conn) -> None:
         SELECT result.model_name,(now() AT TIME ZONE 'Asia/Kolkata')::date,'production_observation',
                count(*),count(*) FILTER (WHERE result.success)::numeric/NULLIF(count(*),0),
                avg(prediction.confidence),
-               avg(CASE WHEN result.provider='qwen' THEN (job.agreement_json->>'overall_agreement_score')::numeric/100 END)
+               avg(consensus.agreement_count::numeric/3)
         FROM ai_provider_results result
         LEFT JOIN LATERAL (
             SELECT confidence FROM ai_predictions p
             WHERE p.inspection_id=result.inspection_id AND p.provider=result.provider
             ORDER BY created_at DESC LIMIT 1
         ) prediction ON true
-        LEFT JOIN qwen_shadow_jobs job ON job.inspection_id=result.inspection_id AND result.provider='qwen'
-        WHERE result.provider IN ('gemma','qwen')
+        LEFT JOIN inspection_model_consensus consensus ON consensus.inspection_id=result.inspection_id
+        WHERE result.provider IN ('gemma','gemini','qwen')
           AND result.created_at >= date_trunc('day',now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata'
         GROUP BY result.model_name
         ON CONFLICT (model_name,metric_day,source) DO UPDATE SET
@@ -396,11 +485,13 @@ def start_training_if_ready(force: bool = False) -> dict:
         training_count = max(0, len(candidates) - validation_count)
         manifest = {
             "version": dataset_version,
-            "label_policy": "gemma_qwen_high_confidence_agreement",
+            "label_policy": "gemma_gemini_qwen_two_of_three_majority",
             "examples": [{
                 "inspection_id": str(item["inspection_id"]), "crop": item["crop_text"],
                 "issue_type": item["issue_type"], "issue_name": item["issue_name"],
                 "severity": item["severity"], "quality_score": float(item["quality_score"] or 0),
+                "majority_count": int(item["majority_count"] or 0),
+                "agreeing_providers": item["agreeing_providers"],
                 "images": item["images"],
             } for item in candidates],
         }
@@ -440,7 +531,14 @@ def start_training_if_ready(force: bool = False) -> dict:
 
 def run_pipeline_cycle(force_training: bool = False, reset_failed: bool = False) -> dict:
     with connection() as conn:
-        queue = sync_qwen_queue(conn, reset_failed=reset_failed)
+        qwen_queue = sync_qwen_queue(conn, reset_failed=reset_failed)
+        gemini_queue = sync_gemini_queue(conn, reset_failed=reset_failed)
+        queue = {
+            "new_jobs": qwen_queue["new_jobs"] + gemini_queue["new_jobs"],
+            "retried_jobs": qwen_queue["retried_jobs"] + gemini_queue["retried_jobs"],
+            "qwen": qwen_queue,
+            "gemini": gemini_queue,
+        }
         candidates = sync_all_candidates(conn)
         record_daily_metrics(conn)
         summary = conn.execute(

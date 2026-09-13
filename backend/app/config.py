@@ -59,7 +59,7 @@ MODEL_AUTO_DEPLOY_ENABLED = os.getenv("MODEL_AUTO_DEPLOY_ENABLED", "true").strip
 # Live and shadow Google-model roles. The API key remains server-side only.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMMA_MODEL = os.getenv("GEMMA_MODEL", os.getenv("PRIMARY_VISION_MODEL", "gemma-4-26b-a4b-it")).strip() or "gemma-4-26b-a4b-it"
-GEMINI_SHADOW_ENABLED = os.getenv("GEMINI_SHADOW_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
+GEMINI_SHADOW_ENABLED = os.getenv("GEMINI_SHADOW_ENABLED", "true").strip().lower() in {"1", "true", "yes"}
 GEMINI_SHADOW_MODEL = os.getenv("GEMINI_SHADOW_MODEL", os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")).strip() or "gemini-3.5-flash-lite"
 GEMINI_SHADOW_MAX_ATTEMPTS = max(1, min(10, int(os.getenv("GEMINI_SHADOW_MAX_ATTEMPTS", "3"))))
 GEMINI_SHADOW_POLL_SECONDS = max(2, min(300, int(os.getenv("GEMINI_SHADOW_POLL_SECONDS", "8"))))

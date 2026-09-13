@@ -137,7 +137,7 @@ class ComparisonTests(unittest.TestCase):
 
     def test_catalogue_boundary(self):
         route = (c.ROOT / "app/api/inspect/route.ts").read_text()
-        self.assertIn("catalogRecommendations(grounded)", route)
+        self.assertIn("approvedCatalogueRecommendations(grounded)", route)
         self.assertNotIn("qwen.diagnosis", route)
         self.assertNotIn("products", c.SCHEMA["properties"])
         self.assertNotIn("dosage", c.SCHEMA["properties"])
