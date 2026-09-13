@@ -15,6 +15,8 @@ OPERATIONAL_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "
 S3_PERSISTENCE_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "003_s3_inspection_persistence.sql"
 MODEL_TRAINING_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "012_model_training_registry.sql"
 MODEL_EVALUATION_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "014_gemma_primary_evaluation_quality.sql"
+EXPERT_REVIEW_WORKFLOW_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "015_expert_review_workflow.sql"
+ADMIN_API = PROJECT_ROOT / "backend" / "app" / "admin.py"
 
 
 class ProductImportContractTests(unittest.TestCase):
@@ -152,6 +154,29 @@ class MigrationContractTests(unittest.TestCase):
         self.assertIn("expert_issue_name", sql)
         self.assertIn("training_eligible boolean not null default false", sql)
         self.assertIn("evaluation artifact", sql)
+
+    def test_expert_review_workflow_requires_hierarchical_dataset_release(self):
+        sql = EXPERT_REVIEW_WORKFLOW_MIGRATION.read_text(encoding="utf-8").lower()
+        self.assertIn("create table if not exists inspection_review_workflow", sql)
+        for stage in {
+            "pending_expert_review", "expert_reviewed", "senior_validated",
+            "final_approved", "rejected",
+        }:
+            self.assertIn(stage, sql)
+        for audit_field in {
+            "reviewed_by_email", "validated_by_email", "final_approved_by_email",
+            "rejected_by_email", "requested_for_training",
+        }:
+            self.assertIn(audit_field, sql)
+
+    def test_admin_api_keeps_expert_truth_and_final_training_approval_separate(self):
+        source = ADMIN_API.read_text(encoding="utf-8")
+        self.assertIn('DATASET_FINAL_APPROVAL_ROLES = {"super_admin"}', source)
+        self.assertIn('@router.post("/inspections/{inspection_id}/expert-review")', source)
+        self.assertIn('@router.post("/inspections/{inspection_id}/review-decision")', source)
+        self.assertIn("Senior validation is required before final dataset approval.", source)
+        self.assertIn("UPDATE inspection_images SET consent_for_training=false", source)
+        self.assertIn("UPDATE inspection_images SET consent_for_training=true", source)
 
 
 if __name__ == "__main__":

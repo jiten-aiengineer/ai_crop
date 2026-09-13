@@ -56,6 +56,8 @@ CATALOGUE_READ_ROLES = CATALOGUE_MANAGER_ROLES | {
 }
 ADMIN_READ_ROLES = CATALOGUE_READ_ROLES | {"super_admin"}
 INSPECTION_REVIEW_ROLES = {"manager", "expert_review_approver", "senior_catalogue_manager", "managing_director"}
+DATASET_VALIDATION_ROLES = {"expert_review_approver", "senior_catalogue_manager", "managing_director"}
+DATASET_FINAL_APPROVAL_ROLES = {"super_admin"}
 INSPECTION_DELETE_ROLES = {"super_admin"}
 SALES_ACTIVITY_ROLES = {"manager", "senior_catalogue_manager", "managing_director"}
 ASSIGNABLE_ROLE_CODES = {
@@ -112,6 +114,11 @@ class ExpertInspectionReviewInput(BaseModel):
     image_quality_sufficient: bool = False
     privacy_cleared: bool = False
     training_eligible: bool = False
+
+
+class ExpertReviewWorkflowDecision(BaseModel):
+    decision: Literal["validate", "reject", "final_approve"]
+    note: str = Field(default="", max_length=2000)
 
 
 class CatalogueChangeRequest(BaseModel):
@@ -354,6 +361,9 @@ def current_admin(identity: AdminIdentity = Depends(_identity)):
             "send_catalogue_changes_to_final_publisher": _can(identity, SENIOR_CATALOGUE_MANAGER_ROLES),
             "finalise_catalogue_release": _can(identity, FINAL_CATALOGUE_PUBLISHER_ROLES),
             "view_inspections": _can(identity, INSPECTION_REVIEW_ROLES),
+            "submit_expert_review": _can(identity, INSPECTION_REVIEW_ROLES),
+            "validate_expert_review": _can(identity, DATASET_VALIDATION_ROLES),
+            "finalise_training_dataset": _can(identity, DATASET_FINAL_APPROVAL_ROLES),
             "delete_inspections": _can(identity, INSPECTION_DELETE_ROLES),
             "view_sales_officer_activity": _can(identity, SALES_ACTIVITY_ROLES),
             "view_model_observability": _can(identity, INSPECTION_REVIEW_ROLES),
@@ -668,7 +678,16 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
                    review.review_outcome, review.expert_crop_text,
                    review.expert_issue_type, review.expert_issue_name,
                    review.expert_severity, review.reviewer_notes,
-                   review.dataset_eligible AS expert_training_eligible
+                   review.image_quality_sufficient, review.privacy_cleared,
+                   review.dataset_eligible AS expert_training_eligible,
+                   workflow.workflow_status, workflow.requested_for_training,
+                   workflow.reviewed_by_name, workflow.reviewed_by_email, workflow.reviewed_at,
+                   workflow.validation_note, workflow.validated_by_name,
+                   workflow.validated_by_email, workflow.validated_at,
+                   workflow.final_note, workflow.final_approved_by_name,
+                   workflow.final_approved_by_email, workflow.final_approved_at,
+                   workflow.rejection_note, workflow.rejected_by_name,
+                   workflow.rejected_by_email, workflow.rejected_at
             FROM inspections i
             LEFT JOIN employees employee ON employee.id=i.employee_id
             LEFT JOIN inspection_images ii ON ii.inspection_id = i.id
@@ -695,15 +714,18 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
             ) predictions ON true
             LEFT JOIN LATERAL (
                 SELECT review_outcome,expert_crop_text,expert_issue_type,expert_issue_name,
-                       expert_severity,reviewer_notes,dataset_eligible
+                       expert_severity,reviewer_notes,image_quality_sufficient,privacy_cleared,
+                       dataset_eligible
                 FROM expert_reviews r WHERE r.inspection_id=i.id
                 ORDER BY r.created_at DESC LIMIT 1
             ) review ON true
+            LEFT JOIN inspection_review_workflow workflow ON workflow.inspection_id=i.id
             GROUP BY i.id, employee.id, prediction.crop_text, prediction.issue_name, prediction.issue_type,
                      prediction.severity, prediction.confidence, prediction.summary, prediction.recommended_next_action,
                      consensus.inspection_id, predictions.model_predictions, review.review_outcome,
                      review.expert_crop_text, review.expert_issue_type, review.expert_issue_name,
-                     review.expert_severity, review.reviewer_notes, review.dataset_eligible
+                     review.expert_severity, review.reviewer_notes, review.image_quality_sufficient,
+                     review.privacy_cleared, review.dataset_eligible, workflow.inspection_id
             ORDER BY i.created_at DESC LIMIT 200
             """
         ).fetchall()
@@ -723,7 +745,7 @@ def save_expert_review(
     expert_issue_name = payload.expert_issue_name.strip()
     expert_severity = payload.expert_severity.strip()
     rejected = payload.review_outcome == "rejected_unusable"
-    training_eligible = bool(
+    requested_for_training = bool(
         payload.training_eligible and not rejected and expert_crop and expert_issue_type
         and expert_issue_name and payload.image_quality_sufficient and payload.privacy_cleared
     )
@@ -758,19 +780,176 @@ def save_expert_review(
             (inspection_id, prediction["id"] if prediction else None, _employee_actor_id(identity),
              crop["id"] if crop else None, problem["id"] if problem else None,
              expert_severity or None, review_status, diagnosis_correct, payload.notes.strip() or None,
-             training_eligible, payload.review_outcome, expert_crop or None, expert_issue_type or None,
+             False, payload.review_outcome, expert_crop or None, expert_issue_type or None,
              expert_issue_name or None, expert_severity or None, payload.image_quality_sufficient,
              payload.privacy_cleared),
         ).fetchone()
+        # A revised human label invalidates every earlier dataset approval for this
+        # inspection. The replacement review must pass the complete hierarchy again.
+        conn.execute(
+            "UPDATE expert_reviews SET dataset_eligible=false,updated_at=now() "
+            "WHERE inspection_id=%s AND id<>%s",
+            (inspection_id, review["id"]),
+        )
+        conn.execute(
+            "UPDATE inspection_images SET consent_for_training=false WHERE inspection_id=%s",
+            (inspection_id,),
+        )
+        workflow_status = "rejected" if rejected else "expert_reviewed"
+        conn.execute(
+            """
+            INSERT INTO inspection_review_workflow(
+                inspection_id,workflow_status,expert_review_id,requested_for_training,
+                reviewed_by_name,reviewed_by_email,reviewed_at,
+                validation_note,validated_by_name,validated_by_email,validated_at,
+                final_note,final_approved_by_name,final_approved_by_email,final_approved_at,
+                rejection_note,rejected_by_name,rejected_by_email,rejected_at,updated_at
+            ) VALUES (%s,%s,%s,%s,%s,%s,now(),NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+                      %s,%s,%s,%s,now())
+            ON CONFLICT (inspection_id) DO UPDATE SET
+                workflow_status=EXCLUDED.workflow_status,
+                expert_review_id=EXCLUDED.expert_review_id,
+                requested_for_training=EXCLUDED.requested_for_training,
+                reviewed_by_name=EXCLUDED.reviewed_by_name,
+                reviewed_by_email=EXCLUDED.reviewed_by_email,
+                reviewed_at=EXCLUDED.reviewed_at,
+                validation_note=NULL,validated_by_name=NULL,validated_by_email=NULL,validated_at=NULL,
+                final_note=NULL,final_approved_by_name=NULL,final_approved_by_email=NULL,final_approved_at=NULL,
+                rejection_note=EXCLUDED.rejection_note,rejected_by_name=EXCLUDED.rejected_by_name,
+                rejected_by_email=EXCLUDED.rejected_by_email,rejected_at=EXCLUDED.rejected_at,
+                updated_at=now()
+            """,
+            (inspection_id, workflow_status, review["id"], requested_for_training,
+             identity.full_name, identity.email,
+             (payload.notes.strip() or None) if rejected else None,
+             identity.full_name if rejected else None,
+             identity.email if rejected else None,
+             datetime.now(ZoneInfo("Asia/Kolkata")) if rejected else None),
+        )
         conn.execute(
             "UPDATE inspections SET expert_review_status=%s,training_eligible=%s,updated_at=now() WHERE id=%s",
-            (payload.review_outcome, training_eligible, inspection_id),
+            (workflow_status, False, inspection_id),
         )
         _audit(conn, identity, "expert_review_inspection", "inspection", str(inspection_id), None,
                {"review_id": str(review["id"]), "outcome": payload.review_outcome,
-                "training_eligible": training_eligible})
+                "requested_for_training": requested_for_training, "workflow_status": workflow_status})
         conn.commit()
     return {"inspection_id": str(inspection_id), "review_status": payload.review_outcome,
+            "workflow_status": workflow_status, "requested_for_training": requested_for_training,
+            "training_eligible": False}
+
+
+@router.post("/inspections/{inspection_id}/review-decision")
+def decide_expert_review_workflow(
+    inspection_id: UUID,
+    payload: ExpertReviewWorkflowDecision,
+    identity: AdminIdentity = Depends(_identity),
+):
+    """Validate, reject or finally release one human-reviewed dataset record."""
+    if payload.decision == "validate":
+        _require(identity, DATASET_VALIDATION_ROLES)
+    elif payload.decision == "final_approve":
+        _require(identity, DATASET_FINAL_APPROVAL_ROLES)
+    else:
+        _require(identity, DATASET_VALIDATION_ROLES | DATASET_FINAL_APPROVAL_ROLES)
+    note = payload.note.strip()
+    if payload.decision == "reject" and not note:
+        raise HTTPException(status_code=422, detail="Record a reason before rejecting this dataset case.")
+
+    with connection() as conn:
+        inspection = conn.execute("SELECT id FROM inspections WHERE id=%s FOR UPDATE", (inspection_id,)).fetchone()
+        if not inspection:
+            raise HTTPException(status_code=404, detail="Inspection not found.")
+        workflow = conn.execute(
+            """
+            SELECT workflow.*, review.review_outcome, review.expert_crop_text,
+                   review.expert_issue_type, review.expert_issue_name, review.expert_severity,
+                   review.image_quality_sufficient, review.privacy_cleared
+            FROM inspection_review_workflow workflow
+            LEFT JOIN expert_reviews review ON review.id=workflow.expert_review_id
+            WHERE workflow.inspection_id=%s FOR UPDATE OF workflow
+            """,
+            (inspection_id,),
+        ).fetchone()
+        if not workflow:
+            raise HTTPException(status_code=409, detail="An expert review must be completed first.")
+        previous_status = workflow["workflow_status"]
+
+        if payload.decision == "validate":
+            if previous_status != "expert_reviewed":
+                raise HTTPException(status_code=409, detail="Only an expert-reviewed case can be senior validated.")
+            conn.execute(
+                """
+                UPDATE inspection_review_workflow
+                SET workflow_status='senior_validated',validation_note=%s,
+                    validated_by_name=%s,validated_by_email=%s,validated_at=now(),updated_at=now()
+                WHERE inspection_id=%s
+                """,
+                (note or None, identity.full_name, identity.email, inspection_id),
+            )
+            next_status = "senior_validated"
+            training_eligible = False
+        elif payload.decision == "final_approve":
+            if previous_status != "senior_validated":
+                raise HTTPException(status_code=409, detail="Senior validation is required before final dataset approval.")
+            prerequisites = (
+                workflow["requested_for_training"]
+                and workflow["expert_crop_text"] and workflow["expert_issue_type"]
+                and workflow["expert_issue_name"] and workflow["expert_severity"]
+                and workflow["image_quality_sufficient"] and workflow["privacy_cleared"]
+                and workflow["review_outcome"] != "rejected_unusable"
+            )
+            if not prerequisites:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Training approval requires a complete expert label, sufficient image quality, privacy clearance and the training-use request.",
+                )
+            conn.execute(
+                """
+                UPDATE inspection_review_workflow
+                SET workflow_status='final_approved',final_note=%s,
+                    final_approved_by_name=%s,final_approved_by_email=%s,
+                    final_approved_at=now(),updated_at=now()
+                WHERE inspection_id=%s
+                """,
+                (note or None, identity.full_name, identity.email, inspection_id),
+            )
+            conn.execute("UPDATE expert_reviews SET dataset_eligible=true,updated_at=now() WHERE id=%s", (workflow["expert_review_id"],))
+            conn.execute(
+                "UPDATE inspection_images SET consent_for_training=true WHERE inspection_id=%s AND retention_status='retained'",
+                (inspection_id,),
+            )
+            next_status = "final_approved"
+            training_eligible = True
+        else:
+            if previous_status not in {"expert_reviewed", "senior_validated"}:
+                raise HTTPException(status_code=409, detail="Only a reviewed or validated case can be rejected.")
+            conn.execute(
+                """
+                UPDATE inspection_review_workflow
+                SET workflow_status='rejected',rejection_note=%s,
+                    rejected_by_name=%s,rejected_by_email=%s,rejected_at=now(),updated_at=now()
+                WHERE inspection_id=%s
+                """,
+                (note, identity.full_name, identity.email, inspection_id),
+            )
+            if workflow["expert_review_id"]:
+                conn.execute("UPDATE expert_reviews SET dataset_eligible=false,updated_at=now() WHERE id=%s", (workflow["expert_review_id"],))
+            conn.execute("UPDATE inspection_images SET consent_for_training=false WHERE inspection_id=%s", (inspection_id,))
+            next_status = "rejected"
+            training_eligible = False
+
+        conn.execute(
+            "UPDATE inspections SET expert_review_status=%s,training_eligible=%s,updated_at=now() WHERE id=%s",
+            (next_status, training_eligible, inspection_id),
+        )
+        _audit(
+            conn, identity, f"{payload.decision}_expert_review", "inspection", str(inspection_id),
+            {"workflow_status": previous_status},
+            {"workflow_status": next_status, "training_eligible": training_eligible, "note": note or None},
+        )
+        conn.commit()
+    return {"inspection_id": str(inspection_id), "workflow_status": next_status,
             "training_eligible": training_eligible}
 
 
@@ -1000,7 +1179,13 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
               (SELECT count(*) FROM expert_reviews WHERE diagnosis_correct IS FALSE) AS diagnosis_incorrect,
               (SELECT count(DISTINCT verified_crop_id) FROM expert_reviews WHERE dataset_eligible AND verified_crop_id IS NOT NULL) AS verified_crop_classes,
               (SELECT count(DISTINCT verified_problem_id) FROM expert_reviews WHERE dataset_eligible AND verified_problem_id IS NOT NULL) AS verified_problem_classes,
-              (SELECT count(*) FROM expert_reviews WHERE review_status = 'pending') AS pending_expert_reviews
+              (SELECT count(*) FROM inspections inspection
+                 LEFT JOIN inspection_review_workflow workflow ON workflow.inspection_id=inspection.id
+                WHERE COALESCE(workflow.workflow_status,'pending_expert_review')='pending_expert_review') AS pending_expert_reviews,
+              (SELECT count(*) FROM inspection_review_workflow WHERE workflow_status='expert_reviewed') AS awaiting_senior_validation,
+              (SELECT count(*) FROM inspection_review_workflow WHERE workflow_status='senior_validated') AS awaiting_final_approval,
+              (SELECT count(*) FROM inspection_review_workflow WHERE workflow_status='final_approved') AS final_approved_cases,
+              (SELECT count(*) FROM inspection_review_workflow WHERE workflow_status='rejected') AS rejected_review_cases
             """
         ).fetchone()
         training_runs = conn.execute(
@@ -1111,7 +1296,11 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
                    consensus.requires_expert_review,consensus.updated_at,
                    COALESCE(predictions.items,'[]'::jsonb) AS predictions,
                    review.review_outcome,review.expert_crop_text,review.expert_issue_type,
-                   review.expert_issue_name,review.expert_severity,review.dataset_eligible
+                   review.expert_issue_name,review.expert_severity,review.dataset_eligible,
+                   workflow.workflow_status,workflow.requested_for_training,
+                   workflow.reviewed_by_name,workflow.reviewed_at,
+                   workflow.validated_by_name,workflow.validated_at,
+                   workflow.final_approved_by_name,workflow.final_approved_at
             FROM inspections inspection
             LEFT JOIN employees employee ON employee.id=inspection.employee_id
             LEFT JOIN inspection_model_consensus consensus ON consensus.inspection_id=inspection.id
@@ -1132,6 +1321,7 @@ def model_observability(identity: AdminIdentity = Depends(_identity)):
                 FROM expert_reviews r WHERE r.inspection_id=inspection.id
                 ORDER BY created_at DESC LIMIT 1
             ) review ON true
+            LEFT JOIN inspection_review_workflow workflow ON workflow.inspection_id=inspection.id
             WHERE EXISTS (SELECT 1 FROM ai_provider_results result WHERE result.inspection_id=inspection.id)
             ORDER BY inspection.created_at DESC LIMIT 50
             """
