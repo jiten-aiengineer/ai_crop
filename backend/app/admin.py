@@ -57,8 +57,11 @@ CATALOGUE_READ_ROLES = CATALOGUE_MANAGER_ROLES | {
 }
 ADMIN_READ_ROLES = CATALOGUE_READ_ROLES | {"super_admin"}
 INSPECTION_REVIEW_ROLES = {"manager", "expert_review_approver", "senior_catalogue_manager", "managing_director"}
-DATASET_FINAL_APPROVAL_ROLES = {"super_admin"}
-INSPECTION_DELETE_ROLES = {"super_admin"}
+MODEL_PIPELINE_CONTROL_ROLES = {"super_admin"}
+# The legacy role code is retained for safe migration, but its active purpose
+# is inspection quality review. It may remove unsuitable DB + S3 evidence; it
+# does not approve cases for the automatic training dataset.
+INSPECTION_DELETE_ROLES = {"super_admin", "expert_review_approver"}
 SALES_ACTIVITY_ROLES = {"manager", "senior_catalogue_manager", "managing_director"}
 ASSIGNABLE_ROLE_CODES = {
     "field_employee", "manager", "catalog_editor", "catalogue_manager",
@@ -351,7 +354,7 @@ def current_admin(identity: AdminIdentity = Depends(_identity)):
             "delete_inspections": _can(identity, INSPECTION_DELETE_ROLES),
             "view_sales_officer_activity": _can(identity, SALES_ACTIVITY_ROLES),
             "view_model_observability": _can(identity, INSPECTION_REVIEW_ROLES),
-            "control_model_pipeline": _can(identity, DATASET_FINAL_APPROVAL_ROLES),
+            "control_model_pipeline": _can(identity, MODEL_PIPELINE_CONTROL_ROLES),
             "view_employee_access": _can(identity, {"employee_access_approver"}),
             "manage_employee_roles": _can(identity, {"super_admin"}),
         },
@@ -389,8 +392,7 @@ def overview(identity: AdminIdentity = Depends(_identity)):
             FROM inspection_images
             """
         ).fetchone()
-        reviews = conn.execute("SELECT count(*) AS pending FROM expert_reviews WHERE review_status = 'pending'").fetchone()
-    return {"products": products, "approvals": approvals, "inspections_30d": inspections, "private_s3": images, "expert_reviews": reviews}
+    return {"products": products, "approvals": approvals, "inspections_30d": inspections, "private_s3": images}
 
 
 @router.get("/catalogue/products")
@@ -643,7 +645,7 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
             """
             SELECT i.id, i.created_at, i.status, i.farmer_crop_text, i.declared_crop_text,
                    i.crop_source, i.diagnosis_confidence, i.ai_needs_more_information,
-                   i.expert_review_status, i.training_eligible, i.location_text, i.photo_count,
+                   i.dataset_quality_status, i.training_eligible, i.location_text, i.photo_count,
                    i.collection_mode, i.photo_requirements_met, i.photo_guidance_version,
                    employee.full_name AS employee_name, employee.employee_code,
                    i.image_storage_status, i.image_storage_failures, i.failure_message,
@@ -658,21 +660,7 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
                    prediction.recommended_next_action AS recommended_next_action,
                    consensus.consensus_status, consensus.agreement_count,
                    consensus.successful_models, consensus.consensus_issue_name,
-                   consensus.requires_expert_review,
-                   predictions.model_predictions,
-                   review.review_outcome, review.expert_crop_text,
-                   review.expert_issue_type, review.expert_issue_name,
-                   review.expert_severity, review.reviewer_notes,
-                   review.image_quality_sufficient, review.privacy_cleared,
-                   review.dataset_eligible AS expert_training_eligible,
-                   workflow.workflow_status, workflow.requested_for_training,
-                   workflow.reviewed_by_name, workflow.reviewed_by_email, workflow.reviewed_at,
-                   workflow.validation_note, workflow.validated_by_name,
-                   workflow.validated_by_email, workflow.validated_at,
-                   workflow.final_note, workflow.final_approved_by_name,
-                   workflow.final_approved_by_email, workflow.final_approved_at,
-                   workflow.rejection_note, workflow.rejected_by_name,
-                   workflow.rejected_by_email, workflow.rejected_at
+                   predictions.model_predictions
             FROM inspections i
             LEFT JOIN employees employee ON employee.id=i.employee_id
             LEFT JOIN inspection_images ii ON ii.inspection_id = i.id
@@ -682,7 +670,7 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
                 SELECT crop_text, issue_name, issue_type, severity, confidence, summary, recommended_next_action
                 FROM ai_predictions prediction
                 WHERE prediction.inspection_id = i.id AND prediction.provider IN ('gemma','gemini')
-                ORDER BY CASE prediction.provider WHEN 'gemma' THEN 0 ELSE 1 END, prediction.created_at DESC
+                ORDER BY CASE prediction.prediction_role WHEN 'primary' THEN 0 ELSE 1 END, prediction.created_at DESC
                 LIMIT 1
             ) prediction ON true
             LEFT JOIN inspection_model_consensus consensus ON consensus.inspection_id=i.id
@@ -697,20 +685,9 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
                 FROM ai_predictions p WHERE p.inspection_id=i.id
                   AND p.provider IN ('gemma','gemini','qwen')
             ) predictions ON true
-            LEFT JOIN LATERAL (
-                SELECT review_outcome,expert_crop_text,expert_issue_type,expert_issue_name,
-                       expert_severity,reviewer_notes,image_quality_sufficient,privacy_cleared,
-                       dataset_eligible
-                FROM expert_reviews r WHERE r.inspection_id=i.id
-                ORDER BY r.created_at DESC LIMIT 1
-            ) review ON true
-            LEFT JOIN inspection_review_workflow workflow ON workflow.inspection_id=i.id
             GROUP BY i.id, employee.id, prediction.crop_text, prediction.issue_name, prediction.issue_type,
                      prediction.severity, prediction.confidence, prediction.summary, prediction.recommended_next_action,
-                     consensus.inspection_id, predictions.model_predictions, review.review_outcome,
-                     review.expert_crop_text, review.expert_issue_type, review.expert_issue_name,
-                     review.expert_severity, review.reviewer_notes, review.image_quality_sufficient,
-                     review.privacy_cleared, review.dataset_eligible, workflow.inspection_id
+                     consensus.inspection_id, predictions.model_predictions
             ORDER BY i.created_at DESC LIMIT 200
             """
         ).fetchall()
@@ -753,7 +730,7 @@ def inspection_image_gallery(offset: int = Query(default=0, ge=0), limit: int = 
 
 @router.get("/inspections/{inspection_id}/deletion")
 def inspection_deletion_metadata(inspection_id: UUID, identity: AdminIdentity = Depends(_identity)):
-    """Return exact private objects before a super admin deletes an inspection."""
+    """Return exact private objects before an authorised quality deletion."""
     _require(identity, INSPECTION_DELETE_ROLES)
     with connection() as conn:
         inspection = conn.execute("SELECT id FROM inspections WHERE id = %s", (inspection_id,)).fetchone()
@@ -821,8 +798,8 @@ def sales_officer_activity(
                        count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND i.photo_count >= 4 AND i.photo_requirements_met) AS day_complete_sets,
                        count(DISTINCT COALESCE(c.name, NULLIF(i.farmer_crop_text, ''))) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day) AS day_distinct_crops,
                        count(DISTINCT prediction.issue_name) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day) AS day_distinct_problems,
-                       count(DISTINCT i.id) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND review.review_status IN ('verified','corrected') AND review.dataset_eligible) AS day_expert_approved,
-                       count(DISTINCT i.id) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND review.review_status = 'rejected') AS day_rejected,
+                       count(DISTINCT i.id) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND candidate.candidate_status IN ('eligible','exported','training','used')) AS day_quality_eligible,
+                       count(DISTINCT i.id) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND candidate.candidate_status = 'excluded') AS day_quality_excluded,
                        count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 29 AND selected.report_day) AS month_uploads,
                        COALESCE(sum(i.photo_count) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 29 AND selected.report_day), 0) AS month_images,
                        count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 29 AND selected.report_day AND i.photo_count >= 4 AND i.photo_requirements_met) AS month_complete_sets,
@@ -831,7 +808,7 @@ def sales_officer_activity(
                 FROM inspections i CROSS JOIN selected
                 LEFT JOIN crops c ON c.id=i.crop_id
                 LEFT JOIN LATERAL (SELECT issue_name FROM ai_predictions p WHERE p.inspection_id=i.id AND p.provider='gemini' ORDER BY p.created_at DESC LIMIT 1) prediction ON true
-                LEFT JOIN LATERAL (SELECT review_status, dataset_eligible FROM expert_reviews r WHERE r.inspection_id=i.id ORDER BY r.created_at DESC LIMIT 1) review ON true
+                LEFT JOIN auto_training_candidates candidate ON candidate.inspection_id=i.id
                 GROUP BY i.employee_id
             )
             SELECT sot.id, sot.state, sot.territory,
@@ -843,8 +820,8 @@ def sales_officer_activity(
                    COALESCE(a.day_complete_sets, 0) AS day_complete_sets,
                    COALESCE(a.day_distinct_crops, 0) AS day_distinct_crops,
                    COALESCE(a.day_distinct_problems, 0) AS day_distinct_problems,
-                   COALESCE(a.day_expert_approved, 0) AS day_expert_approved,
-                   COALESCE(a.day_rejected, 0) AS day_rejected,
+                   COALESCE(a.day_quality_eligible, 0) AS day_quality_eligible,
+                   COALESCE(a.day_quality_excluded, 0) AS day_quality_excluded,
                    COALESCE(a.month_uploads, 0) AS month_uploads,
                    COALESCE(a.month_images, 0) AS month_images,
                    COALESCE(a.month_complete_sets, 0) AS month_complete_sets,
@@ -888,7 +865,7 @@ def control_model_automation(
     identity: AdminIdentity = Depends(_identity),
 ):
     """Synchronise the queue or start a metric-gated continuous-training cycle."""
-    _require(identity, DATASET_FINAL_APPROVAL_ROLES)
+    _require(identity, MODEL_PIPELINE_CONTROL_ROLES)
     result = run_pipeline_cycle(
         force_training=payload.action == "train_now",
         reset_failed=payload.action == "retry_failed",

@@ -230,9 +230,8 @@ def refresh_training_candidate(conn, inspection_id: UUID | str) -> dict:
          "; ".join(reasons)[:240] or None),
     ).fetchone()
     conn.execute(
-        "UPDATE inspections SET training_eligible=%s,expert_review_status=%s,updated_at=now() WHERE id=%s",
-        (eligible, "automatic_consensus_eligible" if eligible else
-         "automatic_consensus_waiting" if status == "waiting_models" else "automatic_quality_gate", inspection_id),
+        "UPDATE inspections SET training_eligible=%s,dataset_quality_status=%s,updated_at=now() WHERE id=%s",
+        (eligible, status, inspection_id),
     )
     return {"status": result["candidate_status"], "eligible": eligible,
             "quality_score": float(result["quality_score"] or 0),
@@ -485,6 +484,9 @@ def start_training_if_ready(force: bool = False) -> dict:
         training_count = max(0, len(candidates) - validation_count)
         manifest = {
             "version": dataset_version,
+            "training_mode": "adapter_fine_tune",
+            "base_model": QWEN_MODEL,
+            "target": "existing_qwen_model_version",
             "label_policy": "gemma_gemini_qwen_two_of_three_majority",
             "examples": [{
                 "inspection_id": str(item["inspection_id"]), "crop": item["crop_text"],
@@ -502,7 +504,7 @@ def start_training_if_ready(force: bool = False) -> dict:
                 dataset_manifest,started_at)
             VALUES (%s,%s,'gpu_training_api','qwen3.5',%s,%s,'preparing','threshold',%s,%s,%s,%s,%s,now())
             """,
-            (run_id, f"Automatic crop model {dataset_version}", QWEN_MODEL, dataset_version,
+            (run_id, f"Qwen adapter fine-tune {dataset_version}", QWEN_MODEL, dataset_version,
              training_count, validation_count, sum(int(item["image_count"] or 0) for item in candidates),
              QWEN_MODEL, Jsonb(manifest)),
         )
@@ -511,7 +513,13 @@ def start_training_if_ready(force: bool = False) -> dict:
     try:
         # The connector only acknowledges and queues the run here; training remains asynchronous.
         # Keep this below the browser BFF timeout so the administrator receives a truthful response.
-        result = _connector("/v1/training/runs", "POST", {"run_id": str(run_id), "base_model": QWEN_MODEL, "dataset": manifest}, timeout=8)
+        result = _connector("/v1/training/runs", "POST", {
+            "run_id": str(run_id),
+            "training_mode": "adapter_fine_tune",
+            "base_model": QWEN_MODEL,
+            "target_model_family": "qwen3.5",
+            "dataset": manifest,
+        }, timeout=8)
         external_id = str(result.get("job_id") or result.get("id") or "").strip()
         if not external_id:
             raise TrainingConnectorError("GPU training service did not return a job ID.")

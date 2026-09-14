@@ -18,6 +18,7 @@ MODEL_EVALUATION_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations
 EXPERT_REVIEW_WORKFLOW_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "015_expert_review_workflow.sql"
 CONTINUOUS_PIPELINE_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "016_continuous_model_pipeline.sql"
 THREE_MODEL_PIPELINE_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "017_three_model_majority_pipeline.sql"
+AUTOMATIC_FINE_TUNING_POLICY_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "018_automatic_qwen_fine_tuning_policy.sql"
 ADMIN_API = PROJECT_ROOT / "backend" / "app" / "admin.py"
 QWEN_WORKER = PROJECT_ROOT / "backend" / "app" / "qwen_worker.py"
 ADMIN_PORTAL = PROJECT_ROOT / "app" / "components" / "AdminPortal.tsx"
@@ -159,23 +160,18 @@ class MigrationContractTests(unittest.TestCase):
         self.assertIn("training_eligible boolean not null default false", sql)
         self.assertIn("evaluation artifact", sql)
 
-    def test_expert_review_workflow_requires_hierarchical_dataset_release(self):
-        sql = EXPERT_REVIEW_WORKFLOW_MIGRATION.read_text(encoding="utf-8").lower()
-        self.assertIn("create table if not exists inspection_review_workflow", sql)
-        for stage in {
-            "pending_expert_review", "expert_reviewed", "senior_validated",
-            "final_approved", "rejected",
-        }:
-            self.assertIn(stage, sql)
-        for audit_field in {
-            "reviewed_by_email", "validated_by_email", "final_approved_by_email",
-            "rejected_by_email", "requested_for_training",
-        }:
-            self.assertIn(audit_field, sql)
+    def test_legacy_expert_workflow_is_not_the_active_training_gate(self):
+        legacy = EXPERT_REVIEW_WORKFLOW_MIGRATION.read_text(encoding="utf-8").lower()
+        policy = AUTOMATIC_FINE_TUNING_POLICY_MIGRATION.read_text(encoding="utf-8").lower()
+        self.assertIn("create table if not exists inspection_review_workflow", legacy)
+        self.assertIn("legacy audit history only", policy)
+        self.assertIn("no expert approval is required", policy)
+        self.assertIn("inspection quality reviewer", policy)
 
     def test_active_admin_api_uses_automatic_model_pipeline(self):
         source = ADMIN_API.read_text(encoding="utf-8")
-        self.assertIn('DATASET_FINAL_APPROVAL_ROLES = {"super_admin"}', source)
+        self.assertIn('MODEL_PIPELINE_CONTROL_ROLES = {"super_admin"}', source)
+        self.assertIn('INSPECTION_DELETE_ROLES = {"super_admin", "expert_review_approver"}', source)
         self.assertIn('@router.post("/models/automation")', source)
         self.assertNotIn('@router.post("/inspections/{inspection_id}/expert-review")', source)
         self.assertNotIn('@router.post("/inspections/{inspection_id}/review-decision")', source)
@@ -209,6 +205,12 @@ class MigrationContractTests(unittest.TestCase):
         window_check = worker_source.index("scheduled_now = within_processing_window()", health_check)
         self.assertLess(health_check, window_check)
         self.assertIn("process_immediately_whenever_reachable", worker_source)
+
+    def test_training_connector_fine_tunes_existing_qwen_base(self):
+        source = (PROJECT_ROOT / "backend" / "app" / "continuous_training.py").read_text(encoding="utf-8")
+        self.assertIn('"training_mode": "adapter_fine_tune"', source)
+        self.assertIn('"base_model": QWEN_MODEL', source)
+        self.assertIn('"target_model_family": "qwen3.5"', source)
 
 
 if __name__ == "__main__":

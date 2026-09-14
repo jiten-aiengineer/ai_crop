@@ -354,11 +354,11 @@ def persist_inspection(
                 completed_at, image_storage_status, image_storage_failures,
                 collection_mode, photo_requirements_met, photo_guidance_version,
                 declared_crop_text, crop_source, diagnosis_confidence,
-                ai_needs_more_information, expert_review_status, training_eligible
+                ai_needs_more_information, dataset_quality_status, training_eligible
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     CASE WHEN %s = 'completed' THEN now() ELSE NULL END, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, 'not_reviewed', false)
+                    %s, %s, %s, %s, 'awaiting_models', false)
             ON CONFLICT (id) DO UPDATE SET
                 employee_id = COALESCE(inspections.employee_id, EXCLUDED.employee_id),
                 crop_id = EXCLUDED.crop_id,
