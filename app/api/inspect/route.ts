@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { catalogCropName } from '../../lib/catalog';
 import { approvedCatalogueRecommendations } from '../../lib/database-catalog';
-import { canMatchProducts, gemmaInspection, legacyDiagnosis, InspectionInput } from '../../lib/inspection-ai';
+import { canMatchProducts, geminiFlashInspection, gemmaInspection, legacyDiagnosis, selectLiveInspectionResult, InspectionInput } from '../../lib/inspection-ai';
 import { persistInspection } from '../../lib/inspection-persistence';
 import { storeInspectionImages } from '../../lib/s3-storage';
 import { fieldIdentityFor } from '../../lib/field-access';
@@ -45,12 +45,15 @@ export async function POST(request: Request) {
   const inspectionId = crypto.randomUUID();
   // Archiving and diagnosis begin together. The response still waits for both
   // so a storage failure is explicit rather than silently discarded.
-  const [gemma, storage] = await Promise.all([
+  const [gemma, flashLite, storage] = await Promise.all([
     gemmaInspection(input),
+    geminiFlashInspection(input),
     storeInspectionImages(inspectionId, preparedImages.map(({ bytes, mimeType, imageOrder }) => ({ bytes, mimeType, imageOrder })))
       .catch(() => ({ status: 'failed' as const, images: [], failures: preparedImages.map((image) => ({ imageOrder: image.imageOrder, code: 'upload_failed' as const })) })),
   ]);
-  const diagnosis = gemma.success && gemma.diagnosis ? legacyDiagnosis(gemma.diagnosis, declaredCrop) : undefined;
+  const live = selectLiveInspectionResult(gemma, flashLite);
+  const secondary = live.provider === 'gemma' ? flashLite : gemma;
+  const diagnosis = live.success && live.diagnosis ? legacyDiagnosis(live.diagnosis, declaredCrop) : undefined;
   // Keep known aliases normalised, but retain an approved live crop name even
   // when it was added after the application build. PostgreSQL remains the
   // source of truth for the final crop/product eligibility decision.
@@ -59,21 +62,22 @@ export async function POST(request: Request) {
     ...diagnosis,
     catalog_crop: catalogCropName(requestedCrop) || requestedCrop.trim().slice(0, 160),
   } : undefined;
-  const catalogue = grounded && gemma.diagnosis && canMatchProducts(gemma.diagnosis, requestedCrop)
+  const catalogue = grounded && live.diagnosis && canMatchProducts(live.diagnosis, requestedCrop)
     ? await approvedCatalogueRecommendations(grounded)
     : { recommendations: [], source: grounded ? 'insufficient_diagnostic_evidence' as const : 'catalogue_unavailable' as const };
   const recommendations = catalogue.recommendations;
-  const persistence = await persistInspection({ inspectionId, input, employeeCode, collectionMode, imageCount: images.length, storage, provider: gemma, recommendations });
+  const persistence = await persistInspection({ inspectionId, input, employeeCode, collectionMode, imageCount: images.length, storage, provider: live, additionalProviders: [secondary], recommendations });
   const storageMetadata = {
     inspection_id: inspectionId,
     comparison_status: persistence.shadowStatus || 'not_queued',
-    live_model_role: 'primary',
-    evaluation_note: 'Gemini and Qwen comparisons run in the private AI Lab and never change this live result.',
+    live_provider: live.provider,
+    live_model_role: live.provider === 'gemma' ? 'preferred_primary' : 'flash_lite_safety_fallback',
+    evaluation_note: 'Gemma and Flash-Lite were checked immediately. Qwen completes the independent three-model, 2-of-3 comparison in the private AI Lab.',
     storage_status: storage.status,
     stored_image_count: storage.images.length,
     image_storage_failures: storage.failures.map((failure) => failure.imageOrder),
     persistence_status: persistence.status,
   };
-  if (!gemma.success || !grounded) return NextResponse.json({error:'AI could not make a reliable assessment from these photos. Please add a clear close-up of the affected area and one full-plant photo.',...storageMetadata},{status:502});
+  if (!live.success || !grounded) return NextResponse.json({error:'AI could not make a reliable assessment from these photos. Please add a clear close-up of the affected area and one full-plant photo.',...storageMetadata},{status:502});
   return NextResponse.json({...grounded,...storageMetadata,recommendations,catalogue_source:catalogue.source});
 }

@@ -12,8 +12,23 @@ type PersistInspectionInput = {
   imageCount: number;
   storage: InspectionImageStorageResult;
   provider: ProviderResult;
+  additionalProviders?: ProviderResult[];
   recommendations: CatalogProduct[];
 };
+
+function providerPayload(provider: ProviderResult) {
+  return {
+    provider: provider.provider,
+    model: provider.model,
+    success: provider.success,
+    latency_ms: provider.latencyMs,
+    raw_json: provider.rawResponse || {},
+    error_message: provider.error || '',
+    diagnosis: provider.diagnosis || null,
+    input_tokens: provider.inputTokens ?? null,
+    output_tokens: provider.outputTokens ?? null,
+  };
+}
 
 function persistenceUrl() {
   const base = (process.env.INSPECTION_PERSISTENCE_URL || '').trim();
@@ -58,17 +73,8 @@ export async function persistInspection(input: PersistInspectionInput): Promise<
       })),
       failures: input.storage.failures.map((failure) => ({ image_order: failure.imageOrder, code: failure.code })),
     },
-    provider: {
-      provider: input.provider.provider,
-      model: input.provider.model,
-      success: input.provider.success,
-      latency_ms: input.provider.latencyMs,
-      raw_json: input.provider.rawResponse || {},
-      error_message: input.provider.error || '',
-      diagnosis: input.provider.diagnosis || null,
-      input_tokens: input.provider.inputTokens ?? null,
-      output_tokens: input.provider.outputTokens ?? null,
-    },
+    provider: providerPayload(input.provider),
+    additional_providers: (input.additionalProviders || []).slice(0, 2).map(providerPayload),
     recommendations: input.recommendations.map((product, index) => ({
       product_id: product.id,
       rank: index + 1,

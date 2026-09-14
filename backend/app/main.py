@@ -85,6 +85,7 @@ class InspectionPersistencePayload(BaseModel):
     context: InspectionContext
     storage: StoragePayload
     provider: ProviderPayload
+    additional_providers: list[ProviderPayload] = Field(default_factory=list, max_length=2)
     recommendations: list[RecommendationPayload] = Field(default_factory=list, max_length=12)
 
 
@@ -462,6 +463,7 @@ def persist_inspection(
         )
 
         prediction_id = None
+        provider_prediction_ids: dict[str, Any] = {}
         if payload.provider.success and payload.provider.diagnosis:
             prediction_crop_id = _crop_id(conn, declared_crop or detected_crop)
             problem_id = _problem_id(conn, issue_type, probable_issue)
@@ -475,7 +477,7 @@ def persist_inspection(
                     prompt_version, raw_response, latency_ms
                 )
                 VALUES (%s, %s, %s, 'primary', %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, 'inspection-contract-v1', %s, %s)
+                        %s, %s, %s, %s, %s, %s, %s, 'inspection-contract-v2', %s, %s)
                 ON CONFLICT (inspection_id, provider, model_name, prediction_role) DO UPDATE SET
                     crop_id = EXCLUDED.crop_id,
                     crop_text = EXCLUDED.crop_text,
@@ -520,6 +522,7 @@ def persist_inspection(
                 ),
             ).fetchone()
             prediction_id = row["id"]
+            provider_prediction_ids[payload.provider.provider] = prediction_id
 
             conn.execute(
                 """
@@ -533,6 +536,89 @@ def persist_inspection(
                  payload.photo_count, payload.provider.latency_ms),
             )
             refresh_consensus(conn, payload.inspection_id)
+
+        # Gemma and Flash-Lite are now evaluated together in the live request.
+        # Store the non-selected result as a shadow result so the dashboard has
+        # both records immediately and the Flash-Lite worker does not repeat it.
+        seen_providers = {payload.provider.provider}
+        for extra in payload.additional_providers:
+            if extra.provider in seen_providers:
+                continue
+            seen_providers.add(extra.provider)
+            extra_failure = None if extra.success else (_clean(extra.error_message, 2000) or "AI provider failed.")
+            conn.execute(
+                """
+                INSERT INTO ai_provider_results(
+                    inspection_id, provider, model_name, success, latency_ms, raw_json, error_message
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (inspection_id, provider, model_name) DO UPDATE SET
+                    success=EXCLUDED.success, latency_ms=EXCLUDED.latency_ms,
+                    raw_json=EXCLUDED.raw_json, error_message=EXCLUDED.error_message, created_at=now()
+                """,
+                (payload.inspection_id, extra.provider, extra.model, extra.success,
+                 extra.latency_ms, Jsonb(extra.raw_json), extra_failure),
+            )
+            if not extra.success or not extra.diagnosis:
+                continue
+            extra_diagnosis = extra.diagnosis
+            extra_crop = _clean(extra_diagnosis.get("crop"), 160)
+            extra_issue = _clean(extra_diagnosis.get("probable_issue"), 180)
+            extra_issue_type = _clean(extra_diagnosis.get("issue_type"), 64) or "unknown"
+            extra_row = conn.execute(
+                """
+                INSERT INTO ai_predictions(
+                    inspection_id, provider, model_name, prediction_role, crop_id, crop_text,
+                    problem_id, issue_type, issue_name, severity, confidence, observed_symptoms,
+                    probable_causes, alternative_possibilities, immediate_actions, prevention_tips,
+                    additional_information_required, recommended_next_action, summary,
+                    prompt_version, raw_response, latency_ms
+                ) VALUES (%s, %s, %s, 'shadow', %s, %s, %s, %s, %s, %s, %s, %s,
+                          %s, %s, %s, %s, %s, %s, %s, 'inspection-contract-v2', %s, %s)
+                ON CONFLICT (inspection_id, provider, model_name, prediction_role) DO UPDATE SET
+                    crop_id=EXCLUDED.crop_id, crop_text=EXCLUDED.crop_text,
+                    problem_id=EXCLUDED.problem_id, issue_type=EXCLUDED.issue_type,
+                    issue_name=EXCLUDED.issue_name, severity=EXCLUDED.severity,
+                    confidence=EXCLUDED.confidence, observed_symptoms=EXCLUDED.observed_symptoms,
+                    probable_causes=EXCLUDED.probable_causes,
+                    alternative_possibilities=EXCLUDED.alternative_possibilities,
+                    immediate_actions=EXCLUDED.immediate_actions,
+                    prevention_tips=EXCLUDED.prevention_tips,
+                    additional_information_required=EXCLUDED.additional_information_required,
+                    recommended_next_action=EXCLUDED.recommended_next_action,
+                    summary=EXCLUDED.summary, raw_response=EXCLUDED.raw_response,
+                    latency_ms=EXCLUDED.latency_ms
+                RETURNING id
+                """,
+                (
+                    payload.inspection_id, extra.provider, extra.model,
+                    _crop_id(conn, declared_crop or extra_crop), declared_crop or extra_crop,
+                    _problem_id(conn, extra_issue_type, extra_issue), extra_issue_type, extra_issue,
+                    _clean(extra_diagnosis.get("severity"), 32), _confidence(extra_diagnosis.get("confidence")),
+                    Jsonb(_string_list(extra_diagnosis.get("visible_symptoms"))),
+                    Jsonb(_string_list(extra_diagnosis.get("probable_causes"))),
+                    Jsonb(_string_list(extra_diagnosis.get("alternative_possibilities"))),
+                    Jsonb(_string_list(extra_diagnosis.get("immediate_actions"))),
+                    Jsonb(_string_list(extra_diagnosis.get("prevention_advice"))),
+                    extra_diagnosis.get("needs_more_information") is True,
+                    _clean(extra_diagnosis.get("recommended_next_action"), 4000),
+                    _clean(extra_diagnosis.get("summary"), 4000),
+                    Jsonb(extra.raw_json), extra.latency_ms,
+                ),
+            ).fetchone()
+            extra_prediction_id = extra_row["id"]
+            provider_prediction_ids[extra.provider] = extra_prediction_id
+            conn.execute(
+                """
+                INSERT INTO ai_usage(inspection_id, prediction_id, employee_id, provider, model_name,
+                                     operation, input_tokens, output_tokens, image_count,
+                                     latency_ms, success, error_code)
+                VALUES (%s, %s, %s, %s, %s, 'live_parallel_evaluation', %s, %s, %s, %s, true, NULL)
+                """,
+                (payload.inspection_id, extra_prediction_id, employee_id, extra.provider,
+                 extra.model, extra.input_tokens, extra.output_tokens,
+                 payload.photo_count, extra.latency_ms),
+            )
+        refresh_consensus(conn, payload.inspection_id)
 
         conn.execute("DELETE FROM inspection_recommendations WHERE inspection_id = %s", (payload.inspection_id,))
         if prediction_id:
@@ -564,7 +650,31 @@ def persist_inspection(
                     ),
                 )
         shadow_states: list[str] = []
-        if (
+        immediate_gemini = next(
+            (provider for provider in [payload.provider, *payload.additional_providers]
+             if provider.provider == 'gemini' and provider.success and provider.diagnosis),
+            None,
+        )
+        if immediate_gemini and provider_prediction_ids.get('gemini'):
+            conn.execute(
+                """
+                INSERT INTO gemini_shadow_jobs(
+                    inspection_id, model_name, status, attempt_count, max_attempts,
+                    prediction_id, latency_ms, started_at, completed_at, next_attempt_at,
+                    error_category, last_error, updated_at
+                ) VALUES (%s, %s, 'completed', 1, %s, %s, %s, now(), now(), now(), NULL, NULL, now())
+                ON CONFLICT (inspection_id) DO UPDATE SET
+                    model_name=EXCLUDED.model_name, status='completed',
+                    prediction_id=EXCLUDED.prediction_id, completed_at=now(),
+                    latency_ms=EXCLUDED.latency_ms,
+                    error_category=NULL, last_error=NULL, updated_at=now()
+                """,
+                (payload.inspection_id, immediate_gemini.model,
+                 GEMINI_SHADOW_MAX_ATTEMPTS, provider_prediction_ids['gemini'],
+                 immediate_gemini.latency_ms),
+            )
+            shadow_states.append("gemini:completed_live")
+        elif (
             GEMINI_SHADOW_ENABLED
             and payload.provider.success
             and prediction_id

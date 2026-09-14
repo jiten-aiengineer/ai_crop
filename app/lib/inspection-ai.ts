@@ -11,7 +11,7 @@ export type NormalizedDiagnosis = {
   immediate_actions: string[]; prevention_advice: string[]; follow_up_questions: string[];
   needs_more_information: boolean; summary: string; recommended_next_action: string;
 };
-export type ProviderName = 'gemma' | 'qwen';
+export type ProviderName = 'gemma' | 'gemini' | 'qwen';
 export type ProviderResult = {
   provider: ProviderName; model: string; success: boolean; latencyMs: number; timestamp: string;
   diagnosis?: NormalizedDiagnosis; rawResponse?: unknown; error?: string;
@@ -127,7 +127,7 @@ function safeRaw(diagnosis: NormalizedDiagnosis) {
   return Object.fromEntries(Object.keys(contract.schema.properties).map((key) => [key, diagnosis[key as keyof NormalizedDiagnosis] ?? null]));
 }
 
-async function googleInspection(input: InspectionInput, provider: 'gemma', model: string): Promise<ProviderResult> {
+async function googleInspection(input: InspectionInput, provider: 'gemma' | 'gemini', model: string): Promise<ProviderResult> {
   const start = Date.now();
   const base = { provider, model, timestamp: new Date().toISOString() };
   try {
@@ -137,7 +137,7 @@ async function googleInspection(input: InspectionInput, provider: 'gemma', model
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, signal: AbortSignal.timeout(45_000),
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [...input.images.map((image) => ({ inlineData: image })), { text: inspectionPrompt(input) }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 3072, responseMimeType: 'application/json' },
+        generationConfig: { temperature: 0.1, maxOutputTokens: 2048, responseMimeType: 'application/json' },
       }),
     });
     if (!response.ok) throw new Error(response.status === 429 ? 'AI service is busy. Please try again shortly.' : `AI inspection request failed (${response.status}).`);
@@ -158,6 +158,35 @@ async function googleInspection(input: InspectionInput, provider: 'gemma', model
 export function gemmaInspection(input: InspectionInput) {
   const model = process.env.PRIMARY_VISION_MODEL || process.env.GEMMA_MODEL || 'gemma-4-26b-a4b-it';
   return googleInspection(input, 'gemma', model);
+}
+
+export function geminiFlashInspection(input: InspectionInput) {
+  const model = process.env.GEMINI_SHADOW_MODEL || process.env.GEMINI_MODEL || process.env.GEMINI_VISION_MODEL || 'gemini-3.5-flash-lite';
+  return googleInspection(input, 'gemini', model);
+}
+
+function isActionable(result: ProviderResult) {
+  const diagnosis = result.diagnosis;
+  return Boolean(
+    result.success && diagnosis && diagnosis.issue_detected
+    && !['unknown', 'none'].includes(diagnosis.issue_type)
+    && diagnosis.confidence !== null && diagnosis.confidence >= 0.6
+    && !diagnosis.needs_more_information,
+  );
+}
+
+/**
+ * Gemma remains the preferred live model. Flash-Lite is an immediate safety
+ * verifier: it replaces Gemma only when Gemma has no actionable diagnosis.
+ * Qwen later completes the independent 2-of-3 evaluation in the private lab.
+ */
+export function selectLiveInspectionResult(gemma: ProviderResult, flashLite: ProviderResult) {
+  if (isActionable(gemma)) return gemma;
+  if (isActionable(flashLite)) return flashLite;
+  const usable = [gemma, flashLite]
+    .filter((result) => result.success && result.diagnosis)
+    .sort((left, right) => (right.diagnosis?.confidence ?? -1) - (left.diagnosis?.confidence ?? -1));
+  return usable[0] || gemma;
 }
 
 export function diagnosisConfidenceLevel(confidence: number | null) {

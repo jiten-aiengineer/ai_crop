@@ -69,6 +69,14 @@ test('low-confidence or incomplete evidence cannot trigger product matching',()=
   assert.equal(ai.canMatchProducts(incomplete,'Tomato'),false);
 });
 
+test('Flash-Lite replaces only a weak Gemma live result',()=>{
+  const weakGemma={provider:'gemma',model:'gemma',success:true,latencyMs:10,timestamp:'now',diagnosis:ai.normalizeDiagnosis({...data,issue_type:'unknown',probable_issue:'Insufficient visual evidence',confidence:.3,needs_more_information:true},'Rice')};
+  const strongFlash={provider:'gemini',model:'flash-lite',success:true,latencyMs:3,timestamp:'now',diagnosis:ai.normalizeDiagnosis({...data,crop:'Rice',issue_type:'insect_pest',probable_issue:'Brown planthopper infestation',confidence:.85,needs_more_information:false},'Rice')};
+  assert.equal(ai.selectLiveInspectionResult(weakGemma,strongFlash).provider,'gemini');
+  const strongGemma={...weakGemma,diagnosis:ai.normalizeDiagnosis({...data,crop:'Rice',issue_type:'insect_pest',probable_issue:'Planthopper infestation',confidence:.8,needs_more_information:false},'Rice')};
+  assert.equal(ai.selectLiveInspectionResult(strongGemma,strongFlash).provider,'gemma');
+});
+
 test('administrator proxy fails closed before any service request',async()=>{
   const prior=global.fetch;const old=process.env.COMPARISON_ADMIN_TOKEN;delete process.env.COMPARISON_ADMIN_TOKEN;
   global.fetch=async()=>{throw new Error('Should never call private service');};
@@ -128,10 +136,14 @@ test('inspection persistence returns the durable shadow queue state',async()=>{
   const names=['INSPECTION_PERSISTENCE_URL','INSPECTION_PERSISTENCE_TOKEN'];const old=Object.fromEntries(names.map(name=>[name,process.env[name]]));const prior=global.fetch;
   const payload={inspectionId:'550e8400-e29b-41d4-a716-446655440000',collectionMode:'general_employee',imageCount:1,input,storage:{status:'stored',images:[{bucket:'private',key:'inspections/test.jpg',mimeType:'image/jpeg',fileSizeBytes:4,imageOrder:1}],failures:[]},provider:{provider:'gemini',model:'test',success:true,latencyMs:3,timestamp:'now',diagnosis:data},recommendations:[]};
   Object.assign(process.env,{INSPECTION_PERSISTENCE_URL:'http://127.0.0.1:8000/api/v1/inspections/persist',INSPECTION_PERSISTENCE_TOKEN:'test-only'});
-  global.fetch=async()=>Response.json({status:'saved',shadow_status:'pending'},{status:201});
+  let sentBody;
+  global.fetch=async(_url,options)=>{sentBody=JSON.parse(options.body);return Response.json({status:'saved',shadow_status:'pending'},{status:201});};
   try{
     const persistence=load('app/lib/inspection-persistence.ts');
+    payload.additionalProviders=[{provider:'gemma',model:'gemma',success:true,latencyMs:9,timestamp:'now',diagnosis:data}];
     const result=await persistence.persistInspection(payload);
     assert.equal(result.status,'saved');assert.equal(result.shadowStatus,'pending');
+    assert.equal(sentBody.provider.provider,'gemini');
+    assert.equal(sentBody.additional_providers[0].provider,'gemma');
   }finally{global.fetch=prior;for(const name of names){if(old[name]===undefined)delete process.env[name];else process.env[name]=old[name];}}
 });

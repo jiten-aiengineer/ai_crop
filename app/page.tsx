@@ -49,8 +49,8 @@ const HISTORY_KEY = 'crop-life-ai-inspections-v1';
 const PROFILE_KEY = 'crop-life-ai-profile-v1';
 const THEME_KEY = 'crop-life-ai-theme-v1';
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
-const OPTIMISED_IMAGE_MAX_SIDE = 900;
-const OPTIMISED_IMAGE_MAX_BYTES = 420 * 1024;
+const OPTIMISED_IMAGE_MAX_SIDE = 1280;
+const OPTIMISED_IMAGE_MAX_BYTES = 700 * 1024;
 const DEFAULT_PROFILE: Profile = { name: 'Farmer', location: '', state: '', territory: '', city: '', language: 'en' };
 const salesContacts = salesContactData as SalesContact[];
 
@@ -97,7 +97,7 @@ async function optimiseImage(file: File) {
     canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
     canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', .62));
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', .78));
     if (!blob) return file;
     const name = file.name.replace(/\.[^.]+$/, '') || 'crop-photo';
     return new File([blob], `${name}.jpg`, { type: 'image/jpeg', lastModified: file.lastModified });
