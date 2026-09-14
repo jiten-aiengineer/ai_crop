@@ -799,7 +799,7 @@ def sales_officer_activity(
                        count(DISTINCT COALESCE(c.name, NULLIF(i.farmer_crop_text, ''))) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day) AS day_distinct_crops,
                        count(DISTINCT prediction.issue_name) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day) AS day_distinct_problems,
                        count(DISTINCT i.id) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND candidate.candidate_status IN ('eligible','exported','training','used')) AS day_quality_eligible,
-                       count(DISTINCT i.id) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND candidate.candidate_status = 'excluded') AS day_quality_excluded,
+                       count(DISTINCT i.id) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date = selected.report_day AND candidate.label_tier = 'gemini_flash_lite_fallback') AS day_gemini_fallback,
                        count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 29 AND selected.report_day) AS month_uploads,
                        COALESCE(sum(i.photo_count) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 29 AND selected.report_day), 0) AS month_images,
                        count(*) FILTER (WHERE (i.created_at AT TIME ZONE 'Asia/Kolkata')::date BETWEEN selected.report_day - 29 AND selected.report_day AND i.photo_count >= 4 AND i.photo_requirements_met) AS month_complete_sets,
@@ -821,7 +821,7 @@ def sales_officer_activity(
                    COALESCE(a.day_distinct_crops, 0) AS day_distinct_crops,
                    COALESCE(a.day_distinct_problems, 0) AS day_distinct_problems,
                    COALESCE(a.day_quality_eligible, 0) AS day_quality_eligible,
-                   COALESCE(a.day_quality_excluded, 0) AS day_quality_excluded,
+                   COALESCE(a.day_gemini_fallback, 0) AS day_gemini_fallback,
                    COALESCE(a.month_uploads, 0) AS month_uploads,
                    COALESCE(a.month_images, 0) AS month_images,
                    COALESCE(a.month_complete_sets, 0) AS month_complete_sets,
@@ -949,7 +949,10 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
                    count(*) FILTER (WHERE candidate_status='used') AS used,
                    round(avg(quality_score) FILTER (WHERE candidate_status<>'excluded')*100,1) AS mean_quality_percent,
                    count(DISTINCT crop_text) FILTER (WHERE candidate_status<>'excluded') AS crop_classes,
-                   count(DISTINCT issue_type) FILTER (WHERE candidate_status<>'excluded') AS issue_classes
+                   count(DISTINCT issue_type) FILTER (WHERE candidate_status<>'excluded') AS issue_classes,
+                   count(*) FILTER (WHERE label_tier='three_model_consensus') AS three_model_consensus,
+                   count(*) FILTER (WHERE label_tier='two_model_consensus') AS two_model_consensus,
+                   count(*) FILTER (WHERE label_tier='gemini_flash_lite_fallback') AS gemini_fallback
             FROM auto_training_candidates
             """
         ).fetchone()
@@ -960,7 +963,8 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
                    candidate.label_source,candidate.gemma_model,candidate.gemini_model,candidate.qwen_model,
                    candidate.gemma_confidence,candidate.gemini_confidence,candidate.qwen_confidence,
                    candidate.majority_count,candidate.agreeing_providers,candidate.issue_name_similarity,
-                   candidate.quality_score,candidate.image_count,candidate.exclusion_reason,
+                   candidate.quality_score,candidate.label_tier,candidate.sample_weight,
+                   candidate.image_count,candidate.exclusion_reason,
                    candidate.assigned_run_id,candidate.updated_at,
                    employee.full_name AS employee_name,employee.employee_code
             FROM auto_training_candidates candidate
@@ -1063,7 +1067,10 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
                    (SELECT count(*) FROM inspection_images WHERE storage_provider='s3' AND retention_status='retained') AS retained_images,
                    (SELECT count(*) FROM inspection_model_consensus WHERE successful_models=3) AS three_model_evaluations,
                    (SELECT count(*) FROM auto_training_candidates WHERE candidate_status='eligible') AS automatic_training_cases,
-                   (SELECT count(*) FROM auto_training_candidates WHERE candidate_status='excluded') AS quality_gate_rejections
+                   (SELECT count(*) FROM auto_training_candidates WHERE label_tier='three_model_consensus') AS three_model_labels,
+                   (SELECT count(*) FROM auto_training_candidates WHERE label_tier='two_model_consensus') AS two_model_labels,
+                   (SELECT count(*) FROM auto_training_candidates WHERE label_tier='gemini_flash_lite_fallback') AS gemini_fallback_labels,
+                   (SELECT count(*) FROM auto_training_candidates WHERE candidate_status='waiting_models') AS retained_waiting_labels
             """
         ).fetchone()
         assistant_usage = conn.execute(
@@ -1088,9 +1095,9 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
     return {
         "providers": providers,
         "models": {
-            "live": {"provider": "gemma", "model": GEMMA_MODEL, "role": "farmer_facing_primary"},
-            "fast_evaluator": {"provider": "gemini", "model": GEMINI_SHADOW_MODEL, "role": "background_evaluation"},
-            "private_evaluator": {"provider": "qwen", "model": QWEN_MODEL, "role": "automatic_evaluation_and_training"},
+            "live": {"provider": "gemma", "model": GEMMA_MODEL, "role": "preferred_live_with_flash_lite_fallback"},
+            "fast_evaluator": {"provider": "gemini", "model": GEMINI_SHADOW_MODEL, "role": "live_fallback_and_training_teacher"},
+            "private_evaluator": {"provider": "qwen", "model": QWEN_MODEL, "role": "student_evaluation_and_adapter_fine_tuning"},
         },
         "gemini": {"enabled": GEMINI_SHADOW_ENABLED, "runtime": gemini_runtime, "queue": gemini_queue},
         "qwen": {"health": qwen_health, "runtime": runtime, "queue": queue, "jobs": jobs},
@@ -1111,6 +1118,7 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
             "minimum_new_cases": MODEL_TRAINING_MIN_NEW_CASES,
             "minimum_confidence": MODEL_PIPELINE_MIN_CONFIDENCE,
             "minimum_issue_similarity": MODEL_PIPELINE_MIN_ISSUE_SIMILARITY,
+            "label_hierarchy": ["three_model_consensus", "two_model_consensus", "gemini_flash_lite_fallback"],
             "promotion_gates": {
                 "validation_accuracy": MODEL_AUTO_PROMOTE_MIN_ACCURACY,
                 "macro_f1": MODEL_AUTO_PROMOTE_MIN_MACRO_F1,

@@ -19,6 +19,7 @@ EXPERT_REVIEW_WORKFLOW_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migr
 CONTINUOUS_PIPELINE_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "016_continuous_model_pipeline.sql"
 THREE_MODEL_PIPELINE_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "017_three_model_majority_pipeline.sql"
 AUTOMATIC_FINE_TUNING_POLICY_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "018_automatic_qwen_fine_tuning_policy.sql"
+TEACHER_HIERARCHY_MIGRATION = PROJECT_ROOT / "backend" / "database" / "migrations" / "019_teacher_label_hierarchy.sql"
 ADMIN_API = PROJECT_ROOT / "backend" / "app" / "admin.py"
 QWEN_WORKER = PROJECT_ROOT / "backend" / "app" / "qwen_worker.py"
 ADMIN_PORTAL = PROJECT_ROOT / "app" / "components" / "AdminPortal.tsx"
@@ -211,6 +212,17 @@ class MigrationContractTests(unittest.TestCase):
         self.assertIn('"training_mode": "adapter_fine_tune"', source)
         self.assertIn('"base_model": QWEN_MODEL', source)
         self.assertIn('"target_model_family": "qwen3.5"', source)
+        self.assertIn('"task": "multimodal_crop_and_disease_classification"', source)
+
+    def test_teacher_hierarchy_retains_disagreement_with_lower_weight(self):
+        migration = TEACHER_HIERARCHY_MIGRATION.read_text(encoding="utf-8").lower()
+        source = (PROJECT_ROOT / "backend" / "app" / "continuous_training.py").read_text(encoding="utf-8")
+        for field in {"label_tier", "sample_weight"}:
+            self.assertIn(field, migration)
+        for tier in {"three_model_consensus", "two_model_consensus", "gemini_flash_lite_fallback"}:
+            self.assertIn(tier, migration)
+            self.assertIn(tier, source)
+        self.assertIn('"sample_weight": 0.5 if reliable else 0.25', source)
 
 
 if __name__ == "__main__":

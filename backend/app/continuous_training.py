@@ -1,9 +1,9 @@
-"""Automatic three-model evaluation, dataset curation and promotion pipeline.
+"""Automatic teacher hierarchy for fine-tuning the existing Qwen model.
 
-The pipeline never controls CLSL product selection. It creates automated
-labels only after Gemma, Gemini Flash-Lite and Qwen have all returned and at
-least two independently agree with sufficient confidence. It then hands
-immutable private-S3 references to the configured GPU training service.
+The pipeline never controls CLSL product selection. It prefers three-model
+consensus, then two-model consensus, then Gemini Flash-Lite as a lower-weight
+teacher when the evaluators disagree or one terminates without a diagnosis.
+It hands immutable private-S3 references to the configured GPU trainer.
 """
 from __future__ import annotations
 
@@ -88,6 +88,7 @@ def _provider_row(row: dict, provider: str) -> dict:
     return {
         "provider": provider,
         "model": row.get(f"{provider}_model"),
+        "crop": row.get(f"{provider}_crop"),
         "issue_type": row.get(f"{provider}_issue_type"),
         "issue_name": row.get(f"{provider}_issue_name"),
         "severity": row.get(f"{provider}_severity"),
@@ -97,6 +98,7 @@ def _provider_row(row: dict, provider: str) -> dict:
 
 
 def _pair_result(left: dict, right: dict) -> dict:
+    left_crop, right_crop = _canonical(left.get("crop")), _canonical(right.get("crop"))
     left_type, right_type = _canonical(left["issue_type"]), _canonical(right["issue_type"])
     left_severity, right_severity = _canonical(left["severity"]), _canonical(right["severity"])
     similarity = _similarity(left["issue_name"], right["issue_name"])
@@ -104,7 +106,8 @@ def _pair_result(left: dict, right: dict) -> dict:
     type_match = bool(left_type and left_type not in {"unknown", "uncertain"} and left_type == right_type)
     severity_match = bool(left_severity and left_severity != "unknown" and left_severity == right_severity)
     confidence_ready = all(value is not None and value >= MODEL_PIPELINE_MIN_CONFIDENCE for value in confidences)
-    qualifies = all((type_match, severity_match, similarity >= MODEL_PIPELINE_MIN_ISSUE_SIMILARITY,
+    crop_match = bool(left_crop and right_crop and left_crop == right_crop)
+    qualifies = all((crop_match, type_match, severity_match, similarity >= MODEL_PIPELINE_MIN_ISSUE_SIMILARITY,
                      confidence_ready, not left["needs_more"], not right["needs_more"]))
     average_confidence = sum(value or 0 for value in confidences) / 2
     quality = round(min(1.0, average_confidence * 0.55 + similarity * 0.30 + (0.15 if severity_match else 0)), 4)
@@ -113,10 +116,53 @@ def _pair_result(left: dict, right: dict) -> dict:
         "providers": [left["provider"], right["provider"]],
         "qualifies": qualifies,
         "type_match": type_match,
+        "crop_match": crop_match,
         "severity_match": severity_match,
         "similarity": similarity,
         "quality": quality,
         "representative": representative,
+    }
+
+
+def _training_label_plan(model_rows: list[dict]) -> dict:
+    """Choose 3/3, 2/3, then Flash-Lite with progressively lower weight."""
+    available = [item for item in model_rows if item.get("model") and item.get("issue_name")]
+    pairs = [
+        _pair_result(available[left], available[right])
+        for left in range(len(available)) for right in range(left + 1, len(available))
+    ]
+    matching = sorted((item for item in pairs if item["qualifies"]), key=lambda item: item["quality"], reverse=True)
+    selected = matching[0] if matching else None
+    if selected:
+        all_three = len(available) == 3 and len(matching) == 3
+        return {
+            "representative": selected["representative"],
+            "majority_count": 3 if all_three else 2,
+            "agreeing_providers": ["gemma", "gemini", "qwen"] if all_three else selected["providers"],
+            "label_source": "three_model_consensus" if all_three else "two_model_consensus",
+            "label_tier": "three_model_consensus" if all_three else "two_model_consensus",
+            "quality_score": selected["quality"],
+            "sample_weight": 1.0 if all_three else 0.8,
+            "issue_similarity": selected["similarity"],
+        }
+    gemini = next((item for item in available if item["provider"] == "gemini"), None)
+    if gemini:
+        confidence = gemini["confidence"] or 0
+        reliable = confidence >= MODEL_PIPELINE_MIN_CONFIDENCE and not gemini["needs_more"]
+        return {
+            "representative": gemini,
+            "majority_count": 1,
+            "agreeing_providers": ["gemini"],
+            "label_source": "gemini_flash_lite_fallback",
+            "label_tier": "gemini_flash_lite_fallback",
+            "quality_score": round(min(0.59, max(0.2, confidence * (0.7 if reliable else 0.45))), 4),
+            "sample_weight": 0.5 if reliable else 0.25,
+            "issue_similarity": max((item["similarity"] for item in pairs), default=0),
+        }
+    return {
+        "representative": None, "majority_count": 0, "agreeing_providers": [],
+        "label_source": "awaiting_gemini_flash_lite", "label_tier": "awaiting_gemini_flash_lite",
+        "quality_score": 0, "sample_weight": 0, "issue_similarity": max((item["similarity"] for item in pairs), default=0),
     }
 
 
@@ -127,31 +173,31 @@ def refresh_training_candidate(conn, inspection_id: UUID | str) -> dict:
                (SELECT count(*) FROM inspection_images image
                  WHERE image.inspection_id=inspection.id AND image.storage_provider='s3'
                    AND image.retention_status='retained' AND image.storage_bucket IS NOT NULL) AS image_count,
-               gemma.model_name AS gemma_model,gemma.issue_type AS gemma_issue_type,
+               gemma.model_name AS gemma_model,gemma.crop_text AS gemma_crop,gemma.issue_type AS gemma_issue_type,
                gemma.issue_name AS gemma_issue_name,gemma.severity AS gemma_severity,
                gemma.confidence AS gemma_confidence,gemma.additional_information_required AS gemma_needs_more,
-               gemini.model_name AS gemini_model,gemini.issue_type AS gemini_issue_type,
+               gemini.model_name AS gemini_model,gemini.crop_text AS gemini_crop,gemini.issue_type AS gemini_issue_type,
                gemini.issue_name AS gemini_issue_name,gemini.severity AS gemini_severity,
                gemini.confidence AS gemini_confidence,gemini.additional_information_required AS gemini_needs_more,
                gemini_job.status AS gemini_job_status,
-               qwen.model_name AS qwen_model,qwen.issue_type AS qwen_issue_type,
+               qwen.model_name AS qwen_model,qwen.crop_text AS qwen_crop,qwen.issue_type AS qwen_issue_type,
                qwen.issue_name AS qwen_issue_name,qwen.severity AS qwen_severity,
                qwen.confidence AS qwen_confidence,qwen.additional_information_required AS qwen_needs_more,
                qwen_job.status AS qwen_job_status
         FROM inspections inspection
         LEFT JOIN LATERAL (
-            SELECT model_name,issue_type,issue_name,severity,confidence,additional_information_required
+            SELECT model_name,crop_text,issue_type,issue_name,severity,confidence,additional_information_required
             FROM ai_predictions WHERE inspection_id=inspection.id AND provider='gemma'
             ORDER BY created_at DESC LIMIT 1
         ) gemma ON true
         LEFT JOIN LATERAL (
-            SELECT model_name,issue_type,issue_name,severity,confidence,additional_information_required
+            SELECT model_name,crop_text,issue_type,issue_name,severity,confidence,additional_information_required
             FROM ai_predictions WHERE inspection_id=inspection.id AND provider='gemini'
             ORDER BY created_at DESC LIMIT 1
         ) gemini ON true
         LEFT JOIN gemini_shadow_jobs gemini_job ON gemini_job.inspection_id=inspection.id
         LEFT JOIN LATERAL (
-            SELECT model_name,issue_type,issue_name,severity,confidence,additional_information_required
+            SELECT model_name,crop_text,issue_type,issue_name,severity,confidence,additional_information_required
             FROM ai_predictions WHERE inspection_id=inspection.id AND provider='qwen'
             ORDER BY created_at DESC LIMIT 1
         ) qwen ON true
@@ -164,35 +210,25 @@ def refresh_training_candidate(conn, inspection_id: UUID | str) -> dict:
         return {"status": "missing", "eligible": False}
 
     row = dict(row)
-    declared_crop = str(row["declared_crop"] or "").strip()
     model_rows = [_provider_row(row, provider) for provider in ("gemma", "gemini", "qwen")]
-    model_output_ready = all(item["model"] for item in model_rows)
-    pair_results = [
-        _pair_result(model_rows[left], model_rows[right])
-        for left, right in ((0, 1), (0, 2), (1, 2))
-    ] if model_output_ready else []
-    matching_pairs = sorted((item for item in pair_results if item["qualifies"]), key=lambda item: item["quality"], reverse=True)
-    selected = matching_pairs[0] if matching_pairs else None
-    majority_count = 3 if len(matching_pairs) == 3 else 2 if selected else 0
-    agreeing_providers = (["gemma", "gemini", "qwen"] if majority_count == 3
-                          else selected["providers"] if selected else [])
-    representative = selected["representative"] if selected else None
-    issue_similarity = selected["similarity"] if selected else max((item["similarity"] for item in pair_results), default=0)
-    evidence_ready = bool(declared_crop and int(row["image_count"] or 0) > 0)
-    eligible = bool(evidence_ready and model_output_ready and selected)
+    plan = _training_label_plan(model_rows)
+    representative = plan["representative"]
+    crop_text = str(row["declared_crop"] or (representative or {}).get("crop") or "").strip()
+    evidence_ready = bool(crop_text and int(row["image_count"] or 0) > 0)
+    active_job_states = {"pending", "retry", "deferred", "processing"}
+    evaluator_pending = any(
+        row.get(f"{provider}_job_status") in active_job_states and not row.get(f"{provider}_model")
+        for provider in ("gemini", "qwen")
+    )
+    eligible = bool(evidence_ready and representative and not evaluator_pending)
 
     reasons = []
     if not evidence_ready: reasons.append("missing declared crop or retained S3 evidence")
-    terminal_provider_failure = any(row.get(f"{provider}_job_status") == "failed" and not row.get(f"{provider}_model")
-                                    for provider in ("gemini", "qwen"))
-    if not model_output_ready:
-        missing = [item["provider"] for item in model_rows if not item["model"]]
-        reasons.append(("terminal provider failure for " if terminal_provider_failure else "waiting for ") +
-                       f"{', '.join(missing)} result")
-    elif not selected:
-        reasons.append("no two models passed the category, issue, severity and confidence agreement gates")
-    quality_score = selected["quality"] if selected else 0
-    status = "eligible" if eligible else "waiting_models" if not model_output_ready and not terminal_provider_failure else "excluded"
+    if evaluator_pending: reasons.append("waiting for active evaluator jobs before applying the teacher hierarchy")
+    elif representative and plan["label_tier"] == "gemini_flash_lite_fallback":
+        reasons.append("models disagreed or were incomplete; Gemini Flash-Lite retained as the lower-weight teacher")
+    elif not representative: reasons.append("waiting for a usable Gemini Flash-Lite result")
+    status = "eligible" if eligible else "waiting_models"
     gemma = model_rows[0]
     gemini = model_rows[1]
     qwen = model_rows[2]
@@ -202,8 +238,9 @@ def refresh_training_candidate(conn, inspection_id: UUID | str) -> dict:
             inspection_id,candidate_status,label_source,crop_text,issue_type,issue_name,severity,
             gemma_model,gemini_model,qwen_model,gemma_confidence,gemini_confidence,qwen_confidence,
             issue_name_similarity,quality_score,majority_count,agreeing_providers,image_count,
+            label_tier,sample_weight,
             exclusion_reason,updated_at
-        ) VALUES (%s,%s,'three_model_majority_2_of_3',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now())
+        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now())
         ON CONFLICT (inspection_id) DO UPDATE SET
             candidate_status=CASE
                 WHEN auto_training_candidates.candidate_status IN ('exported','training','used') AND EXCLUDED.candidate_status='eligible'
@@ -217,16 +254,18 @@ def refresh_training_candidate(conn, inspection_id: UUID | str) -> dict:
             qwen_confidence=EXCLUDED.qwen_confidence,majority_count=EXCLUDED.majority_count,
             agreeing_providers=EXCLUDED.agreeing_providers,
             issue_name_similarity=EXCLUDED.issue_name_similarity,quality_score=EXCLUDED.quality_score,
+            label_tier=EXCLUDED.label_tier,sample_weight=EXCLUDED.sample_weight,
             image_count=EXCLUDED.image_count,exclusion_reason=EXCLUDED.exclusion_reason,updated_at=now()
         RETURNING candidate_status,quality_score,exclusion_reason
         """,
-        (inspection_id, status, declared_crop or None,
+        (inspection_id, status, plan["label_source"], crop_text or None,
          representative["issue_type"] if representative else None,
          representative["issue_name"] if representative else None,
          representative["severity"] if representative else None,
          gemma["model"], gemini["model"], qwen["model"], gemma["confidence"],
-         gemini["confidence"], qwen["confidence"], issue_similarity, quality_score,
-         majority_count, Jsonb(agreeing_providers), int(row["image_count"] or 0),
+         gemini["confidence"], qwen["confidence"], plan["issue_similarity"], plan["quality_score"],
+         plan["majority_count"], Jsonb(plan["agreeing_providers"]), int(row["image_count"] or 0),
+         plan["label_tier"], plan["sample_weight"],
          "; ".join(reasons)[:240] or None),
     ).fetchone()
     conn.execute(
@@ -243,7 +282,7 @@ def sync_all_candidates(conn) -> dict:
         """
         SELECT DISTINCT inspection.id
         FROM inspections inspection
-        WHERE EXISTS (SELECT 1 FROM ai_predictions p WHERE p.inspection_id=inspection.id AND p.provider='gemma')
+        WHERE EXISTS (SELECT 1 FROM ai_predictions p WHERE p.inspection_id=inspection.id AND p.provider IN ('gemma','gemini','qwen'))
           AND EXISTS (SELECT 1 FROM inspection_images image WHERE image.inspection_id=inspection.id
                        AND image.storage_provider='s3' AND image.retention_status='retained')
         """
@@ -276,7 +315,7 @@ def sync_gemini_queue(conn, reset_failed: bool = False) -> dict:
         SELECT inspection.id,%s,'pending',%s,now(),now()
         FROM inspections inspection
         WHERE inspection.status='completed'
-          AND EXISTS (SELECT 1 FROM ai_predictions p WHERE p.inspection_id=inspection.id AND p.provider='gemma')
+          AND EXISTS (SELECT 1 FROM ai_predictions p WHERE p.inspection_id=inspection.id AND p.provider IN ('gemma','gemini','qwen'))
           AND EXISTS (SELECT 1 FROM inspection_images image WHERE image.inspection_id=inspection.id
                        AND image.storage_provider='s3' AND image.retention_status='retained'
                        AND image.storage_bucket IS NOT NULL)
@@ -487,11 +526,19 @@ def start_training_if_ready(force: bool = False) -> dict:
             "training_mode": "adapter_fine_tune",
             "base_model": QWEN_MODEL,
             "target": "existing_qwen_model_version",
-            "label_policy": "gemma_gemini_qwen_two_of_three_majority",
+            "task": "multimodal_crop_and_disease_classification",
+            "objectives": ["crop_identification", "disease_or_pest_identification", "severity_classification"],
+            "label_policy": "three_then_two_then_gemini_flash_lite",
+            "weighting_policy": {
+                "three_model_consensus": 1.0,
+                "two_model_consensus": 0.8,
+                "gemini_flash_lite_fallback": "0.50 reliable / 0.25 uncertain",
+            },
             "examples": [{
                 "inspection_id": str(item["inspection_id"]), "crop": item["crop_text"],
                 "issue_type": item["issue_type"], "issue_name": item["issue_name"],
                 "severity": item["severity"], "quality_score": float(item["quality_score"] or 0),
+                "label_tier": item["label_tier"], "sample_weight": float(item["sample_weight"] or 0),
                 "majority_count": int(item["majority_count"] or 0),
                 "agreeing_providers": item["agreeing_providers"],
                 "images": item["images"],
