@@ -1,0 +1,19 @@
+[Unit]
+Description=Private tunnel from Crop Life AI API host to GPU trainer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+ExecStart=/usr/bin/ssh -NT -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/home/ubuntu/.ssh/crop-life-ai-gpu-known-hosts -i /home/ubuntu/.ssh/crop-life-ai-gpu-tunnel -L 0.0.0.0:18090:127.0.0.1:8090 ubuntu@172.31.16.209
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

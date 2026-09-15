@@ -11,10 +11,12 @@ import sqlite3
 import subprocess
 import threading
 import time
+import urllib.request
 from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
@@ -31,11 +33,16 @@ TOKEN = os.getenv("GPU_TRAINER_TOKEN", "")
 ALLOWED_BUCKETS = {item.strip() for item in os.getenv("GPU_TRAINER_ALLOWED_BUCKETS", "crop-life-ai-data").split(",") if item.strip()}
 MAX_EXAMPLES = max(1, min(int(os.getenv("GPU_TRAINER_MAX_EXAMPLES", "1000")), 5000))
 MIN_FREE_GB = max(1, int(os.getenv("GPU_TRAINER_MIN_FREE_GB", "12")))
+MAX_IMAGE_BYTES = max(1, int(os.getenv("GPU_TRAINER_MAX_IMAGE_MB", "25"))) * 1024 * 1024
 TRAIN_COMMAND = shlex.split(os.getenv("GPU_TRAINER_COMMAND", ""), posix=True)
 PROMOTION_COMMAND = shlex.split(os.getenv("GPU_PROMOTION_COMMAND", ""), posix=True)
 TERMINAL = {"completed", "failed", "cancelled"}
 ACTIVE = {"queued", "preparing", "training", "evaluating"}
 worker_lock = threading.Lock()
+
+
+def training_command_ready() -> bool:
+    return bool(TRAIN_COMMAND and Path(TRAIN_COMMAND[0]).is_file() and os.access(TRAIN_COMMAND[0], os.X_OK))
 
 
 def utcnow() -> str:
@@ -114,6 +121,7 @@ class ImageReference(BaseModel):
     bucket: str = Field(min_length=3, max_length=63)
     key: str = Field(min_length=1, max_length=1024)
     mime_type: str | None = Field(default=None, max_length=100)
+    signed_url: str | None = Field(default=None, max_length=4096)
 
     @field_validator("bucket")
     @classmethod
@@ -127,6 +135,17 @@ class ImageReference(BaseModel):
     def safe_key(cls, value: str) -> str:
         if value.startswith("/") or ".." in value.split("/"):
             raise ValueError("invalid S3 object key")
+        return value
+
+    @field_validator("signed_url")
+    @classmethod
+    def private_s3_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlparse(value)
+        hostname = (parsed.hostname or "").casefold()
+        if parsed.scheme != "https" or not (hostname == "s3.amazonaws.com" or hostname.endswith(".amazonaws.com")):
+            raise ValueError("signed_url must be an HTTPS AWS S3 URL")
         return value
 
 
@@ -167,12 +186,37 @@ class CreateRun(BaseModel):
     base_model: str = Field(min_length=1, max_length=200)
     target_model_family: str = Field(min_length=1, max_length=100)
     dataset: DatasetManifest
+    artifact_uri: str | None = Field(default=None, max_length=2048)
+    artifact_upload_url: str | None = Field(default=None, max_length=4096)
 
     @field_validator("training_mode")
     @classmethod
     def adapter_only(cls, value: str) -> str:
         if value != "adapter_fine_tune":
             raise ValueError("only adapter_fine_tune is supported")
+        return value
+
+    @field_validator("artifact_uri")
+    @classmethod
+    def private_artifact_uri(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not value.startswith("s3://"):
+            raise ValueError("artifact_uri must use private S3 storage")
+        bucket, _, key = value[5:].partition("/")
+        if bucket not in ALLOWED_BUCKETS or not key.startswith("model-artifacts/qwen/"):
+            raise ValueError("artifact_uri is outside the approved model-artifact prefix")
+        return value
+
+    @field_validator("artifact_upload_url")
+    @classmethod
+    def private_artifact_upload(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlparse(value)
+        hostname = (parsed.hostname or "").casefold()
+        if parsed.scheme != "https" or not (hostname == "s3.amazonaws.com" or hostname.endswith(".amazonaws.com")):
+            raise ValueError("artifact_upload_url must be an HTTPS AWS S3 URL")
         return value
 
 
@@ -195,6 +239,7 @@ def row_payload(row: sqlite3.Row) -> dict[str, Any]:
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
         "completed_at": row["completed_at"],
+        "promotion_command_configured": bool(PROMOTION_COMMAND),
     }
 
 
@@ -213,6 +258,20 @@ def update_run(job_id: str, **fields: Any) -> None:
 def deterministic_split(inspection_id: str) -> str:
     # Split by inspection, never by image, to prevent near-duplicate leakage.
     return "validation" if int(hashlib.sha256(inspection_id.encode()).hexdigest()[:8], 16) % 5 == 0 else "train"
+
+
+def download_signed_image(url: str, target: Path) -> None:
+    request = urllib.request.Request(url, headers={"User-Agent": "crop-life-ai-gpu-trainer/1"})
+    with urllib.request.urlopen(request, timeout=90) as response, target.open("wb") as output:
+        declared_size = response.headers.get("Content-Length")
+        if declared_size and int(declared_size) > MAX_IMAGE_BYTES:
+            raise RuntimeError("training image exceeds the configured size limit")
+        total = 0
+        while chunk := response.read(1024 * 1024):
+            total += len(chunk)
+            if total > MAX_IMAGE_BYTES:
+                raise RuntimeError("training image exceeds the configured size limit")
+            output.write(chunk)
 
 
 def prepare_dataset(job_id: str, request: dict[str, Any]) -> tuple[Path, Path, Path]:
@@ -237,7 +296,10 @@ def prepare_dataset(job_id: str, request: dict[str, Any]) -> tuple[Path, Path, P
             suffix = Path(image["key"]).suffix.lower()
             suffix = suffix if suffix in {".jpg", ".jpeg", ".png", ".webp"} else ".bin"
             target = image_dir / f"{example_index:04d}-{image_index:02d}{suffix}"
-            s3.download_file(image["bucket"], image["key"], str(target))
+            if image.get("signed_url"):
+                download_signed_image(image["signed_url"], target)
+            else:
+                s3.download_file(image["bucket"], image["key"], str(target))
             local_images.append(str(target))
         record = {**example, "local_images": local_images, "split": deterministic_split(example["inspection_id"])}
         prepared[record["split"]].append(record)
@@ -256,7 +318,7 @@ def execute_run(job_id: str, request: dict[str, Any]) -> None:
         if shutil.disk_usage(STATE_DIR).free < MIN_FREE_GB * 1024**3:
             raise RuntimeError(f"GPU trainer requires at least {MIN_FREE_GB} GiB free disk space")
         run_dir, manifest_path, output_dir = prepare_dataset(job_id, request)
-        if not TRAIN_COMMAND:
+        if not training_command_ready():
             raise RuntimeError("GPU_TRAINER_COMMAND is not configured; no model weights were changed")
         result_path = run_dir / "result.json"
         environment = os.environ.copy()
@@ -303,6 +365,23 @@ def execute_run(job_id: str, request: dict[str, Any]) -> None:
         metrics = result.get("metrics")
         candidate = str(result.get("candidate_model") or "").strip()
         artifact_uri = str(result.get("artifact_uri") or "").strip()
+        upload_url = str(request.get("artifact_upload_url") or "").strip()
+        requested_artifact_uri = str(request.get("artifact_uri") or "").strip()
+        if upload_url and requested_artifact_uri:
+            adapter_dir = output_dir / "adapter"
+            if not adapter_dir.is_dir():
+                raise RuntimeError("training command did not produce the candidate adapter directory")
+            archive_path = Path(shutil.make_archive(str(run_dir / "adapter-artifact"), "gztar", root_dir=adapter_dir))
+            upload = subprocess.run(
+                ["curl", "--fail", "--silent", "--show-error", "--upload-file", str(archive_path), upload_url],
+                timeout=30 * 60,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if upload.returncode != 0:
+                raise RuntimeError("candidate adapter could not be archived to private S3")
+            artifact_uri = requested_artifact_uri
         required = {"validation_accuracy", "validation_macro_f1", "crop_accuracy", "issue_accuracy", "severity_accuracy"}
         if not candidate or not artifact_uri or not isinstance(metrics, dict) or not required.issubset(metrics):
             raise RuntimeError("result.json is missing candidate identity, artifact URI, or validation metrics")
@@ -354,8 +433,8 @@ def health() -> dict[str, Any]:
     with db() as connection:
         counts = {row["status"]: row["count"] for row in connection.execute("SELECT status,count(*) AS count FROM runs GROUP BY status")}
     return {
-        "status": "ready" if TRAIN_COMMAND else "configuration_required",
-        "training_command_configured": bool(TRAIN_COMMAND),
+        "status": "ready" if training_command_ready() else "configuration_required",
+        "training_command_configured": training_command_ready(),
         "promotion_command_configured": bool(PROMOTION_COMMAND),
         "queue": counts,
         "free_disk_gb": round(shutil.disk_usage(STATE_DIR).free / 1024**3, 1),
@@ -398,9 +477,19 @@ def promote(candidate_model: str, body: dict[str, Any]) -> dict[str, Any]:
     if not candidate_model or len(candidate_model) > 200 or any(char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-" for char in candidate_model):
         raise HTTPException(status_code=422, detail="Invalid candidate model name.")
     run_id = str(body.get("run_id") or "")
+    with db() as connection:
+        source = connection.execute(
+            "SELECT job_id FROM runs WHERE candidate_model=? AND status='completed' ORDER BY completed_at DESC LIMIT 1",
+            (candidate_model,),
+        ).fetchone()
+    if not source:
+        raise HTTPException(status_code=404, detail="Approved candidate adapter was not found.")
+    adapter_dir = RUNS_DIR / source["job_id"] / "output" / "adapter"
+    promotion_dir = STATE_DIR / "promoted"
     environment = os.environ.copy()
-    environment.update({"CLSL_CANDIDATE_MODEL": candidate_model, "CLSL_SOURCE_RUN_ID": run_id})
-    result = subprocess.run(PROMOTION_COMMAND, env=environment, timeout=30 * 60, check=False, capture_output=True, text=True)
+    environment.update({"CLSL_CANDIDATE_MODEL": candidate_model, "CLSL_SOURCE_RUN_ID": run_id,
+                        "CLSL_ADAPTER_DIR": str(adapter_dir), "CLSL_PROMOTION_DIR": str(promotion_dir)})
+    result = subprocess.run(PROMOTION_COMMAND, env=environment, timeout=2 * 60 * 60, check=False, capture_output=True, text=True)
     if result.returncode != 0:
         raise HTTPException(status_code=502, detail="Candidate promotion command failed.")
     with db() as connection:

@@ -68,6 +68,15 @@ class TrainerServiceTest(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.module.CreateRun.model_validate(payload)
 
+    def test_accepts_presigned_s3_url_and_rejects_other_hosts(self):
+        payload = self.payload()
+        image = payload["dataset"]["examples"][0]["images"][0]
+        image["signed_url"] = "https://crop-life-ai-data.s3.amazonaws.com/inspections/a.jpg?signature=test"
+        self.module.CreateRun.model_validate(payload)
+        image["signed_url"] = "https://example.com/inspections/a.jpg"
+        with self.assertRaises(ValidationError):
+            self.module.CreateRun.model_validate(payload)
+
     def test_split_is_stable_per_inspection(self):
         first = self.module.deterministic_split("same-inspection")
         self.assertEqual(first, self.module.deterministic_split("same-inspection"))

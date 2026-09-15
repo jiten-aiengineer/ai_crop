@@ -31,13 +31,20 @@ trap 'rm -f "$temporary_env"' EXIT
   printf '%s\n' 'GPU_TRAINER_ALLOWED_BUCKETS=crop-life-ai-data'
   printf '%s\n' 'GPU_TRAINER_MAX_EXAMPLES=1000'
   printf '%s\n' 'GPU_TRAINER_MIN_FREE_GB=12'
+  printf '%s\n' 'GPU_TRAINER_MAX_IMAGE_MB=25'
+  printf '%s\n' 'GPU_HF_BASE_MODEL=unsloth/Qwen3.5-9B'
+  printf '%s\n' 'GPU_TRAINER_EPOCHS=1'
+  printf '%s\n' 'GPU_TRAINER_MAX_LENGTH=1024'
+  printf '%s\n' 'HF_HOME=/opt/dlami/nvme/crop-life-ai-training/cache/huggingface'
+  printf '%s\n' 'XDG_CACHE_HOME=/opt/dlami/nvme/crop-life-ai-training/cache/xdg'
+  printf '%s\n' 'TRITON_CACHE_DIR=/opt/dlami/nvme/crop-life-ai-training/cache/triton'
+  printf '%s\n' 'TORCHINDUCTOR_CACHE_DIR=/opt/dlami/nvme/crop-life-ai-training/cache/torchinductor'
   printf '%s\n' '# Configure only after confirming the matching original model checkpoint:'
-  printf '%s\n' '# GPU_TRAINER_COMMAND=/opt/crop-life-ai/train-venv/bin/python /opt/crop-life-ai/training/train_qwen_adapter.py'
-  printf '%s\n' '# GPU_PROMOTION_COMMAND=/opt/crop-life-ai/training/promote_qwen_adapter.py'
+  printf '%s\n' 'GPU_TRAINER_COMMAND=/opt/crop-life-ai/train-venv/bin/python /opt/crop-life-ai/gpu-trainer/training/train_qwen_adapter.py'
+  printf '%s\n' 'GPU_PROMOTION_COMMAND=/opt/crop-life-ai/train-venv/bin/python /opt/crop-life-ai/gpu-trainer/training/promote_qwen_adapter.py'
 } > "$temporary_env"
 sudo install -o root -g ubuntu -m 0640 "$temporary_env" "$ENV_DIR/gpu-trainer.env"
 sudo install -o root -g root -m 0644 "$PWD/ops/systemd/crop-life-ai-gpu-trainer.service" /etc/systemd/system/crop-life-ai-gpu-trainer.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now crop-life-ai-gpu-trainer
 sudo systemctl --no-pager --full status crop-life-ai-gpu-trainer
-

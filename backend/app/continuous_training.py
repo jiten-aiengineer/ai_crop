@@ -29,6 +29,7 @@ from .config import (
     MODEL_AUTO_PROMOTE_MIN_ACCURACY,
     MODEL_AUTO_PROMOTE_MIN_ISSUE_ACCURACY,
     MODEL_AUTO_PROMOTE_MIN_MACRO_F1,
+    MODEL_AUTO_PROMOTE_MIN_VALIDATION_CASES,
     MODEL_PIPELINE_MIN_CONFIDENCE,
     MODEL_PIPELINE_MIN_ISSUE_SIMILARITY,
     MODEL_TRAINING_AUTOSTART,
@@ -401,12 +402,47 @@ def _connector(path: str, method: str = "GET", payload: dict | None = None, time
     return parsed
 
 
+def _signed_training_payload(run_id: UUID, manifest: dict) -> dict:
+    """Add short-lived S3 URLs only to the outbound GPU request.
+
+    The unsigned manifest remains in PostgreSQL. This lets the GPU retrieve the
+    approved private evidence without permanent AWS credentials or public S3
+    objects, and limits every URL to the exact object included in the batch.
+    """
+    import boto3
+
+    outbound = json.loads(json.dumps(_json_safe(manifest)))
+    s3 = boto3.client("s3")
+    for example in outbound.get("examples", []):
+        for image in example.get("images", []):
+            image["signed_url"] = s3.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": image["bucket"], "Key": image["key"]},
+                ExpiresIn=6 * 60 * 60,
+            )
+    first_image = next(
+        (image for example in outbound.get("examples", []) for image in example.get("images", [])),
+        None,
+    )
+    if not first_image:
+        raise TrainingConnectorError("Training batch has no private S3 evidence.")
+    artifact_key = f"model-artifacts/qwen/{run_id}/adapter.tar.gz"
+    artifact_uri = f"s3://{first_image['bucket']}/{artifact_key}"
+    artifact_upload_url = s3.generate_presigned_url(
+        "put_object",
+        Params={"Bucket": first_image["bucket"], "Key": artifact_key},
+        ExpiresIn=12 * 60 * 60,
+    )
+    return {"dataset": outbound, "artifact_uri": artifact_uri, "artifact_upload_url": artifact_upload_url}
+
+
 def _quality_gate(metrics: dict, baseline: dict) -> tuple[bool, dict]:
     accuracy = float(metrics.get("validation_accuracy") or 0)
     macro_f1 = float(metrics.get("validation_macro_f1") or 0)
     issue_accuracy = float(metrics.get("issue_accuracy") or 0)
     baseline_accuracy = float(baseline.get("validation_accuracy") or 0)
     gates = {
+        "minimum_validation_cases": int(metrics.get("validation_examples") or 0) >= MODEL_AUTO_PROMOTE_MIN_VALIDATION_CASES,
         "minimum_validation_accuracy": accuracy >= MODEL_AUTO_PROMOTE_MIN_ACCURACY,
         "minimum_macro_f1": macro_f1 >= MODEL_AUTO_PROMOTE_MIN_MACRO_F1,
         "minimum_issue_accuracy": issue_accuracy >= MODEL_AUTO_PROMOTE_MIN_ISSUE_ACCURACY,
@@ -434,8 +470,9 @@ def poll_training_runs() -> dict:
                 promotion_status = "passed" if gate_passed else "failed" if status == "completed" else "not_evaluated"
                 deployment_status = run["deployment_status"]
                 candidate_model = str(result.get("candidate_model") or run["candidate_model"] or "") or None
-                if status == "completed" and gate_passed and MODEL_AUTO_DEPLOY_ENABLED and candidate_model:
-                    _connector(f"/v1/models/{quote(candidate_model, safe='')}/promote", "POST", {"run_id": str(run["id"])})
+                promotion_available = bool(result.get("promotion_command_configured"))
+                if status == "completed" and gate_passed and MODEL_AUTO_DEPLOY_ENABLED and candidate_model and promotion_available:
+                    _connector(f"/v1/models/{quote(candidate_model, safe='')}/promote", "POST", {"run_id": str(run["id"])}, timeout=2 * 60 * 60)
                     conn.execute("UPDATE model_versions SET lifecycle_stage='retired',retired_at=now(),updated_at=now() WHERE lifecycle_stage='production'")
                     conn.execute(
                         """INSERT INTO model_versions(model_name,version_label,lifecycle_stage,source_run_id,artifact_uri,metrics,deployed_at)
@@ -447,9 +484,12 @@ def poll_training_runs() -> dict:
                     )
                     deployment_status = "deployed"
                     promoted += 1
+                elif status == "completed" and gate_passed and MODEL_AUTO_DEPLOY_ENABLED and candidate_model:
+                    deployment_status = "awaiting_promotion_connector"
                 conn.execute(
                     """
                     UPDATE model_training_runs SET status=%s,progress_percent=%s,current_epoch=%s,total_epochs=%s,
+                        training_examples=COALESCE(%s,training_examples),validation_examples=COALESCE(%s,validation_examples),
                         train_loss=%s,validation_loss=%s,validation_accuracy=%s,validation_macro_f1=%s,
                         crop_accuracy=%s,issue_accuracy=%s,severity_accuracy=%s,candidate_model=%s,
                         candidate_metrics=%s,quality_gate_json=%s,promotion_status=%s,deployment_status=%s,
@@ -458,7 +498,8 @@ def poll_training_runs() -> dict:
                     WHERE id=%s
                     """,
                     (status, float(result.get("progress_percent") or run["progress_percent"] or 0),
-                     result.get("current_epoch"), result.get("total_epochs"), result.get("train_loss"),
+                     result.get("current_epoch"), result.get("total_epochs"), metrics.get("training_examples"),
+                     metrics.get("validation_examples"), result.get("train_loss"),
                      result.get("validation_loss"), metrics.get("validation_accuracy"), metrics.get("validation_macro_f1"),
                      metrics.get("crop_accuracy"), metrics.get("issue_accuracy"), metrics.get("severity_accuracy"),
                      candidate_model, Jsonb(metrics), Jsonb(gates), promotion_status, deployment_status,
@@ -471,6 +512,11 @@ def poll_training_runs() -> dict:
                 )
                 if status == "completed":
                     conn.execute("UPDATE auto_training_candidates SET candidate_status='used',updated_at=now() WHERE assigned_run_id=%s", (run["id"],))
+                elif status in {"failed", "cancelled"}:
+                    conn.execute(
+                        "UPDATE auto_training_candidates SET candidate_status='eligible',assigned_run_id=NULL,updated_at=now() WHERE assigned_run_id=%s",
+                        (run["id"],),
+                    )
                 conn.commit()
             updated += 1
         except TrainingConnectorError as error:
@@ -562,12 +608,13 @@ def start_training_if_ready(force: bool = False) -> dict:
     try:
         # The connector only acknowledges and queues the run here; training remains asynchronous.
         # Keep this below the browser BFF timeout so the administrator receives a truthful response.
+        signed = _signed_training_payload(run_id, manifest)
         result = _connector("/v1/training/runs", "POST", {
             "run_id": str(run_id),
             "training_mode": "adapter_fine_tune",
             "base_model": QWEN_MODEL,
             "target_model_family": "qwen3.5",
-            "dataset": manifest,
+            **signed,
         }, timeout=8)
         external_id = str(result.get("job_id") or result.get("id") or "").strip()
         if not external_id:

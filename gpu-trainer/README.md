@@ -15,8 +15,9 @@ catalogue engine.
   the public internet.
 - Allow inbound TCP `8090` only from the main application security group.
 - Set a random bearer token of at least 32 characters on both servers.
-- Give the GPU instance role read-only access to the retained inspection-image
-  prefix and write access only to the model-artifact prefix.
+- Prefer a GPU instance role with read-only access to the retained image prefix.
+  Until that role is attached, the main server may add six-hour presigned URLs
+  for only the immutable objects in one accepted batch; S3 remains private.
 - The submitted request cannot choose a shell command. Training and promotion
   commands are configured only in the service environment.
 

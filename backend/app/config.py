@@ -54,6 +54,7 @@ MODEL_PIPELINE_MIN_ISSUE_SIMILARITY = max(0.3, min(1.0, float(os.getenv("MODEL_P
 MODEL_AUTO_PROMOTE_MIN_ACCURACY = max(0.5, min(1.0, float(os.getenv("MODEL_AUTO_PROMOTE_MIN_ACCURACY", "0.78"))))
 MODEL_AUTO_PROMOTE_MIN_MACRO_F1 = max(0.5, min(1.0, float(os.getenv("MODEL_AUTO_PROMOTE_MIN_MACRO_F1", "0.72"))))
 MODEL_AUTO_PROMOTE_MIN_ISSUE_ACCURACY = max(0.5, min(1.0, float(os.getenv("MODEL_AUTO_PROMOTE_MIN_ISSUE_ACCURACY", "0.75"))))
+MODEL_AUTO_PROMOTE_MIN_VALIDATION_CASES = max(10, int(os.getenv("MODEL_AUTO_PROMOTE_MIN_VALIDATION_CASES", "20")))
 MODEL_AUTO_DEPLOY_ENABLED = os.getenv("MODEL_AUTO_DEPLOY_ENABLED", "true").strip().lower() in {"1", "true", "yes"}
 
 # Live and shadow Google-model roles. The API key remains server-side only.
