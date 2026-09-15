@@ -34,7 +34,7 @@ ADMIN_ALLOWED_EMAIL_DOMAIN = os.getenv("ADMIN_ALLOWED_EMAIL_DOMAIN", "croplifesc
 # configured, the one-time password is returned only to the authenticated Super
 # Administrator so it can be shared through an approved internal channel.
 PORTAL_INVITE_EMAIL_FROM = os.getenv("PORTAL_INVITE_EMAIL_FROM", INITIAL_ADMIN_EMAIL).strip()
-PORTAL_INVITE_URL = os.getenv("PORTAL_INVITE_URL", "https://croplifescience.duckdns.org/admin/portal").strip()
+PORTAL_INVITE_URL = os.getenv("PORTAL_INVITE_URL", "https://ai.croplifescience.com/admin/portal").strip()
 SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()

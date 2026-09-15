@@ -36,7 +36,7 @@ services:
       ADMIN_GATEWAY_TOKEN: ${ADMIN_GATEWAY_TOKEN:-}
       ADMIN_ALLOWED_EMAIL_DOMAIN: ${ADMIN_ALLOWED_EMAIL_DOMAIN:-croplifescience.com}
       PORTAL_INVITE_EMAIL_FROM: ${PORTAL_INVITE_EMAIL_FROM:-aiengineer.2@croplifescience.com}
-      PORTAL_INVITE_URL: ${PORTAL_INVITE_URL:-https://croplifescience.duckdns.org/admin/portal}
+      PORTAL_INVITE_URL: ${PORTAL_INVITE_URL:-https://ai.croplifescience.com/admin/portal}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}

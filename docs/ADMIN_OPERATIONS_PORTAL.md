@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The administration portal is the controlled source for product information used by Crop Life AI. During the temporary-domain phase it is available at `https://croplifescience.duckdns.org/admin/portal`; later it can move to a separate private hostname such as `admin.example.com` without changing the data or approval model.
+The administration portal is the controlled source for product information used by Crop Life AI. It is available at `https://ai.croplifescience.com/admin/portal` and can later move to a separate private hostname without changing the data or approval model.
 
 It prevents a product from being recommended simply because it appears in old static application data. Once the private AWS integration is enabled, an inspection follows this route:
 
@@ -91,8 +91,8 @@ CATALOG_RECOMMENDATION_URL=http://127.0.0.1:8000/api/v1/catalog/recommendations
 INTERNAL_SERVICE_TOKEN=<long-random-shared-internal-token>
 
 # The temporary HTTPS hostname (replace later with admin.<company-domain>)
-ADMIN_PORTAL_HOSTNAME=croplifescience.duckdns.org
-ADMIN_PORTAL_ORIGIN=https://croplifescience.duckdns.org
+ADMIN_PORTAL_HOSTNAME=ai.croplifescience.com
+ADMIN_PORTAL_ORIGIN=https://ai.croplifescience.com
 ADMIN_PORTAL_SESSION_SECRET=<at-least-32-random-characters>
 TEMP_ADMIN_USERNAME=jiten
 TEMP_ADMIN_EMAIL=aiengineer.2@croplifescience.com
@@ -104,7 +104,7 @@ ADMIN_ALLOWED_EMAIL_DOMAIN=croplifescience.com
 ADMIN_BACKEND_URL=http://127.0.0.1:8000
 ADMIN_GATEWAY_TOKEN=<different-long-random-token>
 PORTAL_INVITE_EMAIL_FROM=aiengineer.2@croplifescience.com
-PORTAL_INVITE_URL=https://croplifescience.duckdns.org/admin/portal
+PORTAL_INVITE_URL=https://ai.croplifescience.com/admin/portal
 SMTP_HOST=<company-Microsoft-365-SMTP-host>
 SMTP_PORT=587
 SMTP_USERNAME=<approved-sending-account>

@@ -1,6 +1,6 @@
 [Unit]
 Description=Crop Life AI private Qwen shadow evaluation worker
-Documentation=https://croplifescience.duckdns.org/admin/portal
+Documentation=https://ai.croplifescience.com/admin/portal
 After=network-online.target docker.service
 Wants=network-online.target
 
