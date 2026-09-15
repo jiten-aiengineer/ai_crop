@@ -741,3 +741,49 @@
   .architecture-view-switch button { flex:1; }
   .architecture-safety { grid-template-columns:1fr; gap:5px; }
 }
+
+/* Contrast safety: never allow inherited brand blue to disappear on a blue
+   control, or pale inherited copy to disappear on a white operational card. */
+.admin-primary,
+.admin-welcome > button,
+.admin-sidebar nav button.selected,
+.model-lab-tabs button.selected,
+.architecture-view-switch button.selected,
+.field-date-shortcuts button.selected {
+  color: #fff;
+}
+.admin-welcome > button:hover:not(:disabled),
+.admin-primary:hover:not(:disabled) { color:#fff; }
+.admin-primary:disabled,
+.admin-welcome > button:disabled {
+  border-color: #c6d2da;
+  background: #dce5eb;
+  color: #4b6272;
+  opacity: 1;
+}
+.admin-panel,
+.admin-metric,
+.admin-product-card,
+.admin-editor,
+.admin-table-wrap,
+.admin-link-dialog { color:#18394f; }
+.admin-panel input,
+.admin-panel select,
+.admin-panel textarea,
+.admin-editor input,
+.admin-editor select,
+.admin-editor textarea,
+.admin-link-dialog input { color:#173f5b; background-color:#fff; }
+.admin-panel input::placeholder,
+.admin-editor input::placeholder,
+.admin-link-dialog input::placeholder { color:#718797; opacity:1; }
+.admin-table tbody tr:hover { background:#f4f9fc; }
+.admin-table tbody tr:hover td { color:#1c4867; }
+.model-role-card.primary,
+.model-role-card.primary h3,
+.model-role-card.primary p,
+.model-role-card.primary small,
+.model-role-card.primary em,
+.model-lab-v2 > .admin-list-toolbar,
+.model-lab-v2 > .admin-list-toolbar h2,
+.model-lab-v2 > .admin-list-toolbar p { color:#fff; }
