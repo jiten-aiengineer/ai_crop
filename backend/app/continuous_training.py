@@ -489,8 +489,10 @@ def start_training_if_ready(force: bool = False) -> dict:
         return {"started": False, "reason": "automatic_training_disabled"}
     try:
         health = _connector("/health", timeout=3)
-        if str(health.get("status") or "").casefold() not in {"ok", "ready", "available", "healthy"}:
-            return {"started": False, "reason": "training_connector_not_ready"}
+        health_status = str(health.get("status") or "unknown").casefold()
+        if health_status not in {"ok", "ready", "available", "healthy"}:
+            return {"started": False, "reason": "training_connector_not_ready",
+                    "connector_health": health_status}
     except TrainingConnectorError as error:
         return {"started": False, "reason": "training_connector_unavailable", "error": str(error)}
     with connection() as conn:
@@ -605,7 +607,8 @@ def run_pipeline_cycle(force_training: bool = False, reset_failed: bool = False)
     training = start_training_if_ready(force=force_training)
     connector_status = (
         "not_configured" if not (GPU_TRAINING_SERVICE_URL and len(GPU_TRAINING_SERVICE_TOKEN) >= 32)
-        else "offline" if training.get("reason") in {"training_connector_unavailable", "training_connector_not_ready"}
+        else "configuration_required" if training.get("reason") == "training_connector_not_ready"
+        else "offline" if training.get("reason") == "training_connector_unavailable"
         else "ready"
     )
     with connection() as conn:

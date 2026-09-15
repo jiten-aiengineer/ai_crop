@@ -1,0 +1,23 @@
+[Unit]
+Description=Crop Life AI private Qwen adapter training service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/crop-life-ai/gpu-trainer
+EnvironmentFile=/etc/crop-life-ai/gpu-trainer.env
+ExecStart=/opt/crop-life-ai/gpu-trainer/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8090 --workers 1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/crop-life-ai-gpu-trainer
+
+[Install]
+WantedBy=multi-user.target
+

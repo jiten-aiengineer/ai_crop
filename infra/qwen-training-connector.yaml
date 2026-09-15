@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private network and least-privilege S3 access for the Crop Life AI Qwen trainer.
+
+Parameters:
+  GpuSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-0cfe419b90d311fe8
+  MainAppSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-0e2ae4d1929cce77c
+  GpuInstanceRoleName:
+    Type: String
+    Description: Existing IAM role attached to crop-life-ai-qwen-gpu.
+  DatasetBucketName:
+    Type: String
+    Default: crop-life-ai-data
+  DatasetPrefix:
+    Type: String
+    Default: inspections/
+  ArtifactPrefix:
+    Type: String
+    Default: model-artifacts/qwen/
+
+Resources:
+  TrainerIngressFromMainAppOnly:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref GpuSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 8090
+      ToPort: 8090
+      SourceSecurityGroupId: !Ref MainAppSecurityGroupId
+      Description: Crop Life AI main API to private Qwen training connector only
+
+  GpuTrainerS3Policy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Read retained CLSL inspection evidence and write versioned Qwen artifacts.
+      Roles:
+        - !Ref GpuInstanceRoleName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ListOnlyRequiredPrefixes
+            Effect: Allow
+            Action: s3:ListBucket
+            Resource: !Sub arn:${AWS::Partition}:s3:::${DatasetBucketName}
+            Condition:
+              StringLike:
+                s3:prefix:
+                  - !Sub ${DatasetPrefix}*
+                  - !Sub ${ArtifactPrefix}*
+          - Sid: ReadRetainedInspectionImages
+            Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource: !Sub arn:${AWS::Partition}:s3:::${DatasetBucketName}/${DatasetPrefix}*
+          - Sid: WriteVersionedModelArtifacts
+            Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:AbortMultipartUpload
+            Resource: !Sub arn:${AWS::Partition}:s3:::${DatasetBucketName}/${ArtifactPrefix}*
+
+Outputs:
+  TrainerPrivateUrl:
+    Value: http://172.31.16.209:8090
+  TrainerPolicyArn:
+    Value: !Ref GpuTrainerS3Policy
+

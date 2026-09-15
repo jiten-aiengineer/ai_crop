@@ -1115,6 +1115,9 @@ def automated_model_observability(identity: AdminIdentity = Depends(_identity)):
             "automatic_training": MODEL_TRAINING_AUTOSTART,
             "automatic_deployment": MODEL_AUTO_DEPLOY_ENABLED,
             "training_connector_configured": bool(GPU_TRAINING_SERVICE_URL and len(GPU_TRAINING_SERVICE_TOKEN) >= 32),
+            "training_connector_status": (pipeline or {}).get("connector_status") or (
+                "configured" if GPU_TRAINING_SERVICE_URL and len(GPU_TRAINING_SERVICE_TOKEN) >= 32 else "not_configured"
+            ),
             "minimum_new_cases": MODEL_TRAINING_MIN_NEW_CASES,
             "minimum_confidence": MODEL_PIPELINE_MIN_CONFIDENCE,
             "minimum_issue_similarity": MODEL_PIPELINE_MIN_ISSUE_SIMILARITY,
