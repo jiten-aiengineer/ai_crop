@@ -337,7 +337,7 @@ footer div p { margin: 3px 0 0; }
 @keyframes viewFadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 
 /* Smooth scrolling with overscroll bounce like native */
-.app-shell { -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+.app-shell { -webkit-overflow-scrolling: touch; }
 .chat-body { -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; scroll-behavior: smooth; }
 
 /* Haptic-feel button press across the app */
