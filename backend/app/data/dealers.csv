@@ -1,0 +1,624 @@
+Code,Name,Sales Executive,Sales Area,Sales Region,Sales Territory,State
+01000079,Agri Business Centre Bareja,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+01000083,Agro Service Center Chulli,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+01000085,Ambica Sales Corporation Sarkhej,OTHER NS GUJARAT TERRITORY,Gujarat,VADODARA,OTHER NS GUJARAT,Gujarat
+01000093,Bhavani Agro Centre Tharad,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+01000096,Bhumi Agro Centre Visnagar,OTHER NS GUJARAT TERRITORY,Gujarat,VADODARA,OTHER NS GUJARAT,Gujarat
+01000097,Brahmani Agro Agency  Ambaliyasan,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000098,Brahmani Fertilizers Kukarwada,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000100,Dhartidham Traders Dehgam,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000101,Divine Tree Ltd. Ahmedabad,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000103,Gayatri Agro Chemical Tajpur Camp,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000108,Jalaram Agro Centre Modasa,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000114,Manglam Agro Seeds Himmatnagar,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000115,Maruti Agro Centre Trent,OTHER NS GUJARAT TERRITORY,Gujarat,VADODARA,OTHER NS GUJARAT,Gujarat
+01000119,Nilkanth Sales Corporation Idar,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000124,Raj Agro Agency Chiloda Mota,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000126,Sagar Agro Centre  Deesa,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+01000130,Shiv Shakti Agro Centre Kadi,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000132,Shree Bhagwati Fertilizers Dakor,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+01000133,Shri Ambica Fertilizers Khedbrahma,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000134,Shri Brahmani Beej Kendra Deesa,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+01000136,Shri Ram Agro Tenpur,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000137,Shri Shiv Agro Centre Sanand,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000138,Shri Umiya Fertilizers Mandal,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000140,Suraj Agro Seeds Asodar Chowkdi,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+01000141,Swastik Sales  Prantij,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000145,Umiya Agro Centre Thara,OTHER NS GUJARAT TERRITORY,Gujarat,VADODARA,OTHER NS GUJARAT,Gujarat
+01000146,Umiya Agro Traders Balasinor,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+01000147,Agri Business Center - Bechraji,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000148,Umiya Fertilizers Jadar,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000150,Agri Business Centre Vadia,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000151,Agro Service Centre Lathi,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000152,Ambica Agro Centre Chalala,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000153,Amidhara Beej Nigam Gir Gadhada,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000154,Bhagwati Agro Agency Amreli,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000155,Chirag Agro Centre Babra,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000159,Gopinath Agro Chemicals Rajula,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000162,Gurukrupa Agro Agency Mota Akadiya,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000169,Khodiyar Krushi Kendra Amreli,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000171,Kishan Agro Centre Tori,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000172,Komal Agro Centre Sanali,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000173,Krushnanand Agro Chemicals Dhokadva,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000175,Maruti Agro Agency Khambha,OTHER SAURASHTRA TERRITORY,Gujarat,RAJKOT,OTHER SAURASHTRA,Gujarat
+01000180,Patel Agro Centre Chamardi,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000182,Patel Kheti Vikas Kendra Damnagar,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000183,Radhe Agro Centre Badhada,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000189,Shriji Agro Agency Timbi,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+01000204,Green Gold Garden & Agro Consultancy Ahmedabad,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+01000221,Agro Cure Agency  Dabhoi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+01000226,Dixa Kiran Agro Centre Bhilad,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+01000229,Gayatri Traders - Sadhli,OTHER NS GUJARAT TERRITORY,Gujarat,VADODARA,OTHER NS GUJARAT,Gujarat
+01000230,Gopal Agro  Naswadi,OTHER NS GUJARAT TERRITORY,Gujarat,VADODARA,OTHER NS GUJARAT,Gujarat
+01000234,Jalaram Traders Segwa Chowkdi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+01000247,Shri Shiv Shakti Traders  Shinor,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+01000248,Shri Shiv Shankar Traders - Vagra,OTHER NS GUJARAT TERRITORY,Gujarat,VADODARA,OTHER NS GUJARAT,Gujarat
+01000252,Yogi Sales Corporation  Amod,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+01000253,Agri Business Centre  Boradi,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000255,Agri Business Centre(Dvd) Botad,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000265,Bapa Sitaram Krushi Kendra Mahuva,OTHER SAURASHTRA TERRITORY,Gujarat,RAJKOT,OTHER SAURASHTRA,Gujarat
+01000266,Brahmani Agro Chemicals  Moti Kundal,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000270,Darshan Khedut Hat - Dhola,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000273,Gokul Trading Co  Lathidad,OTHER SAURASHTRA TERRITORY,Gujarat,RAJKOT,OTHER SAURASHTRA,Gujarat
+01000279,Madhavan Agro Tarsamiya,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000281,Maruti Agro Chemicals  Mahuva,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000283,Parmar Agro Center  Jambala,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000284,Parth Agro Agency Sihor,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000286,Patel Agro Chemicals Kalatalav,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000287,Patel Agro Servises  Barwala,OTHER SAURASHTRA TERRITORY,Gujarat,RAJKOT,OTHER SAURASHTRA,Gujarat
+01000288,Patel Beej Nigam  Bhavnagar,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000289,Santkrupa Agro Chemicals Rajpara,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000290,Savani Sales Agency Dhasa,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000291,Shivam Agro Chemical Lathidad,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000293,Tulsi Agro Agency Botad,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000294,Tushar Agro Chemicals Talaja,OTHER SAURASHTRA TERRITORY,Gujarat,RAJKOT,OTHER SAURASHTRA,Gujarat
+01000295,Vijay Trading Co Mahuva,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000296,Vikas Agro Chemicals - Sanosara,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000297,Vrundavan Agro Centre Gundarana,OTHER SAURASHTRA TERRITORY,Gujarat,RAJKOT,OTHER SAURASHTRA,Gujarat
+01000298,Yamuna Agro Centre Totaniyana,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+01000307,Madhav Fertilizer (Madhupur Ghed),JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+01000312,Shri Gunatitpur Sewa Sahkari Mandli Ltd Gunatipur,OTHER SAURASHTRA TERRITORY,Gujarat,RAJKOT,OTHER SAURASHTRA,Gujarat
+01000314,Shri Umiya Agro Chemicals Netra,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+01000317,Velani Traders Rayanmoti,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+01000330,Gujarat Agro Seeds Jamjodhpur,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000338,Khodal Agro Center Pithadia,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000341,Khodiyar Agro Chemicals Jayva,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000343,Kishan Agro Centre Matwa,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000346,Krushi Vikas Kendra Bhadra Chowkdi,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000356,Patel Seeds & Agro Chemicals Jamnagar,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000357,Pavan Agro Traders Dhrol,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000359,Radhe Agro Centre Falla,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000363,Samay Agro Mota Gunda,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000364,Shivdeep Agro Seeds Patelka,OTHER SAURASHTRA TERRITORY,Gujarat,RAJKOT,OTHER SAURASHTRA,Gujarat
+01000365,Shivshakti Agro Centre Hadiyana,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000368,Shriji Agro Centre Theba,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000375,Vishal Agro Centre Keshiya,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000376,Vrundavan Agro Centre Nandana,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+01000383,Avni Agro Centre Moti Monpari,OTHER SAURASHTRA TERRITORY,Gujarat,RAJKOT,OTHER SAURASHTRA,Gujarat
+01000384,Balaji Traders Mendarda,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+01000386,Bharat Agro Chemicals Bhesan,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+01000387,Dharti Agro & Traders Joshipara(Junagadh),JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+01000390,Field Marshal Agro Bagavadar,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+01000392,Gayatri Agro Chemicals Vanthali,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+01000393,Ghanshyam Agro Centre Sakhdavadar,OTHER SAURASHTRA TERRITORY,Gujarat,RAJKOT,OTHER SAURASHTRA,Gujarat
+01000394,Giriraj Agro Centre Maliya Hatina,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+01000395,Gokul Agro Centre Tikar,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+01000400,Kalindi Agro Centre Dungari,OTHER SAURASHTRA TERRITORY,Gujarat,RAJKOT,OTHER SAURASHTRA,Gujarat
+01000402,Kamnath Agro Centre Amrapur (Gir),OTHER SAURASHTRA TERRITORY,Gujarat,RAJKOT,OTHER SAURASHTRA,Gujarat
+01004562,Patel Trading Co. - Talala,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40100241,Rajesh Fertilizers - Demai,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100242,Jay Veer Agro Sale - Kukarmunda,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100243,Shree Laxmi Seeds - Viramgam,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100245,Patel Sales Corporation - Patan,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100246,Agro Service Center - Pethapur,OTHER NS GUJARAT TERRITORY,Gujarat,VADODARA,OTHER NS GUJARAT,Gujarat
+40100247,Maa Krupa Agro - Miyapur,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40100249,Jayesh Beej Co - Surat,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40100250,S.Ketankumar And Co - Talala,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40100251,Bajrang Agro Centre - Bilkha,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40100252,Krushi Agencies - Kutiyana,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40100253,Sainath Agro Chemicals - Dhasa,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100254,Avinash Agro Chemicals - Nodhanvadar,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100258,Lalguru Agro Center - Kadi,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100259,Jaiveer Agro Fertilizers - Vijapur,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100260,Tirupati Agro Agency - Dharampur,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40100261,Pratik Fertilizers - Khergam,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40100262,Khodiyar Krushi Kendra - Vansda,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40100263,Dhananjay Agro Agency - Oliya,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40100271,Satyam Agro Seeds Agency - Jamnagar,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40100272,Shree Ganesh Agro Business Centre - Vadali,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100273,New Rajeshwari Agro Chemical - Chuda,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100274,Shri Umiya Bij Bhandar - Muval Chowkdi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100278,Shree Brahmani Fertilizers - Becharaji,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100279,Shreeji Krupa Agro Agency - Surendranagar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100311,Shreeji Traders - Waghodia,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100334,Ramdev Traders - Khodu,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100341,Vaidik Krushi Zone - Himmatnagar,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100345,Agri Business Center - Varetha,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100347,Vishwa Enterprise - Mansa,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100351,Manek Agro Chem - Ahmedabad,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100352,Anjana Krushi Kendra - Radhanpur,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100354,Shiv Agro Center - Siddhapur,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100356,Vishwas Agro Center - Veraval,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40100358,Vikas Agro Agency - Dhoraji,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40100360,Agro Service Centre - Ambardi,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40100365,Mira Agro Center - Dhola Junction,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100390,Murlidhar Agro - Lunagara,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40100392,Jay Kishan Agro Centre - Jam Kandorana,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40100397,Shiv Shakti Fertilizers - Savali,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100420,Adarsh Agro - Upleta,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40100422,Gujarat Agro & Hardware - Sayla,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100433,Unique Traders - Dabhoi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100439,Raj Bajrang Agro Fertilizers - Botad,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100440,Shree Krishna Agro Center - Nesadi,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40100453,Shree Patel Traders - Ankleshwar,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100460,Sankalp Agro Center - Latipar,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40100466,New Krishi Beej Nigam - Kukarwada,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100468,Krushan Agro Centre - Lakhani,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100474,Navdurga Agencies - Idar,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100478,Hari Om Agro Chemicals - Kheda,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100481,Khodiyar Agro Agency - Vavdi,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100483,Shree Sadguru Sales Corporation - Todiya,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100485,Maharaj Agro Centre - Vadu,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100494,Jay Yogeshvar Krushi Kendra - Mahuva,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100496,Shriji Agro Center - Rapar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100503,Umiya Agro - Bodeli,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100510,Marss Agro Chemicals - Kheda,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100523,Kisan Agro - Vadgam,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100531,Shiv Agro Centre - Kalavad,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40100534,Shiv Agro Centre - Chitra,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100542,Shree Shakti Fertilizer - Paliyad ( Botad ),BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100543,Badi Traders - Panchasiya,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40100561,Dhyey Ageo Agency - Zanzarada,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40100650,Green Gujarat Agro Center - Tharad,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100653,Shivram Agro Chemicals - Babarkot,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100654,Harsiddhi Agro Centre - Radhanpur,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100657,Milan Agro Agency - Talaja,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100659,Khedut Agro Centre - Bardoli,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40100661,Jay Shree Ram Agro Centar - Dhandhuka,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100673,Patel Agro Center - Kolki,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40100680,Janki Sales Corporation - Moti Jagdhar,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100682,Shriji Agro Center - Samdhiyada,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40100692,Gurukrupa Agro - Moti Monpari,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40100693,Rang Avdhoot Agro - Kotha,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40100698,Shree Ram Agro Center - Jam Gadhaka,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40100704,Bharat Agro Center - Budhel,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100705,Shiv Shakti Agro Traders - Thangadh,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40100709,Khodiyar Agro Center - Shankhdavadar,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40100714,Ganesh Agro Centre - Moti Kukavav,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40100719,Chaudhari Sales Corporation - Tharad,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100729,Gayatri Traders - Deodar,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100731,Sunny Agro Service- Dahod,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100734,Shivdhara Agro- Salatpur,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100739,Banshidhar Agro Chemicals- Dhudasiya,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40100740,N K Agro Center- Himmatnagar,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100744,Devki Agro- Devpar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100745,Momai Agro Center- Bhadthar,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40100747,Satyam Agro Center- Chauta,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40100750,Arbuda Seeds Center- Thara,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100755,Ellora Traders- Tithava,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40100763,Maruti Agro Center- Ghandala,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40100764,Uma Agro Center-kotada,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100765,Kuldevi Agro Tech-Junapadar,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100766,Shri Gopinathji Agro Center-Piprala,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100772,Gayatri Fertilizer- Borol,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100775,Anjani Agrotech- Morbi,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40100778,Vishvas Agro Agency- Ranpur,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100780,Madhav Agro Center-Sidsar,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100794,Sahyog Agro Center-Jadar,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100796,Shri Ranchhodray Agro-Umreth,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100803,Bapa Sitaram Krushi Kendra-Dedan,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40100806,Panchnath Fertilizers-Dhoraji,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40100809,Vedmurti Irrigation & Marketing- Sathamba,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100816,Maa Krupa Agro Center-Morva,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100821,Mahesh Agro-Chotila,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40100822,Kisan Beej Nigam-Limbadiya,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100823,Pradip Pesticide-Mahuva,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100825,Jay Sardar Agro-Bamangam,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40100826,Shri Kheti Sewa Kendra-Morbi,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40100829,Jay Kisan Agro Chemicals-Savarkundla,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40100834,Krishna Agro Center - Amarnagar,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40100835,Ashapura Agro center - Kharoi,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100836,Patel Pesticides - Santrampur,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100837,Agri Business Center - Kashindra,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100842,Aastha Agro Tech - Mahuva,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100843,Kanaiya Agro Agency - Bagasara,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40100849,Patidar Agro - Lalsar,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100855,Jalaram Agro Seeds - Borsad,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100856,Bhagyoday Sales Agency - Kodaypul,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100857,Bajarang Agro Center - Modpar,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40100860,Hingalaj Agro - Ratadiya,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40100866,Agree Business Centre - Singvad,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100868,Shri Ram Agro Center - Mankol,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100870,Laljikrupa Agro Chemicals - Samdhiyala,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100878,M.H Agro Agency - Wankaner,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40100879,Krushak Agro & Seeds - Mendarada,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40100881,Kanaiya Agro Center - Bilkha,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40100884,Sahaj Agro - Surendranagar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100889,Shree Agro Centre - Chiloda,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100893,Agree Bussness Center - Malvan,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100898,Akash Beej Bhandar - Sanjeli,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100899,Shivam Traders - Bodeli,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100900,Shri Ram Agro Centre - Kawant,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100901,Agree Buisness Center - Adadra,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100902,Agri Business Centre - Munpur,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100912,Laxmi Traders - Ghoghamba,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100913,Agro Service Centre - Vejalpur,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100914,Khodiyar Agro Centre - Lunawada,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100917,Yamuna Agro Agency - Bhetasi,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100918,Khodiyar Krushi Kendra - Parwala,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100929,Shree Sai Agro - Sevni,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40100930,Jay Ambe Trading Co - Aaseda,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100937,Mahalaxmi Agro Center - Digadi,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100943,Milan Agro Centre - Kothariya,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40100944,Shyam Agri Seeds - Jetpur,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40100946,Varudi Agro - Morthala,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40100949,Shree Yamuna Traders - Kawant,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100954,Bhoomi Agro Centre - Patan,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100957,Maa Krupa Beej Bhandar - Vadtal,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100958,Krushi Seva Kendra - Pithiya,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40100963,Bhoomi Agro Seeds - Charan Tungi,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40100964,Jay Mataji Agro - Kosindra,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100970,Shree Mohit Seeds Agro - Ganpatpura,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100974,Seema Agro Chemicals - Bavla,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40100987,Nitya Agro Seeds - Mota Layja,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40100988,Ronak Seeds - Palanpur,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40100990,Shree Krishna Agro Agency - Bhavnagar,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40100993,Jay Bhole Biyaran Kendra - Bodeli,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40100996,Dhyani Enterprise - Chandrala,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40101004,Bhole Seeds & Pesticides - Rakhiyal,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40101006,Dovexa Agro - Parab Vavdi,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40101009,Gatral Agro Center - Bhalpara,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40101010,Deva Agro Traders - Godhra,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40101012,Somnath Krushi Kendra - Jam Jodhpur,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40101016,Shyam Agro Center - Chhachhar,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40101025,Agri Business Center - Lathi,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40101038,Agri Business Centre - Ranivada,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40101040,Darshan Seeds & Fertilizers - Vadala Fatak,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40101042,Kishan Krushi Kendra -Satapar,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40101052,Gayatri Corporation - Dhansura,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40101055,Agro Service Centre - Morva,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40101059,Mangold Bio-Agricare Pvt Ltd - Bodeli,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40101064,Ramest Agro Center - Panchmahal,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102010,Arbuda Agro Center - Kotda,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102014,Tirupati Agro Agency - Monpar,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102016,Kanaiya Krushi Kendra - Bhanvad,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40102020,Jay Bhavani Krushi Vikas Kendra - Varal,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102022,Vasundhara Agro - Chalamali,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102023,Hari Om Traders - Devalia,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102024,Shital Agro Chemicals - Botad,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102026,Chamunda Agro Center - Rohisa,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102032,Abbas Fertilizers - Ranpur,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102034,A One Agro Centre - Majivana,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102057,Agri Business Center - Dungarwant,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102061,Nasib Agro - Rati Devli,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40102062,Shreeji Agro Center - Karkhadi Chowkdi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102063,Ganesh Seeds & Fertilizers - Santrampur,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102069,Himalay Agro Chemicals - Una,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102072,Agri Business Center - Uchapan,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102073,Smit Agro Center - Devalki,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40102078,Krushi Depo - Kumarkhan,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102079,Gurukrupa Fertilizers - Lakhtar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102080,Arbuda Seeds & Fertilizar - Modasa,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102081,Patel Seeds - Kothamba,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102088,Krishna Agro Center - Kenedi,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40102093,Krushi Vigyan Kendra - Khambha,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102104,Ramdev Agro Seeds - Palanpur,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102106,New Bhole Agro Center - Pipar,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40102137,Shikh Yusufali Noorbhai & Sons - Jasdan,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40102139,Dhara Agro Agency - Bhuj,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102159,Raj Chamunda Agro Agency - Bhadi,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102165,Bhagwati Krushi Kendra - Miyani,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102171,Agro Service Centre - Santrampur,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102175,Agri Business Centre - Bachkriya,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102177,Balram Krushi Seva Mandal - Haripura,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102191,Agri Business Center - Dodiya,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102192,Agri Business Center - Bakor,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102193,Narmada Agro Center - Nandasan,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102198,Chamunda Agro Chemicals - Gundala,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102201,Umiya Agro Center - Vidaj,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102204,Sangam Agro Centre - Chopdva,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102206,Bhagirath Agro Center - Keshod,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102209,Shri Ram Agro - Thepda,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102211,Mahetar Khedut Hart - Gadhada,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102216,Gaytri Agro Agency - Jetpur,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40102217,Agri Business Center - Panpur Patiya,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102223,Agri Business Center - Virpur,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102225,Khedut Beej Bhandar - Lunawada,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102232,Dharti Seeds & Pestisides - Ranasan,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102237,Madhav Agro Center - Mamuara,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102243,Tirth Agro World - Raydi,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102244,Ganesh Agro Traders - Bhangor,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40102254,Krishna Krushi Kendra - Chhota Udaipur,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102257,Krushi Care - Devkaran Na Muvada,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102259,Umiya Agro - Prantij,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102262,Maruti Agro Center - Dharmpur,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102264,Gujarat Seeds & Fertilizers Trading Co - Pavi Jetpur,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102269,Mahalaxmi Agro Chemicals - Bareja,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102271,Shreeji Agro Center - Chuda,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102273,Shri Shivshakti Agro - Rajendranagar,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102277,Patel Fertilizers - Damnagar,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102279,Tirth Agro Seeds - Aarabtimbadi,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40102283,Prakash Traders - Himmatnagar,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102285,Krushna Agro Centre - Deesa,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102287,Ganesh Darshan Agro Center - Karmadiya,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102289,Manav Agro Centre - Jetpur Pavi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102298,Jay Adhyashakti Agro Agency - Kalyanpura,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102306,Krunal Fertilizers - Salal,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102310,Mahakali Agro Centre - Gambhoi,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102312,Paavan Organic - Modasa,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102313,Gujarat Agro Seeds - Pansora Chokdi,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102317,Narnarayan Agro - Mankuva,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102320,Arbuda Agro Center - Sariyad,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102324,Khedut Agro Center - Asalpar,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102326,Kheti Vikas Kendra - Koita,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102328,Shri Gurukrupa Agro - Zankhvav,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102331,Madhav Beej - Bhesan,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102338,Sadguru Agro Center - Devgana.,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102341,Yogi Seeds - Mandvi,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102345,Shree Ram Agro - Pata Meghpar,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40102347,Ramdev Agro Agency - Babra,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102356,Darshan Agro Center - Tharad,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102358,Krishna Agro Center - Rugnathpur(Khodi),AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102368,Jaydeep Agro Center - Jamkhambhaliya,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40102374,Shiv Agro Centre - Gunatitpur,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102378,New Era Agro Service Center - Arnej,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102387,Agri Business Centre - Baspa,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102396,Shyam Agro Center - Una,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102399,Agri Business Center - Saganpura,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102403,Gayatri Corporation - Shika Chokdi,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102406,Gurudev Agro Center - Chiloda,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102408,Ambica Agro Service - Dehgam,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102414,Vinit Seeds - Palanpur,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102416,Agree Business Center - Chiloda,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102418,Kisan Agro Centre - Mandavi,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102419,Kheti Vikas Kendra - Surendranagar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102440,Nirali Agro & Fertilizers - Surendranagar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102443,Virat Agriculture - Patanvav,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102446,Bharat Agro Chemicals - Natrang,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102448,S.K Agro Traders - Ratidevadi,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40102452,Shyam Agro Business - Bhatiya,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40102456,Anjani Agro Agency - Bharatnagar,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40102459,Khedut Brothers - Mendapara,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40102461,Balaji Irragation - Tankara,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40102467,Agri Business Center - Shilaj,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102469,Krushi Sahay Kendra - Kosindra,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102471,Shree Maruti Agro Centre - Bal Chondhi,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102473,Pratik Agro Agencies - Valsad,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102475,Pramukh Agro - Olpad,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102478,Agri Business Center - Ladol,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102480,Om Fertilizers - Botad,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102484,Agri Business Center - Gir Gadhda,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102487,Subham Agro Center - Bagasara,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102489,Khedut Ghar - Gadhada,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102493,Shree Ramdev Agro Centre - Morva,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102495,Shiv Shakti Agro & Seeds - Surat,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102497,Shivam Krushi Kendra - Bokhira,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102503,Pruthvi Agro Fertilizers & Seeds - Piluda,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102508,Makani Agro Center - Kotada,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102510,Jalaram Seeds Corporation - Bayad,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102512,Valinath Agro Chemicals - Kaniyad,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102515,Kheti Vikas Kendra - Una,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102525,Ambika Krushi Kendra - Bayad,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102528,Shree Fertilizers - Khambhala,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102531,Darshan Agro Center - Deesa,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102533,Srushti Agro Agency - Rajpara,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102537,Shiv Krupa Agri Clinic - Babra,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102538,Amit Sales Corporation Agro And Irrigation - Naroli,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102540,Maruti Agro - Gola Gamdi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102543,Jyoti Agro Agency - Bhavnagar,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102545,Gayatri Traders - Savli,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102557,Umiya Agro Center - Virpur,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102565,Navrang Seeds & Pesticides - Jambusar,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102566,Shiv Agro Agency - Vankal,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102571,Agri Business Centre - Gangardi,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102573,Adiwasi Agro Centre - Naswadi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102575,Adarsh Sales Agency - Godhra,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102577,Shree Maruti Agrodeal - Umalla,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102579,Ashapuri Seeds Pesticides - Matar,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102581,New Ravechi Agro Centre - Rapar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102585,Agri Business Centre - Tarsali,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102593,Shree Krishna Seeds & Pesticides - Devaliya Chowkdi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102598,Khedut Bhavan Agro Chemicals - Botad,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102602,Shri Satnam Traders - Kalarani,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102605,Shiv Shakti Pestisides - Hansot,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102607,Krishna Agro Centre - Jarod,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102611,Khodiyar Agro - Thanagalol,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40102624,Sant Krupa Agro Center - Tared,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102633,Madhav Agro Centre - Inaj Patiya,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102634,Sardar Kheti Vikas Kendra - Rajkot,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40102642,Agro Service Centre - Halol,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102645,Shreeji Crop Care Science - Tajpur Kui,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102650,Kishan Krushi Kendra - Ramvav,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102656,Balaji Fartiliser - Gor Khijadiya,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40102658,Mahadev Agro Agency - Kukavav,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102660,Vishal Agro Chemicals - Dhokadva,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102670,Agri Business Centre - Velavadar,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102672,Shree Nidhi Traders - Segva Chowkdi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102674,Khedut E Bajar - Palej,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102677,Bhagwati Enterprise - Dhandhalpur,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102679,Dharti Agro - Chhadiyali,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102688,Ashapura Fertilizer - Talod,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102692,Bhagwati Agro Chemicals - Surendranagar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102694,J.B Traders - Mandala,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102701,Patel Agro - Khijadiya,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40102707,Dharti Agro - Sarbhan,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102712,Maa Krupa Agro - Khudvel,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102714,Gopal Agro Center - Baradiya,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102716,Shreeji Agro Center - Nareshwar,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102719,Jay Somnath Agro Chemicals - Rajpara,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102722,Jay Kuber Agro - Rajpipla,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102728,Bhavani Fertilizers - Chuda,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102731,Bharat Kheti Vikas Kendra - Sai Devaliya,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40102734,Harbhole Agro Center - Mangrol,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102736,Jay Jalaram Agro Chemicals - Chuda,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102738,Bapa Sitaram Agro - Idar,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102740,Krishna Fertilisers - Chotila,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40102744,Momai Marketing - Sayla,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102749,Parmar Agro Center - Halvad,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102751,Vadhiyar Fertilizer - Harij,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102755,Jay Dwarikadhis Agro Center - Rampura,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102759,Kishan Krushi Mall - Shekhpir,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102761,Gayatri Fertilizers - Nadiyad,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102763,Khedut Hat - Botad,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102766,Darpan Sales Corporation - Bagdana,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40102768,Balavi Agro Center - Rafudal,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40102770,Mizan Agro Agency - Wankaner,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40102772,Agri Business Centre - Bhildi,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102774,Kishan Mall - Bhader,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40102776,Shreeji Agro & Fertilizers - Areth,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102779,Ekta Agro Center - Dholka,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102782,Social Welfare Fertilizers - Nizar,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102789,Jay Khodiyar Fertilizer - Buhari,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102807,Kishan Agro Center - Tobra,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102812,Shree Chamunda Agro - Mithapur,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102819,Krushi Vikas Kendra - Navsari,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102833,Khodiyar Agro Center - Anandpar,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40102835,The Karamdi Vividh Karyakari Sahkari Mandli Ltd - Karamdi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102838,Swaminarayan Traders - Thamna,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102845,Mukesh Fertilizers - Karjan,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40102857,Karuna Sagar Agro Agency - Mahudha,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102860,Hariyali Agro Centre - Iqbalgadh,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102862,Kishan Agri Mall - Amirgadh,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102867,Shree Gayatri Krupa Enterprises - Valsad,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102881,Sardar Agro Seeds - Bilkha,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102886,Satkaival Trading Co. - Matar,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102892,Gayatri Agro Services - Kapadwanj,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102897,Vinayak Agro Nigam - Songadh,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40102910,Agri Business Center - Kukasvada,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102911,Jagnath Agro Centre - Limbdi,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102914,Nilkanth Agro - Thorimubarak,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102920,Ronak Fertilizers - Umreth,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102922,Jay Agro Center - Alina,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40102925,Laxmi Agro Center - Kadi,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40102927,Agri Business Centre - Mahendranagar,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40102929,Ashirvad Agro - Deshalpar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102930,Shree Umiya Agro - Limbdi,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40102934,Naklang Agro Center - Bhakhar Moti,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40102972,Shree Abhyay Trading Company - Bhatiya,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40103032,Shiv Agro Centre - Bhayavdar,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40103036,Krishna Agro - Chauta,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40103038,Shyam Agro Agency - Chhachhar,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40103041,Maruti Pesticides - Amod,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103043,Nehal Agro and Seeds - Kalyanpur,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40103045,Giriraj Agro Seeds - Upleta,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40103047,Bajrang agro traders - Khajura,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40103049,Kishan Online Store - Laxmanpura,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40103051,Agri Business Center - Kanjari,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40103055,Agri Business Center - Gariyadhar,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40103056,Nidhi sales Corporation - Karmal,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103058,Sai Agro Seeds - Fudeda,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40103060,Om Harbhole Agro - Surendranagar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103063,Murlidhar Fertilizers - Upleta,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40103065,Vaibhav Agro Center - Khambhalia,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40103067,Matru Agro Service Center - Valod,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40103069,Nilkanth Agro - Palsana,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40103073,Kisan Chemicals - Rajula,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40103075,Divya Agro Center - Bodeli,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103077,Satnam Agro Agency - Halvad,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103080,Maruti Agro Chemicals - Vadal,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40103082,Shri Vagad Kishan Mall - Rapar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103085,Shyam Agro Center- Jam Khambhalia,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40103087,Varahi Fertilizer - Sundarpur,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40103090,Maa Agro Fertilizers - Chuda,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103092,Pramukh Agrotech - Manjusar,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103093,Jay Ranchhodray Pesticides - Sankheda,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103099,Gopinath Agro Chemicals - Ningala,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40103104,Jaydeep Distributor - Nadiad,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40103108,Somnath Agro Agency - Dhrangdhra,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103111,Sahakar Agro - Ankleshwar,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103121,Patel Agro - Dharampur,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40103128,Shree Ashapura Agro Center - Raneshari,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40103130,Khedut Beej Nigam - Kharod,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40103132,Umiya Agro Centre - Ranchhodpura,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40103145,Shree Khimmat Agro Center - Vav,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40103147,Avkar Enterprise - Gadhsisa,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103150,Bajrang Agro Center - Beraja,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40103154,Khedut Putra Agro - Botad,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40103156,Tirupati Organic Agro - Mirzapar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103158,Vivek Agro Center - Gadsisar,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40103162,Agri Business Centre - Unai,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40103163,Satyam Agro Centre - Bagvadar,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40103165,Bahagyalaxmi Agro Center- Ras,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40103171,Shree Santram Seeds - Padra,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103185,Krushi Agro - Palej,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103187,Nilkanth Agro Center - Hareshwar,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103189,Shri Khodal Agro & Fertilizer - Kuvadava,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40103197,Bhutnath Trading Co-Mahuva,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40103261,Madhav Agro Center-Bhesan,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40103263,Bhathiji Agri Center-Sarsana,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40103264,Shree Chamunda Nigam-Vansda,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40103267,Shree Ganod Seva S.M.LTD-Ganod,Jetpur Territory,Gujarat,RAJKOT,Jetpur,Gujarat
+40103269,Ambaa Bhavani Fertilizer-Mathak,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40103275,Parmeshwar Khedut Sewa Kendra - Hashlpur Chowkdi,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103278,Jay Jalaram Agro-Kadod,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40103280,Ratndip Agro Agency-Bhesan,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40103282,Umiya Agro-Dabhoi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103286,Agri Business Centre-Gokharvada,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40103288,Nandanvan Seeds - Nadiad,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40103290,Shree Shatimaa Agro Center - Deesa,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40103293,Shri Radhe Agro - Lingda,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40103295,Khedut Beej Nigam - Kawant,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103298,Shiv Shakti Agrotech & Drip - Kothara,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103301,Dharti Agri Business Centre - Lakhtar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103303,Jayesh And Co - Surat,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40103305,Khedut Agro - Golwad,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40103307,Jigar Agro Centre - Tharad,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40103407,Shree Ganesh Agro Centre - Deodar,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40103449,Agri Business Centre - Khanpur,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40103451,Madhav Agro Chemicals - Lamba,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40103453,Govardhan Agro Seeds - Babarzar,JAMNAGAR TERRITORY,Gujarat,RAJKOT,JAMNAGAR,Gujarat
+40103520,INDOIN BIOLIFE PRIVATE LIMITED,Himanshu Divetia,Gujarat,CLSL GUJ - B2B,Himanshu Divetia,Gujarat
+40103522,Dhruvi Agro - Sinor,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103524,Agri business Center - Tankal,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40103612,Shree Gurukrupa Agro - Netrang,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40103638,Shri Umiya Fertillizers - Vagra,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103641,Gopal Agro and Electricals - Naswadi,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103643,Gayatri Traders - Bodeli,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103673,Mahakal Agro Center - Ode,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40103675,Dave Fertilizers - Porbandar,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40103677,Vrundavan Agro Center - Vadod,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40103679,Umiya Fertilizers - Chandasar,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40103681,Kisan Agro And Chemicals - Nizar,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40103683,Ishan Agro Center - Zalod,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40103688,Balram Agro Agency - Rapar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103728,Prayas Agro - Rajpipla,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103731,Krishna Agro And Fertilizer - Kankuthambhala,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40103733,Chamunda Agro And Parth Irrigation - Thangadh,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40103736,Vishvas Agro Chemicals And Seeds - Hadadad,BOTAD TERRITORY,Gujarat,RAJKOT,BOTAD,Gujarat
+40103738,Mogal Krupa Krushi Mall - Singasar,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40103740,Ambica Agro - Tulsigam,BARODA TERRITORY,Gujarat,VADODARA,BARODA,Gujarat
+40103743,Ramdev Krushi Agro center & Pashu Ahar - Piluda,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40103745,Vijay Agro Centre - Tharad,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40103747,Gautam Agro Center - Tharad,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40103749,Khedut Agro Center - Navanagar,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40103752,Hariom Agro Seeds - Deodar,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40103755,Akta Beej Centre - Kalvadi,RAJKOT - I Territory,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40103841,Pramukh Agro - Latipur,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40103843,Khedut Agriculture Traders - Morthla,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40103845,Shree Sardar Depo - Rakhiyal,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40103847,Aaradhya Agro Mall - Sathamba,NADIYAD TERRITORY,Gujarat,VADODARA,NADIYAD,Gujarat
+40103852,Krushi Seva Kendra - Rampur Chokdi,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40103888,Chamunda Agro Agency - Rajsitapur,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103890,Kishan Krushi Seva Kendra - Viramgam,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40103971,Mahadev Agro Center - Vijapur,HIMMATNAGAR TERRITORY,Gujarat,VADODARA,HIMMATNAGAR,Gujarat
+40103974,Sabar Agro Agency - Kheroj,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40103978,Bhavik Trading Company - Chadotar,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40104009,Maruti Nandan Agro - Nava Devliya,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40104016,Shree Chamunda Agro Nigam - Nana Ponda,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40104029,Agro Service Centre - Nizar,SURAT TERRITORY,Gujarat,VADODARA,SURAT,Gujarat
+40104040,Radheshyam Agro Center - Anjar,SURENDRANAGAR TERRITORY,Gujarat,VADODARA,SURENDRANAGAR,Gujarat
+40104050,Patel Seeds & Fertilizers - Pithavadi,AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40104053,ARISE CROP GUARD,Kaushal Shah,Ankleshwar,,,Gujarat
+40104055,Ekta Sales Corporation - Patan,DEESA TERRITORY,Gujarat,VADODARA,DEESA,Gujarat
+40104061,Shiv Agro - Shivpur,RAJKOT TERRITORY,Gujarat,RAJKOT,RAJKOT T,Gujarat
+40104080,Agri Business Center - Gariyadhar (BDH),AMRELI TERRITORY,Gujarat,RAJKOT,AMRELI,Gujarat
+40104085,Patel Agro Agency - Mandavad,JUNAGADH TERRITORY,Gujarat,RAJKOT,JUNAGADH,Gujarat
+40102972,BALAJI AGRO,,AGRO TRADE,AGRO TRADE -VADODARA,Agro Trade,Gujarat
+40102973,TIRUPATI FOOD,,AGRO TRADE,AGRO TRADE -VADODARA,Agro Trade,Gujarat
+40102974,FARM BASKET,,AGRO TRADE,AGRO TRADE -VADODARA,Agro Trade,Gujarat
+40102975,GAYATRI ENTERPRISE,,AGRO TRADE,AGRO TRADE -VADODARA,Agro Trade,Gujarat
+40102976,HIRA ORGANIC,,AGRO TRADE,AGRO TRADE -VADODARA,Agro Trade,Gujarat
+40102980,SHREE KSHETRAPAL CORPORATION,,AGRO TRADE,AGRO TRADE -VADODARA,Agro Trade,Gujarat
+40102981,Kuber Agri Export,,AGRO TRADE,AGRO TRADE -VADODARA,Agro Trade,Gujarat
+40102988,MADHAV INDUSTRIES,,AGRO TRADE,AGRO TRADE -VADODARA,Agro Trade,Gujarat
+40102989,S K Enterprise,,AGRO TRADE,AGRO TRADE -VADODARA,Agro Trade,Gujarat

@@ -23,10 +23,16 @@ from .config import (
 from .db import connection
 from .model_consensus import refresh_consensus
 from .admin import router as admin_router
+from .farmer_auth import router as farmer_auth_router
+from .dealer_routes import router as dealer_router
+from .coupon_routes import router as coupon_router
 
 
 app = FastAPI(title="Crop Life AI API", version="0.1.0")
 app.include_router(admin_router)
+app.include_router(farmer_auth_router)
+app.include_router(dealer_router)
+app.include_router(coupon_router)
 
 
 class InspectionContext(BaseModel):

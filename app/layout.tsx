@@ -20,21 +20,21 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Crop Life AI | Farmer Assistance',
-  description: 'AI-assisted crop inspection and approved Crop Life Science product discovery for farmers.',
-  applicationName: 'Crop Life AI',
+  title: 'CLSL AI | Crop Protection',
+  description: 'Crop protection guidance, crop inspection and Crop Life Science product discovery.',
+  applicationName: 'CLSL AI',
   manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Crop Life AI' },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'CLSL AI' },
   icons: { icon: '/clsl-logo.png', apple: '/clsl-logo.png' },
   openGraph: {
-    title: 'Crop Life AI',
-    description: 'Understand your crop. Act with confidence.',
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Crop Life AI' }],
+    title: 'CLSL AI',
+    description: 'Crop protection by Crop Life Science.',
+    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'CLSL AI' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Crop Life AI',
-    description: 'Understand your crop. Act with confidence.',
+    title: 'CLSL AI',
+    description: 'Crop protection by Crop Life Science.',
     images: ['/og.png'],
   },
 };

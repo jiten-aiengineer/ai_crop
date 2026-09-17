@@ -92,6 +92,17 @@ export default function FieldForce({ initialData, canManage = false }: { initial
       await refresh();
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to create access link.'); }
   }
+  async function resetAllLinks() {
+    if (!window.confirm('Reset every current Sales Officer field link? Existing links will stop working immediately. Employee records, profiles and inspection history will not be deleted.')) return;
+    setBusy(true); setError('');
+    try {
+      const result = await request<{ revoked_links: number; message: string }>('sales-officers/access/reset', { method: 'POST' });
+      setAccessLink(null);
+      window.alert(`${result.message}\n\nLinks invalidated: ${result.revoked_links}`);
+      await refresh();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to reset the field links.'); }
+    finally { setBusy(false); }
+  }
   const selectReportDay = (value: string) => { setDay(value); void refresh(value); };
   const maxSelectedDayInspections = Math.max(1, ...stateSummary.map((summary) => summary.selectedDayInspections));
   const copyAccessLink = async () => {
@@ -100,7 +111,7 @@ export default function FieldForce({ initialData, canManage = false }: { initial
     catch { setError('Select the personal link and copy it manually.'); }
   };
   return <div className="admin-content">
-    <div className="admin-list-toolbar"><div><p className="admin-overline">Employees · Confirmed Sales Officers</p><h2>Field activity and personal app access</h2><p>Daily target: 2–3 four-photo inspections. Monthly compliance target: activity on at least 20 of the latest 30 days ending {data?.report_day || 'today'}.</p></div><button className="admin-secondary" disabled={busy} onClick={() => void refresh()}>{busy ? 'Refreshing employees…' : 'Refresh employees & links'}</button></div>
+    <div className="admin-list-toolbar"><div><p className="admin-overline">Employees · Confirmed Sales Officers</p><h2>Field activity and personal app access</h2><p>Daily target: 2–3 four-photo inspections. Monthly compliance target: activity on at least 20 of the latest 30 days ending {data?.report_day || 'today'}.</p></div><div className="field-toolbar-actions"><button className="admin-secondary" disabled={busy} onClick={() => void refresh()}>{busy ? 'Refreshing employees…' : 'Refresh employees & links'}</button>{canManage && <button className="admin-secondary danger" disabled={busy} onClick={() => void resetAllLinks()}>Reset all field links</button>}</div></div>
     {error && <p className="admin-message error" role="alert">{error}</p>}
     {accessLink && <div className="admin-modal-backdrop" role="presentation" onMouseDown={() => setAccessLink(null)}><section className="admin-link-dialog" role="dialog" aria-modal="true" aria-labelledby="field-link-title" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="admin-overline">Secure personal app access</p><h3 id="field-link-title">Field link for {accessLink.name}</h3></div><button type="button" aria-label="Close personal link" onClick={() => setAccessLink(null)}>×</button></header><p>Copy this private link and send it only to the named Sales Officer. The link connects their profile and future inspections to the employee dashboard.</p><label>Permanent personal link<input className="field-link-input" readOnly value={accessLink.url} onFocus={(event) => event.target.select()} /></label><div className="admin-link-dialog-actions"><button className="admin-primary" onClick={() => void copyAccessLink()}>{linkCopied ? 'Copied ✓' : 'Copy personal link'}</button><a className="admin-secondary field-open-link secondary" href={accessLink.url} target="_blank" rel="noreferrer">Preview field app</a><button className="admin-secondary" onClick={() => setAccessLink(null)}>Done</button></div><small>Rotating a link immediately invalidates the previous one.</small></section></div>}
     <div className="admin-metric-grid">

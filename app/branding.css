@@ -267,3 +267,104 @@ footer div p { margin: 3px 0 0; }
 
 @media (max-width:900px) { .home-brief { grid-template-columns:1fr; max-width:720px; padding-top:28px; } .home-brief-copy { align-items:center; padding-right:0; text-align:center; } .home-brief-brand { margin-bottom:18px; } .home-brief-copy .eyebrow,.home-brief-actions { justify-content:center; } .home-brief-intro { max-width:540px; } .home-proof { justify-content:center; } .mitra-brief-card { max-width:620px; width:100%; justify-self:center; } .home-quick-section .quick-grid { grid-template-columns:1fr 1fr; } }
 @media (max-width:600px) { .home-brief { padding:22px 18px 28px; gap:18px; } .home-brief-copy h1 { font-size:36px; } .home-brief-actions { display:grid; grid-template-columns:1fr 1fr; width:100%; } .home-brief-actions button { padding:0 8px; } .home-proof { display:none; } .mitra-brief-card { min-height:0; display:block; } .mitra-brief-image { min-height:0; height:auto; aspect-ratio:1 / 1; padding:8px 12px 4px; } .mitra-brief-image > img { object-position:50% 50%; } .mitra-brief-copy { padding:19px 18px 20px; } .mitra-brief-copy h2 { font-size:18px; } .mitra-brief-actions { grid-template-columns:1fr 1fr; } .home-quick-section { padding:25px 18px 28px; } .home-quick-section .section-label { margin-bottom:12px; } .home-quick-section .section-label p { display:none; } .home-quick-section .quick-grid { grid-template-columns:1fr; gap:8px; } .home-quick-section .quick-card { min-height:100px; padding:15px; } .home-quick-section .quick-card p { display:none; } }
+
+/* CLSL AI mobile app polish: clearer touch states, complete mascot framing and
+   visual confirmation of each uploaded crop photo. */
+.crop-picker { position:relative; }
+.crop-picker b { color:#bd3d32; font-size:13px; }
+.crop-picker>small { display:block; margin-top:5px; color:#6d8174; font-size:9px; line-height:1.35; }
+.photo-preview-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin:12px 0 17px; }
+.photo-preview { position:relative; min-width:0; aspect-ratio:1; overflow:hidden; margin:0; border:1px solid #cce1d3; border-radius:12px; background:#f4faf5; box-shadow:0 5px 13px rgba(24,75,47,.07); }
+.photo-preview img { width:100%; height:100%; display:block; object-fit:cover; }
+.photo-preview figcaption { position:absolute; left:5px; bottom:5px; width:18px; height:18px; display:grid; place-items:center; border-radius:50%; background:rgba(8,72,47,.9); color:white; font-size:9px; font-weight:850; }
+.photo-preview button { position:absolute; top:4px; right:4px; width:22px; height:22px; display:grid; place-items:center; padding:0; border:0; border-radius:50%; background:rgba(255,255,255,.94); color:#923e37; box-shadow:0 2px 8px rgba(20,40,28,.16); font-size:17px; line-height:1; cursor:pointer; }
+.field-photo-slots article.filled { grid-template-columns:28px 42px minmax(0,1fr) auto; }
+.field-photo-slots .photo-preview.compact { width:40px; height:40px; border-radius:8px; box-shadow:none; }
+.field-photo-slots .photo-preview.compact figcaption,.field-photo-slots .photo-preview.compact button { display:none; }
+.field-toolbar-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+.unified-chat .chat-head { background:linear-gradient(115deg,#f6fbf7,#e8f4eb); }
+.unified-chat .assistant-mascot { object-fit:contain; background:#fff; }
+.mitra-brief-image { background:radial-gradient(circle at 50% 24%,#fff 0,#edf7ee 54%,#d5ead9 100%); }
+.mitra-brief-image > img { mix-blend-mode:multiply; filter:drop-shadow(0 14px 18px rgba(32,86,52,.17)); }
+.home-brief-actions button,.mitra-brief-actions button,.primary-button,.photo-source-actions button,.pwa-install,.mobile-nav button.camera { transition:transform .16s ease,box-shadow .16s ease,filter .16s ease; }
+.home-brief-actions button:active,.mitra-brief-actions button:active,.primary-button:active,.photo-source-actions button:active,.pwa-install:active,.mobile-nav button.camera:active { transform:scale(.97); filter:brightness(.94); }
+
+@media (max-width:600px) {
+  body { background:linear-gradient(180deg,#f7fbf8 0,#ffffff 32%,#f4f8f5 100%); }
+  .app-shell { min-height:100dvh; padding-bottom:calc(82px + env(safe-area-inset-bottom)); }
+  .topbar { border-bottom:0; box-shadow:0 5px 20px rgba(14,62,36,.08); }
+  .top-weather-bar { border-radius:0 0 18px 18px; margin:0 10px; width:calc(100% - 20px); box-shadow:0 7px 18px rgba(14,62,36,.08); }
+  .home-brief { padding:17px 14px 20px; gap:14px; }
+  .home-brief-copy { width:100%; padding:9px 10px 6px; }
+  .home-brief-brand { margin-bottom:10px; }
+  .home-brief-brand img { width:50px; height:39px; }
+  .home-brief-copy h1 { max-width:100%; font-size:33px; }
+  .home-brief-intro { font-size:12px; }
+  .home-brief-actions { gap:8px; margin-top:16px; }
+  .home-brief-actions button { min-height:46px; border-radius:13px; box-shadow:0 7px 14px rgba(21,98,57,.13); }
+  .mitra-brief-card { border-radius:23px; box-shadow:0 14px 30px rgba(21,81,48,.13); }
+  .mitra-brief-image { aspect-ratio:1.08 / 1; padding:8px 10px 0; }
+  .mitra-brief-image > img { object-fit:contain; object-position:50% 52%; }
+  .mitra-brief-copy { padding:18px 17px 19px; }
+  .mitra-brief-copy h2 { font-size:20px; }
+  .mitra-brief-actions button { min-height:45px; border-radius:12px; }
+  .workspace { padding:27px 14px 95px; }
+  .page-title { margin-bottom:22px; }
+  .page-title h1 { font-size:34px; }
+  .inspect-card.large { border-radius:22px; padding:17px; box-shadow:0 14px 34px rgba(21,81,48,.09); }
+  .upload-zone { min-height:171px; border-radius:16px; }
+  .photo-source-actions button { min-height:46px; border-radius:12px; }
+  .photo-preview-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .photo-preview { border-radius:11px; }
+  .form-row { gap:12px; margin:16px 0; }
+  .form-row input,.form-row select { height:46px; border-radius:12px; font-size:13px; }
+  .full-field textarea { border-radius:12px; font-size:13px; }
+  .primary-button { height:52px; border-radius:14px; box-shadow:0 10px 18px rgba(21,98,57,.2); font-size:13px; }
+  .tips { display:none; }
+  .chat-shell { border-radius:21px; box-shadow:0 14px 34px rgba(21,81,48,.1); }
+  .chat-head { height:70px; padding:0 16px; }
+  .chat-body { min-height:calc(100dvh - 305px); max-height:none; padding:17px 14px; }
+  .chat-input { position:sticky; bottom:0; padding:11px; background:white; box-shadow:0 -8px 20px rgba(20,60,37,.05); }
+  .mobile-nav { height:calc(76px + env(safe-area-inset-bottom)); padding-bottom:max(8px,env(safe-area-inset-bottom)); border-radius:22px 22px 0 0; box-shadow:0 -10px 30px rgba(20,57,36,.13); }
+  .mobile-nav .camera { width:56px; height:56px; margin-top:-29px; box-shadow:0 9px 22px rgba(21,98,57,.34); }
+  .pwa-install { bottom:calc(90px + env(safe-area-inset-bottom)); min-height:46px; padding:0 16px; border-radius:15px; }
+}
+
+@media (max-width:390px) { .photo-preview-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } .field-photo-slots article.filled { grid-template-columns:28px 36px minmax(0,1fr) auto; } .field-photo-slots .photo-preview.compact { width:34px; height:34px; } }
+
+/* ── Enhanced PWA / native-app feel ── */
+.workspace, .home-brief, .marketplace, .chat-shell { animation: viewFadeIn .28s ease-out; }
+@keyframes viewFadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+/* Smooth scrolling with overscroll bounce like native */
+.app-shell { -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+.chat-body { -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; scroll-behavior: smooth; }
+
+/* Haptic-feel button press across the app */
+button, a { -webkit-tap-highlight-color: transparent; }
+.quick-card:active { transform: scale(.97) !important; }
+.mobile-nav button:active { transform: scale(.9); }
+.mobile-nav button { transition: transform .1s ease, color .15s ease; }
+
+/* Better crop picker styling */
+.crop-picker input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231f6b43' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; }
+
+/* Photo quality message animation */
+.photo-quality-message { animation: qualitySlide .3s ease-out; }
+@keyframes qualitySlide { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+
+/* Result modal slide-in */
+.modal-backdrop { animation: backdropFade .22s ease; }
+@keyframes backdropFade { from { opacity:0; } to { opacity:1; } }
+.result-modal, .product-modal, .profile-modal { animation: modalSlideUp .3s cubic-bezier(.16,1,.3,1); }
+@keyframes modalSlideUp { from { opacity:0; transform:translateY(24px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+
+/* Chat message animations */
+.ai-message, .user-message { animation: chatBubble .25s ease-out; }
+@keyframes chatBubble { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+/* Status bar integration on mobile */
+@media (display-mode: standalone) {
+  .topbar { padding-top: env(safe-area-inset-top); height: calc(66px + env(safe-area-inset-top)); }
+}
+

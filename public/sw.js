@@ -1,4 +1,4 @@
-const CACHE = 'crop-life-ai-shell-v3';
+const CACHE = 'clsl-ai-shell-v4';
 const SHELL = ['/', '/manifest.webmanifest', '/clsl-logo.png', '/crop-life-mitra-tomato-doctor.jpg'];
 
 self.addEventListener('install', (event) => {

@@ -1,7 +1,8 @@
+import sharp from 'sharp';
 import { NextResponse } from 'next/server';
 import { catalogCropName } from '../../lib/catalog';
 import { approvedCatalogueRecommendations } from '../../lib/database-catalog';
-import { canMatchProducts, geminiFlashInspection, gemmaInspection, legacyDiagnosis, selectLiveInspectionResult, InspectionInput } from '../../lib/inspection-ai';
+import { canMatchProducts, geminiFlashInspection, geminiFlashLiteInspection, legacyDiagnosis, InspectionInput } from '../../lib/inspection-ai';
 import { persistInspection } from '../../lib/inspection-persistence';
 import { storeInspectionImages } from '../../lib/s3-storage';
 import { fieldIdentityFor } from '../../lib/field-access';
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     employeeCode = identity?.employee_code;
     if (identity?.collection_mode === 'sales_officer') collectionMode = 'sales_officer';
   }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Field access could not be verified.' }, { status: 401 }); }
+  catch { /* Public farmer flow — no field identity required. */ }
   let form: FormData;
   try { form = await request.formData(); }
   catch { return NextResponse.json({error:'Send crop photos as form data.'},{status:400}); }
@@ -29,35 +30,55 @@ export async function POST(request: Request) {
   if (images.some((image) => !['image/jpeg','image/png','image/webp','image/heic','image/heif'].includes(image.type) || !image.size) || images.reduce((sum,image) => sum+image.size,0)>4*1024*1024) return NextResponse.json({error:'Use JPG, PNG, WebP or HEIC photos totalling at most 4 MB.'},{status:400});
   const field = (key: string, max: number) => String(form.get(key)||'').slice(0,max);
   const declaredCrop = field('crop', 80).trim();
-  if (collectionMode === 'sales_officer' && !declaredCrop) {
-    return NextResponse.json({ error: 'Select the known crop before submitting this field inspection.' }, { status: 400 });
+  if (!declaredCrop) {
+    return NextResponse.json({ error: 'Select the crop before submitting photos. Choose Other if it is not in the list.' }, { status: 400 });
   }
   const preparedImages = await Promise.all(images.map(async (image, index) => {
-    const bytes = new Uint8Array(await image.arrayBuffer());
+    const originalBytes = new Uint8Array(await image.arrayBuffer());
+    const metadata = await sharp(originalBytes).metadata();
+    const width = metadata.width ? Math.round(metadata.width * 0.5) : undefined;
+    const optimizedBuffer = await sharp(originalBytes)
+      .resize({ width })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    
     let binary='';
-    for(let index=0;index<bytes.length;index+=0x8000) binary+=String.fromCharCode(...bytes.subarray(index,index+0x8000));
-    return { bytes, mimeType:image.type, imageOrder:index + 1, data:btoa(binary) };
+    for(let i=0; i<optimizedBuffer.length; i+=0x8000) {
+      binary += String.fromCharCode(...optimizedBuffer.subarray(i, i+0x8000));
+    }
+    return { 
+      bytes: originalBytes, 
+      originalMimeType: image.type, 
+      optimizedMimeType: 'image/jpeg', 
+      imageOrder: index + 1, 
+      data: btoa(binary) 
+    };
   }));
   const input: InspectionInput = {
     context:{crop:declaredCrop,plant:field('plant',80),description:field('description',800),location:field('location',120),notes:field('notes',800),language:field('language',20)||'en'},
-    images:preparedImages.map((image) => ({ mimeType:image.mimeType, data:image.data })),
+    images:preparedImages.map((image) => ({ mimeType: image.optimizedMimeType, data: image.data })),
   };
   const inspectionId = crypto.randomUUID();
   // Archiving and diagnosis begin together. The response still waits for both
   // so a storage failure is explicit rather than silently discarded.
-  const [gemma, flashLite, storage] = await Promise.all([
-    gemmaInspection(input),
-    geminiFlashInspection(input),
-    storeInspectionImages(inspectionId, preparedImages.map(({ bytes, mimeType, imageOrder }) => ({ bytes, mimeType, imageOrder })))
+  const aiPromise = collectionMode === 'sales_officer' 
+    ? geminiFlashLiteInspection(input) 
+    : geminiFlashInspection(input);
+
+  const [live, storage] = await Promise.all([
+    aiPromise,
+    storeInspectionImages(inspectionId, preparedImages.map(({ bytes, originalMimeType, imageOrder }) => ({ bytes, mimeType: originalMimeType, imageOrder })))
       .catch(() => ({ status: 'failed' as const, images: [], failures: preparedImages.map((image) => ({ imageOrder: image.imageOrder, code: 'upload_failed' as const })) })),
   ]);
-  const live = selectLiveInspectionResult(gemma, flashLite);
-  const secondary = live.provider === 'gemma' ? flashLite : gemma;
-  const diagnosis = live.success && live.diagnosis ? legacyDiagnosis(live.diagnosis, declaredCrop) : undefined;
+  // “Other” deliberately lets the vision model recognise the crop. It is not
+  // treated as a literal crop name for a product match.
+  const selectedOther = /^other$/i.test(declaredCrop);
+  const knownCrop = selectedOther ? '' : declaredCrop;
+  const diagnosis = live.success && live.diagnosis ? legacyDiagnosis(live.diagnosis, knownCrop) : undefined;
   // Keep known aliases normalised, but retain an approved live crop name even
   // when it was added after the application build. PostgreSQL remains the
   // source of truth for the final crop/product eligibility decision.
-  const requestedCrop = declaredCrop || diagnosis?.crop || '';
+  const requestedCrop = knownCrop || diagnosis?.crop || '';
   const grounded = diagnosis ? {
     ...diagnosis,
     catalog_crop: catalogCropName(requestedCrop) || requestedCrop.trim().slice(0, 160),
@@ -66,13 +87,13 @@ export async function POST(request: Request) {
     ? await approvedCatalogueRecommendations(grounded)
     : { recommendations: [], source: grounded ? 'insufficient_diagnostic_evidence' as const : 'catalogue_unavailable' as const };
   const recommendations = catalogue.recommendations;
-  const persistence = await persistInspection({ inspectionId, input, employeeCode, collectionMode, imageCount: images.length, storage, provider: live, additionalProviders: [secondary], recommendations });
+  const persistence = await persistInspection({ inspectionId, input, employeeCode, collectionMode, imageCount: images.length, storage, provider: live, additionalProviders: [], recommendations });
   const storageMetadata = {
     inspection_id: inspectionId,
     comparison_status: persistence.shadowStatus || 'not_queued',
     live_provider: live.provider,
-    live_model_role: live.provider === 'gemma' ? 'preferred_primary' : 'flash_lite_safety_fallback',
-    evaluation_note: 'Gemma and Flash-Lite were checked immediately. Qwen completes the independent three-model, 2-of-3 comparison in the private AI Lab.',
+    live_model_role: collectionMode === 'sales_officer' ? 'flash_lite_sales' : 'flash_paid_public',
+    evaluation_note: 'Primary Gemini assessment complete. Qwen shadows via background worker if enabled.',
     storage_status: storage.status,
     stored_image_count: storage.images.length,
     image_storage_failures: storage.failures.map((failure) => failure.imageOrder),

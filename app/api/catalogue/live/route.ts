@@ -14,7 +14,19 @@ export async function GET() {
       status: 503, headers: { 'Cache-Control': 'no-store' },
     });
   }
-  const crops = Array.from(new Set(result.products.flatMap((product) => product.approvedCrops || []))).sort((a, b) => a.localeCompare(b));
+  const dbCrops = result.products.flatMap((product) => product.approvedCrops || []);
+  const additionalCrops = [
+    'Wheat', 'Rice', 'Paddy', 'Maize', 'Corn', 'Bajra', 'Jowar', 'Sorghum', 'Ragi', 'Barley',
+    'Cotton', 'Sugarcane', 'Jute', 'Soybean', 'Groundnut', 'Mustard', 'Sunflower', 'Sesame', 'Linseed', 'Castor',
+    'Tomato', 'Potato', 'Onion', 'Brinjal', 'Eggplant', 'Chilli', 'Capsicum', 'Okra', 'Bhindi', 'Lady Finger',
+    'Cauliflower', 'Cabbage', 'Spinach', 'Peas', 'Beans', 'Cucumber', 'Bitter Gourd', 'Bottle Gourd', 'Pumpkin', 'Watermelon',
+    'Mango', 'Banana', 'Grapes', 'Pomegranate', 'Guava', 'Papaya', 'Apple', 'Orange', 'Lemon', 'Coconut',
+    'Tea', 'Coffee', 'Turmeric', 'Ginger', 'Garlic', 'Coriander', 'Cumin', 'Cardamom', 'Black Pepper', 'Clove',
+    'Chickpea', 'Pigeon Pea', 'Moong', 'Urad', 'Lentil', 'Arhar', 'Bengal Gram',
+    'Rose', 'Jasmine', 'Marigold', 'Chrysanthemum', 'Orchid',
+    'Tobacco', 'Rubber', 'Arecanut', 'Cashew',
+  ];
+  const crops = Array.from(new Set([...dbCrops, ...additionalCrops])).sort((a, b) => a.localeCompare(b));
   const categories = Array.from(new Set(result.products.map((product) => product.category))).sort((a, b) => a.localeCompare(b));
   return NextResponse.json({ items: result.products, crops, categories, source: result.source }, {
     headers: { 'Cache-Control': 'no-store' },

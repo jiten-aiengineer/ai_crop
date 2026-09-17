@@ -103,13 +103,13 @@ async function completeAssistant(requestId: string, status: 'completed' | 'faile
 }
 
 export async function POST(request: Request) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: 'AI service is not configured.' }, { status: 503 });
-  let input: { question?: string; history?: Array<{ role: string; content: string }>; language?: string; mode?: 'crop' | 'company' };
+  // The unified assistant intentionally runs on the Gemma deployment. 
+  const apiKey = process.env.GEMMA_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: 'AI service is not configured (GEMMA_API_KEY missing).' }, { status: 503 });
+  let input: { question?: string; history?: Array<{ role: string; content: string }>; language?: string };
   try { input = await request.json() as typeof input; }
   catch { return NextResponse.json({ error: 'Please send a valid assistant question.' }, { status: 400 }); }
   const { question, history = [], language = 'en' } = input;
-  const mode = input.mode === 'company' ? 'company' : 'crop';
   const cleanQuestion = String(question || '').trim().slice(0, 1000);
   if (!cleanQuestion) return NextResponse.json({ error: 'Please enter a question.' }, { status: 400 });
 
@@ -131,13 +131,12 @@ export async function POST(request: Request) {
   const catalogContext = candidates.map((product) => ({ id: product.id, name: product.name, category: product.category, composition: product.commonName, dose: product.dose, use_benefits: product.useBenefits, packing: product.packing, approved_crops: product.approvedCrops || [], crop_mapping_source: product.cropMappingSource || '', source_page: product.sourcePage }));
   const languageNames: Record<string, string> = { en: 'English', hi: 'Hindi', gu: 'Gujarati', mr: 'Marathi', bn: 'Bengali', bho: 'Bhojpuri' };
   const responseLanguage = languageNames[language] || 'English';
-  const cropInstructions = 'You are a cautious agricultural assistant for Indian farmers. You may answer general cultivation questions, but you MUST mention or recommend pesticide, fungicide, herbicide, seed treatment, nutrition, biostimulant, PGR, or any Crop Life product ONLY when it appears in CATALOG_CONTEXT. Never invent a product, composition, dose, crop approval, target, or pack size. If the catalogue context does not support a product request, say that no verified catalogue match was found. Remind the farmer to follow the approved label and local expert guidance.';
-  const companyInstructions = 'You are the company-support face of Crop Life Mitra. Answer only from COMPANY_ASSISTANT_KNOWLEDGE and CATALOG_CONTEXT. You may explain the Crop Life AI digital-service strategy in COMPANY_ASSISTANT_KNOWLEDGE, but do not represent it as the full corporate strategy of CLSL. You may state only the approved company-profile facts in COMPANY_ASSISTANT_KNOWLEDGE and should identify them as coming from official CLSL documents when useful. Do not invent or guess current ownership, leadership, financials, stock price, employee count, exports, registrations, corporate commitments, dealer locations, price, product approvals, or product claims. If the question needs information outside the provided knowledge, say that this assistant does not have an approved company source for it and direct the user to the official CLSL website or representative. Do not give crop treatment advice in this mode; invite the user to choose Crop Support for that.';
-  const prompt = `You are Crop Life Mitra, the friendly Crop Life AI assistant for Crop Life Science Limited (CLSL). The selected conversation is ${mode === 'company' ? 'CLSL and Company Support' : 'Crop and Product Support'}. Answer clearly and briefly in ${responseLanguage}, using simple farmer-friendly wording. Keep official product names, chemical compositions and printed catalogue doses unchanged. ${mode === 'company' ? companyInstructions : cropInstructions} Return JSON only with the field answer. Do not select product IDs: product cards are selected separately by the deterministic approved CLSL catalogue engine. COMPANY_ASSISTANT_KNOWLEDGE=${JSON.stringify(companyAssistantKnowledge)} CATALOG_CONTEXT=${JSON.stringify(catalogContext)} USER_QUESTION=${JSON.stringify(cleanQuestion)}`;
+  const unifiedInstructions = 'You are a cautious agricultural and company-support assistant for Crop Life Science Limited (CLSL). You may answer general cultivation questions and approved company questions from COMPANY_ASSISTANT_KNOWLEDGE. You MUST mention or recommend pesticide, fungicide, herbicide, seed treatment, nutrition, biostimulant, PGR, or any CLSL product ONLY when it appears in CATALOG_CONTEXT. Never invent a product, composition, dose, crop approval, target, pack size, dealer location, price, stock, company fact, leadership detail, financial fact, registration or claim. If the supplied company knowledge or catalogue does not support the answer, say so plainly and offer the official CLSL representative as the next contact. Remind the user to follow the approved product label and local expert guidance.';
+  const prompt = `You are Crop Life Mitra, the friendly CLSL AI assistant for Crop Life Science Limited (CLSL). Answer clearly and briefly in ${responseLanguage}, using simple farmer-friendly wording. Keep official product names, chemical compositions and printed catalogue doses unchanged. ${unifiedInstructions} Return JSON only with the field answer. Do not select product IDs: product cards are selected separately by the controlled CLSL product engine. COMPANY_ASSISTANT_KNOWLEDGE=${JSON.stringify(companyAssistantKnowledge)} CATALOG_CONTEXT=${JSON.stringify(catalogContext)} USER_QUESTION=${JSON.stringify(cleanQuestion)}`;
   const contents = [...history.slice(-6).map((message) => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content.slice(0, 1200) }] })), { role: 'user', parts: [{ text: prompt }] }];
   const model = process.env.GEMMA_CHAT_MODEL || process.env.GEMMA_MODEL || process.env.PRIMARY_VISION_MODEL || 'gemma-4-26b-a4b-it';
   let reservation: { id: string; remaining?: number } | null;
-  try { reservation = await reserveAssistant(request, mode, model); }
+  try { reservation = await reserveAssistant(request, 'crop', model); }
   catch (reason) { return NextResponse.json({ error: reason instanceof Error ? reason.message : 'AI Assistant limit reached.' }, { status: 429 }); }
   const started = Date.now();
   let response: Response;
@@ -149,21 +148,18 @@ export async function POST(request: Request) {
     });
   } catch {
     await completeAssistant(reservation?.id || '', 'fallback', Date.now() - started, undefined, 'provider_unavailable');
-    if (mode === 'company') return NextResponse.json({ ...companyFallback(language), remaining_today: reservation?.remaining });
     if (candidates.length) return NextResponse.json({ ...catalogFallback(candidates, language), remaining_today: reservation?.remaining });
-    return NextResponse.json({ error: 'The assistant is temporarily unavailable. Please try again shortly.' }, { status: 503 });
+    return NextResponse.json({ ...companyFallback(language), remaining_today: reservation?.remaining });
   }
   const payload = await readGeminiResponse(response);
   if (!response.ok) {
     await completeAssistant(reservation?.id || '', 'fallback', Date.now() - started, payload || undefined, `provider_http_${response.status}`);
-    if (mode === 'company') return NextResponse.json({ ...companyFallback(language), remaining_today: reservation?.remaining });
     if (candidates.length) return NextResponse.json({ ...catalogFallback(candidates, language), remaining_today: reservation?.remaining });
-    return NextResponse.json({ error: 'The assistant is temporarily busy. Please try again shortly.' }, { status: response.status === 429 ? 429 : 502 });
+    return NextResponse.json({ ...companyFallback(language), remaining_today: reservation?.remaining });
   }
   if (!payload) {
-    if (mode === 'company') return NextResponse.json(companyFallback(language));
     if (candidates.length) return NextResponse.json(catalogFallback(candidates, language));
-    return NextResponse.json({ error: 'The assistant service returned an unreadable response. Please try again.' }, { status: 502 });
+    return NextResponse.json(companyFallback(language));
   }
   const text = payload.candidates?.[0]?.content?.parts?.find((part) => part.text)?.text;
   if (!text) { await completeAssistant(reservation?.id || '', 'failed', Date.now() - started, payload, 'empty_response'); return NextResponse.json({ error: 'Assistant returned no answer.' }, { status: 502 }); }
@@ -171,12 +167,11 @@ export async function POST(request: Request) {
     const parsed = parseJsonObject(text) as { answer?: unknown };
     if (typeof parsed.answer !== 'string' || !parsed.answer.trim()) throw new Error('Missing answer.');
     await completeAssistant(reservation?.id || '', 'completed', Date.now() - started, payload);
-    const products = mode === 'crop' ? candidates.slice(0, 4) : [];
+    const products = candidates.slice(0, 4);
     return NextResponse.json({ answer: parsed.answer.trim(), products, remaining_today: reservation?.remaining, provider_role: 'primary' });
   } catch {
     await completeAssistant(reservation?.id || '', 'fallback', Date.now() - started, payload, 'invalid_json');
-    if (mode === 'company') return NextResponse.json(companyFallback(language));
     if (candidates.length) return NextResponse.json(catalogFallback(candidates, language));
-    return NextResponse.json({ error: 'The assistant could not format its answer. Please ask again in a shorter sentence.' }, { status: 502 });
+    return NextResponse.json(companyFallback(language));
   }
 }

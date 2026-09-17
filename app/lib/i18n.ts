@@ -166,6 +166,81 @@ const modelNeutralInspectionCopy: Partial<Record<LanguageCode, Record<string, st
   },
 };
 
+// Farmer-facing wording stays model-neutral. Internal provider, RAG and
+// regulatory-map details remain in the protected operations portal rather
+// than making the field app feel technical or difficult to use.
+const clslAiCopy: Partial<Record<LanguageCode, Record<string, string>>> = {
+  en: {
+    productTag: 'Crop protection by Crop Life Science', appTagline: 'Crop protection, guidance and products from Crop Life Science.',
+    homeHeroBrief: 'Take a crop photo, understand the visible issue and get practical support from CLSL AI.',
+    geminiPowered: 'AI crop support', inspectIntro: 'Select your crop, add clear photos and receive crop guidance.',
+    catalogMatch: 'CLSL crop support', noVerified: 'More information may help',
+    explicitCrop: '', selectCrop: '',
+    productSupportText: 'These options may support the visible crop problem.',
+    resultDisclaimer: 'This is a helpful crop assessment. Follow the product label and local expert guidance before treatment.',
+    assistantIntro: 'Ask about crop care, CLSL products, company information or finding local support.',
+    assistantUnifiedGreeting: 'Namaste! I am Crop Life Mitra. Ask me about your crop, CLSL products or local support.',
+    photoHelp: 'Photo help', cropGuidance: 'Crop guidance', fieldSupport: 'Field support',
+    cropRequired: 'Crop selection is required to continue.', cropSearchPlaceholder: 'Search and select crop', otherCrop: 'Other — let AI recognise it', photoPreviewReady: 'Your uploaded photos are ready',
+    viewCropProducts: 'View crop solutions', identified: 'Selected crop', catalogCrop: 'Selected crop',
+    inspectCardText: 'Assess crop photos and find product solutions.', assistantCardText: 'Ask crop questions or get CLSL product help.',
+    marketCardText: 'Explore CLSL products by crop, pest or disease.', catalogGrounded: '', catalogLimit: '',
+    probableAssessment: 'Crop assessment', strongCategory: 'RECOMMENDED', applicableCategory: 'SUGGESTED',
+    catalogCategoryReason: 'Products relevant to this crop problem', safety: 'Always follow the product label and local expert guidance.',
+    mascotPhotoPrompt: 'Show me a clear crop photo and I will help you understand the visible problem.',
+    mascotReady: 'Your crop assessment is ready. Let\'s review it together.',
+    mascotName: 'CLSL Mitra', mascotGreeting: 'Namaste! I am CLSL Mitra — your friendly crop helper.',
+    installApp: 'Install CLSL AI', iosInstallHelp: 'On iPhone, tap the Share button and choose "Add to Home Screen" to install CLSL AI.',
+    whatsappHelp: 'I received this crop assessment from CLSL AI. Please guide me on the next step.',
+    heroTitle: 'Your crops.', heroAccent: 'Our care.', heroText: '',
+    inspectTitle: 'Crop Inspection', inspectHeading: 'Inspect your crop',
+    assistantTitle: 'CLSL Mitra', askWords: 'Ask CLSL Mitra',
+    marketplace: 'CLSL Products', marketHeading: 'CLSL Products', officialCatalog: 'CLSL Products',
+    productOf: 'A product of Crop Life Science Limited',
+    navInspect: 'Inspect', navAssistant: 'Mitra', navProducts: 'Products', navHistory: 'History',
+  },
+  hi: {
+    productTag: 'क्रॉप लाइफ साइंस द्वारा फसल सुरक्षा', appTagline: 'क्रॉप लाइफ साइंस से फसल सुरक्षा, मार्गदर्शन और उत्पाद।',
+    homeHeroBrief: 'फसल की फोटो लें, दिखने वाली समस्या समझें और CLSL AI से सरल सहायता पाएँ।', geminiPowered: 'एआई फसल सहायता',
+    inspectIntro: 'अपनी फसल चुनें, साफ फोटो जोड़ें और सरल फसल मार्गदर्शन पाएँ।', catalogMatch: 'CLSL फसल सहायता', noVerified: 'अधिक जानकारी मदद कर सकती है', productSupportText: 'ये विकल्प दिख रही फसल समस्या में मदद कर सकते हैं।',
+    resultDisclaimer: 'यह सहायक फसल आकलन है। उपचार से पहले उत्पाद लेबल और स्थानीय विशेषज्ञ की सलाह मानें।', assistantIntro: 'फसल देखभाल, CLSL उत्पाद, कंपनी जानकारी या स्थानीय सहायता के बारे में पूछें।',
+    assistantUnifiedGreeting: 'नमस्ते! मैं क्रॉप लाइफ मित्र हूँ। अपनी फसल, CLSL उत्पाद, कंपनी या स्थानीय सहायता के बारे में पूछें।', photoHelp: 'फोटो सहायता', cropGuidance: 'फसल मार्गदर्शन', fieldSupport: 'फील्ड सहायता',
+    cropRequired: '\u0906\u0917\u0947 \u092c\u0922\u093c\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u092b\u0938\u0932 \u091a\u0941\u0928\u0928\u093e \u091c\u0930\u0942\u0930\u0940 \u0939\u0948\u0964', cropSearchPlaceholder: '\u092b\u0938\u0932 \u0916\u094b\u091c\u0947\u0902 \u0914\u0930 \u091a\u0941\u0928\u0947\u0902', otherCrop: '\u0905\u0928\u094d\u092f \u2014 \u090f\u0906\u0908 \u0915\u094b \u092a\u0939\u091a\u093e\u0928\u0928\u0947 \u0926\u0947\u0902', photoPreviewReady: '\u0906\u092a\u0915\u0940 \u0905\u092a\u0932\u094b\u0921 \u0915\u0940 \u0917\u0908 \u092b\u094b\u091f\u094b \u0924\u0948\u092f\u093e\u0930 \u0939\u0948\u0902', viewCropProducts: '\u092b\u0938\u0932 \u0938\u092e\u093e\u0927\u093e\u0928 \u0926\u0947\u0916\u0947\u0902', identified: '\u091a\u0941\u0928\u0940 \u0917\u0908 \u092b\u0938\u0932', catalogCrop: '\u091a\u0941\u0928\u0940 \u0917\u0908 \u092b\u0938\u0932',
+    mascotName: 'CLSL \u092e\u093f\u0924\u094d\u0930', heroTitle: '\u0906\u092a\u0915\u0940 \u092b\u0938\u0932\u0964', heroAccent: '\u0939\u092e\u093e\u0930\u0940 \u0926\u0947\u0916\u092d\u093e\u0932\u0964',
+    navInspect: '\u091c\u093e\u0901\u091a', navAssistant: '\u092e\u093f\u0924\u094d\u0930', navProducts: '\u0909\u0924\u094d\u092a\u093e\u0926', navHistory: '\u0907\u0924\u093f\u0939\u093e\u0938',
+    inspectTitle: '\u092b\u0938\u0932 \u091c\u093e\u0901\u091a', marketplace: 'CLSL \u0909\u0924\u094d\u092a\u093e\u0926', marketHeading: 'CLSL \u0909\u0924\u094d\u092a\u093e\u0926',
+    safety: '\u0909\u0924\u094d\u092a\u093e\u0926 \u0932\u0947\u092c\u0932 \u0914\u0930 \u0938\u094d\u0925\u093e\u0928\u0940\u092f \u0935\u093f\u0936\u0947\u0937\u091c\u094d\u091e \u0915\u0940 \u0938\u0932\u093e\u0939 \u0939\u092e\u0947\u0936\u093e \u092e\u093e\u0928\u0947\u0902\u0964', catalogGrounded: '', catalogLimit: '',
+  },
+  gu: {
+    productTag: 'Crop Life Science દ્વારા પાક સુરક્ષા', appTagline: 'Crop Life Science તરફથી પાક સુરક્ષા, માર્ગદર્શન અને ઉત્પાદનો।', homeHeroBrief: 'પાકનો ફોટો લો, દેખાતી સમસ્યા સમજો અને CLSL AI પાસેથી સરળ સહાય મેળવો।', geminiPowered: 'એઆઈ પાક સહાય', inspectIntro: 'તમારો પાક પસંદ કરો, સ્પષ્ટ ફોટા ઉમેરો અને સરળ માર્ગદર્શન મેળવો।', catalogMatch: 'CLSL પાક સહાય', noVerified: 'વધુ માહિતી મદદરૂપ થઈ શકે છે', productSupportText: 'આ વિકલ્પો દેખાતી પાક સમસ્યામાં મદદ કરી શકે છે।', resultDisclaimer: 'આ સહાયક પાક મૂલ્યાંકન છે. સારવાર પહેલાં ઉત્પાદન લેબલ અને સ્થાનિક નિષ્ણાતની સલાહ અનુસરો।', assistantIntro: 'પાક સંભાળ, CLSL ઉત્પાદનો અથવા સ્થાનિક સહાય વિશે પૂછો।', assistantUnifiedGreeting: 'નમસ્તે! હું CLSL મિત્ર છું. તમારા પાક, CLSL ઉત્પાદનો અથવા સ્થાનિક સહાય વિશે પૂછો।', photoHelp: 'ફોટો સહાય', cropGuidance: 'પાક માર્ગદર્શન', fieldSupport: 'ફિલ્ડ સહાય', cropRequired: 'આગળ વધવા માટે પાક પસંદ કરવો જરૂરી છે।', cropSearchPlaceholder: 'પાક શોધો અને પસંદ કરો', otherCrop: 'અન્ય — એઆઈને ઓળખવા દો', photoPreviewReady: 'તમારા અપલોડ કરેલા ફોટા તૈયાર છે', viewCropProducts: 'પાક ઉકેલો જુઓ', identified: 'પસંદ કરેલો પાક', catalogCrop: 'પસંદ કરેલો પાક',
+    mascotName: 'CLSL મિત્ર', heroTitle: 'તમારા પાક.', heroAccent: 'અમારી સંભાળ.',
+    navInspect: 'તપાસ', navAssistant: 'મિત્ર', navProducts: 'ઉત્પાદનો', navHistory: 'ઇતિહાસ',
+    inspectTitle: 'પાક તપાસ', marketplace: 'CLSL ઉત્પાદનો', marketHeading: 'CLSL ઉત્પાદનો',
+    safety: 'ઉત્પાદન લેબલ અને સ્થાનિક નિષ્ણાતની સલાહ હંમેશા અનુસરો.', catalogGrounded: '', catalogLimit: '',
+  },
+  mr: {
+    productTag: 'क्रॉप लाइफ सायन्सकडून पीक संरक्षण', appTagline: 'क्रॉप लाइफ सायन्सकडून पीक संरक्षण, मार्गदर्शन आणि उत्पादने.', homeHeroBrief: 'पिकाचा फोटो घ्या, दिसणारी समस्या समजा आणि CLSL AI कडून सोपी मदत मिळवा.', geminiPowered: 'एआय पीक मदत', inspectIntro: 'तुमचे पीक निवडा, स्पष्ट फोटो जोडा आणि सोपे मार्गदर्शन मिळवा.', catalogMatch: 'CLSL पीक मदत', noVerified: 'अधिक माहिती उपयोगी ठरू शकते', productSupportText: 'हे पर्याय दिसणाऱ्या पिकाच्या समस्येस मदत करू शकतात.', resultDisclaimer: 'हे उपयुक्त पीक मूल्यांकन आहे. उपचारापूर्वी उत्पादनाचे लेबल आणि स्थानिक तज्ज्ञांचा सल्ला पाळा.', assistantIntro: 'पीक काळजी, CLSL उत्पादने किंवा स्थानिक मदतीबद्दल विचारा.', assistantUnifiedGreeting: 'नमस्कार! मी CLSL मित्र आहे. तुमचे पीक, CLSL उत्पादने किंवा स्थानिक मदतीबद्दल विचारा.', photoHelp: 'फोटो मदत', cropGuidance: 'पीक मार्गदर्शन', fieldSupport: 'फील्ड मदत', cropRequired: 'पुढे जाण्यासाठी पीक निवडणे आवश्यक आहे.', cropSearchPlaceholder: 'पीक शोधा आणि निवडा', otherCrop: 'इतर — एआयला ओळखू द्या', photoPreviewReady: 'तुमचे अपलोड केलेले फोटो तयार आहेत', viewCropProducts: 'पीक उपाय पहा', identified: 'निवडलेले पीक', catalogCrop: 'निवडलेले पीक',
+    mascotName: 'CLSL मित्र', heroTitle: 'तुमचे पीक.', heroAccent: 'आमची काळजी.',
+    navInspect: 'तपासणी', navAssistant: 'मित्र', navProducts: 'उत्पादने', navHistory: 'इतिहास',
+    inspectTitle: 'पीक तपासणी', marketplace: 'CLSL उत्पादने', marketHeading: 'CLSL उत्पादने',
+    safety: 'उत्पादनाचे लेबल आणि स्थानिक तज्ज्ञांचा सल्ला नेहमी पाळा.', catalogGrounded: '', catalogLimit: '',
+  },
+  bn: {
+    productTag: 'ক্রপ লাইফ সায়েন্সের ফসল সুরক্ষা', appTagline: 'ক্রপ লাইফ সায়েন্স থেকে ফসল সুরক্ষা, পরামর্শ ও পণ্য।', homeHeroBrief: 'ফসলের ছবি নিন, দেখা সমস্যাটি বুঝুন এবং CLSL AI থেকে সহজ সাহায্য নিন।', geminiPowered: 'এআই ফসল সহায়তা', inspectIntro: 'ফসল নির্বাচন করুন, পরিষ্কার ছবি দিন এবং সহজ পরামর্শ পান।', catalogMatch: 'CLSL ফসল সহায়তা', noVerified: 'আরও তথ্য সাহায্য করতে পারে', productSupportText: 'এই বিকল্পগুলি দৃশ্যমান ফসলের সমস্যায় সাহায্য করতে পারে।', resultDisclaimer: 'এটি সহায়ক ফসল মূল্যায়ন। চিকিৎসার আগে পণ্যের লেবেল ও স্থানীয় বিশেষজ্ঞের পরামর্শ মানুন।', assistantIntro: 'ফসলের যত্ন, CLSL পণ্য বা স্থানীয় সহায়তা সম্পর্কে জিজ্ঞাসা করুন।', assistantUnifiedGreeting: 'নমস্কার! আমি CLSL মিত্র। আপনার ফসল, CLSL পণ্য বা স্থানীয় সহায়তা সম্পর্কে জিজ্ঞাসা করুন।', photoHelp: 'ছবি সহায়তা', cropGuidance: 'ফসল পরামর্শ', fieldSupport: 'ফিল্ড সহায়তা', cropRequired: 'এগোতে ফসল নির্বাচন করা আবশ্যক।', cropSearchPlaceholder: 'ফসল খুঁজুন ও নির্বাচন করুন', otherCrop: 'অন্যান্য — এআইকে চিনতে দিন', photoPreviewReady: 'আপনার আপলোড করা ছবিগুলি প্রস্তুত', viewCropProducts: 'ফসল সমাধান দেখুন', identified: 'নির্বাচিত ফসল', catalogCrop: 'নির্বাচিত ফসল',
+    mascotName: 'CLSL মিত্র', heroTitle: 'আপনার ফসল।', heroAccent: 'আমাদের যত্ন।',
+    navInspect: 'পরীক্ষা', navAssistant: 'মিত্র', navProducts: 'পণ্য', navHistory: 'ইতিহাস',
+    inspectTitle: 'ফসল পরীক্ষা', marketplace: 'CLSL পণ্য', marketHeading: 'CLSL পণ্য',
+    safety: 'পণ্যের লেবেল ও স্থানীয় বিশেষজ্ঞের পরামর্শ সর্বদা মানুন।', catalogGrounded: '', catalogLimit: '',
+  },
+  bho: {
+    productTag: 'क्रॉप लाइफ साइंस के फसल सुरक्षा', appTagline: 'क्रॉप लाइफ साइंस से फसल सुरक्षा, सलाह आ उत्पाद।', homeHeroBrief: 'फसल के फोटो लीं, दिखत समस्या समझीं आ CLSL AI से आसान मदद पाईं।', geminiPowered: 'एआई फसल मदद', inspectIntro: 'फसल चुनीं, साफ फोटो जोड़ीं आ आसान सलाह पाईं।', catalogMatch: 'CLSL फसल मदद', noVerified: 'आउरी जानकारी मददगार हो सकेला', productSupportText: 'ई विकल्प दिखत फसल समस्या में मदद कर सकेला।', resultDisclaimer: 'ई मददगार फसल आकलन बा। इलाज से पहिले उत्पाद के लेबल आ स्थानीय जानकार के सलाह मानीं।', assistantIntro: 'फसल देखभाल, CLSL उत्पाद भा स्थानीय मदद के बारे में पूछीं।', assistantUnifiedGreeting: 'नमस्ते! हम CLSL मित्र बानी। अपना फसल, CLSL उत्पाद भा स्थानीय मदद के बारे में पूछीं।', photoHelp: 'फोटो मदद', cropGuidance: 'फसल सलाह', fieldSupport: 'फील्ड मदद', cropRequired: 'आगे बढ़े खातिर फसल चुनल जरूरी बा।', cropSearchPlaceholder: 'फसल खोजीं आ चुनीं', otherCrop: 'दूसर — एआई के पहचाने दीं', photoPreviewReady: 'रउआ अपलोड कइल फोटो तैयार बा', viewCropProducts: 'फसल समाधान देखीं', identified: 'चुनल फसल', catalogCrop: 'चुनल फसल',
+    mascotName: 'CLSL मित्र', heroTitle: 'रउआ फसल।', heroAccent: 'हमार देखभाल।',
+    navInspect: 'जाँच', navAssistant: 'मित्र', navProducts: 'उत्पाद', navHistory: 'इतिहास',
+    inspectTitle: 'फसल जाँच', marketplace: 'CLSL उत्पाद', marketHeading: 'CLSL उत्पाद',
+    safety: 'उत्पाद के लेबल आ स्थानीय जानकार के सलाह हमेशा मानीं।', catalogGrounded: '', catalogLimit: '',
+  },
+};
+
 export function getCopy(language: LanguageCode) {
   return {
     ...en,
@@ -173,5 +248,6 @@ export function getCopy(language: LanguageCode) {
     ...(mascotTranslations[language] || {}),
     ...fieldCollectionTranslations[language],
     ...(modelNeutralInspectionCopy[language] || modelNeutralInspectionCopy.en),
+    ...(clslAiCopy[language] || clslAiCopy.en),
   };
 }

@@ -1226,6 +1226,38 @@ def invite_employee_to_portal(employee_id: UUID, payload: PortalInvitation, iden
     }
 
 
+@router.post('/sales-officers/access/reset')
+def reset_sales_officer_field_access(identity: AdminIdentity = Depends(_identity)):
+    """Invalidate every active Sales Officer app link without touching HR or inspection data."""
+    _require(identity, {'super_admin'})
+    issuer_id = _employee_actor_id(identity)
+    if issuer_id is None:
+        raise HTTPException(403, 'A real Super Administrator employee identity is required.')
+    with connection() as conn:
+        revoked = conn.execute(
+            """
+            UPDATE field_access_grants grant_record
+            SET revoked_at=now()
+            FROM sales_officer_territories roster
+            JOIN employees employee ON employee.id=roster.employee_id
+            WHERE grant_record.employee_id=roster.employee_id
+              AND grant_record.revoked_at IS NULL
+              AND employee.status <> 'inactive'
+            RETURNING grant_record.employee_id
+            """
+        ).fetchall()
+        _audit(
+            conn, identity, 'reset_all_sales_officer_field_access', 'sales_officer_access', 'all_active_links',
+            {'active_links': len(revoked)},
+            {'revoked_links': len(revoked), 'employee_records_changed': False, 'inspection_records_changed': False},
+        )
+        conn.commit()
+    return {
+        'revoked_links': len(revoked),
+        'message': 'All current Sales Officer field links were invalidated. Create fresh personal links when the pilot starts.',
+    }
+
+
 @router.post('/sales-officers/{roster_id}/access')
 def issue_field_access(roster_id: UUID, identity: AdminIdentity = Depends(_identity)):
     _require(identity, {'super_admin'})
@@ -1242,3 +1274,147 @@ def issue_field_access(roster_id: UUID, identity: AdminIdentity = Depends(_ident
         _audit(conn, identity, 'issue_field_access', 'employee', str(employee['id']), None, {'permanent_until_revoked': True, 'created_at': grant['created_at'].isoformat()})
         conn.commit()
     return {'token': token, 'permanent_until_revoked': True, 'name': employee['full_name']}
+
+
+class CampaignInput(BaseModel):
+    name: str = Field(min_length=2, max_length=180)
+    discount_type: Literal["percentage", "fixed_amount"]
+    discount_value: float = Field(gt=0)
+    start_date: datetime
+    end_date: datetime | None = None
+    status: Literal["active", "paused", "completed"] = "active"
+
+@router.get("/analytics/farmers")
+def admin_analytics_farmers(identity: AdminIdentity = Depends(_identity)):
+    _require(identity, ADMIN_READ_ROLES)
+    with connection() as conn:
+        active_farmers = conn.execute("SELECT usage_date, active_farmers FROM vw_daily_active_farmers ORDER BY usage_date DESC LIMIT 30").fetchall()
+        total_farmers = conn.execute("SELECT COUNT(id) AS total FROM farmers").fetchone()["total"]
+        return {"total_farmers": total_farmers, "daily_active_farmers": active_farmers}
+
+@router.get("/analytics/dealers")
+def admin_analytics_dealers(identity: AdminIdentity = Depends(_identity)):
+    _require(identity, ADMIN_READ_ROLES)
+    with connection() as conn:
+        dealers = conn.execute("""
+            SELECT d.id, d.name, COUNT(f.id) as acquired_farmers, COUNT(cr.id) as coupons_redeemed
+            FROM dealers d
+            LEFT JOIN farmers f ON f.acquisition_dealer_id = d.id
+            LEFT JOIN coupon_redemptions cr ON cr.dealer_id = d.id
+            GROUP BY d.id
+            ORDER BY acquired_farmers DESC LIMIT 50
+        """).fetchall()
+        return {"items": dealers}
+
+@router.get("/analytics/ai-costs")
+def admin_analytics_ai_costs(identity: AdminIdentity = Depends(_identity)):
+    _require(identity, ADMIN_READ_ROLES)
+    with connection() as conn:
+        costs = conn.execute("""
+            SELECT provider, model_name, SUM(input_tokens) as total_input_tokens, 
+                   SUM(output_tokens) as total_output_tokens,
+                   (SUM(input_tokens) * 1.50 / 1000000.0 * 84.0 + SUM(output_tokens) * 9.0 / 1000000.0 * 84.0) as estimated_inr_cost
+            FROM ai_usage
+            GROUP BY provider, model_name
+        """).fetchall()
+        return {"items": costs}
+
+@router.get("/campaigns")
+def get_campaigns(identity: AdminIdentity = Depends(_identity)):
+    _require(identity, ADMIN_READ_ROLES)
+    with connection() as conn:
+        campaigns = conn.execute("SELECT * FROM campaigns ORDER BY created_at DESC").fetchall()
+    return {"items": campaigns}
+
+@router.post("/campaigns")
+def create_campaign(payload: CampaignInput, identity: AdminIdentity = Depends(_identity)):
+    _require(identity, CATALOGUE_MANAGER_ROLES)
+    with connection() as conn:
+        row = conn.execute(
+            """
+            INSERT INTO campaigns(name, discount_type, discount_value, start_date, end_date, status)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+            """,
+            (payload.name, payload.discount_type, payload.discount_value, payload.start_date, payload.end_date, payload.status)
+        ).fetchone()
+        conn.commit()
+    return {"status": "success", "campaign_id": str(row["id"])}
+
+class ExpertReviewInput(BaseModel):
+    review_status: Literal["Correct", "Partially Correct", "Incorrect", "Corrected", "Reject"]
+    training_eligible: bool
+    expert_final_label: str | None = None
+    note: str | None = None
+
+@router.post("/inspections/{inspection_id}/expert-review")
+def create_expert_review(inspection_id: UUID, payload: ExpertReviewInput, identity: AdminIdentity = Depends(_identity)):
+    _require(identity, INSPECTION_REVIEW_ROLES)
+    with connection() as conn:
+        row = conn.execute(
+            """
+            INSERT INTO expert_reviews(inspection_id, reviewer_employee_id, review_status, 
+                                       expert_final_label, training_eligible, note)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+            """,
+            (inspection_id, _employee_actor_id(identity), payload.review_status, 
+             payload.expert_final_label, payload.training_eligible, payload.note)
+        ).fetchone()
+        
+        conn.execute("UPDATE inspections SET dataset_quality_status = %s, training_eligible = %s WHERE id = %s", 
+                     (payload.review_status, payload.training_eligible, inspection_id))
+        conn.commit()
+    return {"status": "success", "review_id": str(row["id"])}
+
+
+@router.get("/dealers")
+def list_dealers(
+    state: str = Query(default="", max_length=100),
+    area: str = Query(default="", max_length=100),
+    territory: str = Query(default="", max_length=100),
+    status: str = Query(default="", max_length=32),
+    identity: AdminIdentity = Depends(_identity)
+):
+    _require(identity, ADMIN_READ_ROLES)
+    filters = []
+    params = []
+    
+    if state:
+        filters.append("state = %s")
+        params.append(state)
+    if area:
+        filters.append("sales_area = %s")
+        params.append(area)
+    if territory:
+        filters.append("sales_territory = %s")
+        params.append(territory)
+    if status:
+        filters.append("status = %s")
+        params.append(status)
+        
+    where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
+    sql = f"SELECT id, dealer_code, name, sales_executive, sales_area, sales_region, sales_territory, state, status FROM dealers {where_clause} ORDER BY name LIMIT 500"
+    
+    with connection() as conn:
+        rows = conn.execute(sql, params).fetchall()
+        
+    return {"items": rows}
+
+
+@router.post("/dealers/{dealer_id}/referral")
+def generate_dealer_referral(dealer_id: UUID, identity: AdminIdentity = Depends(_identity)):
+    _require(identity, CATALOGUE_MANAGER_ROLES)
+    with connection() as conn:
+        existing = conn.execute("SELECT referral_token FROM dealer_referrals WHERE dealer_id = %s LIMIT 1", (dealer_id,)).fetchone()
+        if existing:
+            token = existing["referral_token"]
+        else:
+            token = secrets.token_hex(8)
+            conn.execute(
+                "INSERT INTO dealer_referrals(dealer_id, referral_token) VALUES (%s, %s)",
+                (dealer_id, token)
+            )
+            conn.commit()
+            
+    download_url = f"https://app.croplife.ai/download?ref={token}"
+    return {"token": token, "download_url": download_url}
+

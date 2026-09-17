@@ -78,9 +78,12 @@ function cleanConfidence(value: unknown): number | null {
 
 export const inspectionPrompt = (input: InspectionInput) => {
   const declared = input.context.crop.trim();
-  const cropRule = declared
+  const cropIsOther = /^other$/i.test(declared);
+  const cropRule = declared && !cropIsOther
     ? `The crop has already been selected by the field employee.\nKnown crop: ${JSON.stringify(declared)}\nDo not identify, replace or change the crop. Return this exact known crop in the crop field and null for crop_confidence.`
-    : 'No crop was declared. Crop identification is optional; remain uncertain when visual evidence is insufficient.';
+    : cropIsOther
+      ? 'The field employee selected Other because the crop is not in the standard list. Identify the crop from the supplied photos when there is enough visual evidence. If it cannot be identified reliably, return Unknown and remain cautious.'
+      : 'No crop was declared. Crop identification is optional; remain uncertain when visual evidence is insufficient.';
   return `${contract.prompt}\n\n${cropRule}\n\nField context:\n${JSON.stringify(input.context)}\n\nReturn exactly one JSON object matching this schema:\n${JSON.stringify(contract.schema)}`;
 };
 
@@ -127,11 +130,11 @@ function safeRaw(diagnosis: NormalizedDiagnosis) {
   return Object.fromEntries(Object.keys(contract.schema.properties).map((key) => [key, diagnosis[key as keyof NormalizedDiagnosis] ?? null]));
 }
 
-async function googleInspection(input: InspectionInput, provider: 'gemma' | 'gemini', model: string): Promise<ProviderResult> {
+async function googleInspection(input: InspectionInput, provider: 'gemma' | 'gemini', model: string, targetKey: string = 'GEMINI_API_KEY'): Promise<ProviderResult> {
   const start = Date.now();
   const base = { provider, model, timestamp: new Date().toISOString() };
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env[targetKey] || process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('AI service is not configured.');
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, signal: AbortSignal.timeout(45_000),
@@ -145,7 +148,8 @@ async function googleInspection(input: InspectionInput, provider: 'gemma' | 'gem
     const finalText = payload.candidates?.[0]?.content?.parts?.filter((part) => part.text && !part.thought).map((part) => part.text).join('');
     if (!finalText) throw new Error('AI returned no final assessment.');
     const parsed = JSON.parse(finalText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
-    const diagnosis = normalizeDiagnosis(parsed, input.context.crop);
+    const declaredCrop = /^other$/i.test(input.context.crop.trim()) ? '' : input.context.crop;
+    const diagnosis = normalizeDiagnosis(parsed, declaredCrop);
     return { ...base, success: true, latencyMs: Date.now() - start, diagnosis, rawResponse: safeRaw(diagnosis), inputTokens: payload.usageMetadata?.promptTokenCount, outputTokens: payload.usageMetadata?.candidatesTokenCount };
   } catch (error) {
     const message = error instanceof Error && error.name === 'TimeoutError'
@@ -155,39 +159,17 @@ async function googleInspection(input: InspectionInput, provider: 'gemma' | 'gem
   }
 }
 
-export function gemmaInspection(input: InspectionInput) {
-  const model = process.env.PRIMARY_VISION_MODEL || process.env.GEMMA_MODEL || 'gemma-4-26b-a4b-it';
-  return googleInspection(input, 'gemma', model);
+export function geminiFlashLiteInspection(input: InspectionInput) {
+  const model = 'gemini-3.5-flash-lite';
+  return googleInspection(input, 'gemini', model, 'GEMINI_SALES_API_KEY');
 }
 
 export function geminiFlashInspection(input: InspectionInput) {
-  const model = process.env.GEMINI_SHADOW_MODEL || process.env.GEMINI_MODEL || process.env.GEMINI_VISION_MODEL || 'gemini-3.5-flash-lite';
-  return googleInspection(input, 'gemini', model);
+  const model = 'gemini-3.5-flash';
+  return googleInspection(input, 'gemini', model, 'GEMINI_PAID_API_KEY');
 }
 
-function isActionable(result: ProviderResult) {
-  const diagnosis = result.diagnosis;
-  return Boolean(
-    result.success && diagnosis && diagnosis.issue_detected
-    && !['unknown', 'none'].includes(diagnosis.issue_type)
-    && diagnosis.confidence !== null && diagnosis.confidence >= 0.6
-    && !diagnosis.needs_more_information,
-  );
-}
 
-/**
- * Gemma remains the preferred live model. Flash-Lite is an immediate safety
- * verifier: it replaces Gemma only when Gemma has no actionable diagnosis.
- * Qwen later completes the independent 2-of-3 evaluation in the private lab.
- */
-export function selectLiveInspectionResult(gemma: ProviderResult, flashLite: ProviderResult) {
-  if (isActionable(gemma)) return gemma;
-  if (isActionable(flashLite)) return flashLite;
-  const usable = [gemma, flashLite]
-    .filter((result) => result.success && result.diagnosis)
-    .sort((left, right) => (right.diagnosis?.confidence ?? -1) - (left.diagnosis?.confidence ?? -1));
-  return usable[0] || gemma;
-}
 
 export function diagnosisConfidenceLevel(confidence: number | null) {
   if (confidence !== null && confidence >= 0.8) return 'high' as const;
