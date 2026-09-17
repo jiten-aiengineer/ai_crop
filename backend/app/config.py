@@ -91,3 +91,5 @@ QWEN_GPU_INSTANCE_ID = os.getenv("QWEN_GPU_INSTANCE_ID", "").strip()
 QWEN_EARLY_STOP_ENABLED = os.getenv("QWEN_EARLY_STOP_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
 QWEN_IDLE_STOP_SECONDS = max(60, min(3600, int(os.getenv("QWEN_IDLE_STOP_SECONDS", "300"))))
 QWEN_SCHEDULE_AUTOMATION = os.getenv("QWEN_SCHEDULE_AUTOMATION", "not_configured").strip() or "not_configured"
+
+TWOFACTOR_API_KEY = os.getenv(TWOFACTOR_API_KEY, ")
