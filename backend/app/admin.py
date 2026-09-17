@@ -15,6 +15,7 @@ import secrets
 import re
 from email.message import EmailMessage
 from datetime import date, datetime
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
@@ -88,6 +89,7 @@ class CatalogueProductInput(BaseModel):
     dose: str = Field(default="", max_length=4000)
     use_benefits: str = Field(default="", max_length=8000)
     packing: str = Field(default="", max_length=2000)
+    price_per_pack: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
     application_method: str = Field(default="", max_length=4000)
     safety_information: str = Field(default="", max_length=8000)
     image_path: str = Field(default="", max_length=500)
@@ -319,7 +321,7 @@ def _product_rows(conn):
     return conn.execute(
         """
         SELECT p.id, p.name, pc.name AS category, p.common_name, p.formulation, p.dose,
-               p.use_benefits, p.packing, p.application_method, p.safety_information,
+               p.use_benefits, p.packing, p.price_per_pack, p.application_method, p.safety_information,
                p.image_path, p.source_page, p.catalogue_version, p.status, p.approval_status,
                p.version, p.updated_at,
                COALESCE(array_agg(DISTINCT c.name) FILTER (WHERE c.id IS NOT NULL), '{}') AS crops,
@@ -590,7 +592,7 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
         values = (
             product["product_id"], product["name"], category["id"], product["common_name"] or None,
             product["formulation"] or None, product["dose"] or None, product["use_benefits"] or None,
-            product["packing"] or None, product["application_method"] or None,
+            product["packing"] or None, product["price_per_pack"], product["application_method"] or None,
             product["safety_information"] or None, product["image_path"] or None,
             product["source_page"], product["catalogue_version"] or "Admin catalogue", product["status"], _employee_actor_id(identity),
         )
@@ -598,7 +600,7 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
             conn.execute(
                 """
                 UPDATE products SET name=%s, category_id=%s, common_name=%s, formulation=%s, dose=%s,
-                    use_benefits=%s, packing=%s, application_method=%s, safety_information=%s,
+                    use_benefits=%s, packing=%s, price_per_pack=%s, application_method=%s, safety_information=%s,
                     image_path=%s, source_page=%s, catalogue_version=%s, status=%s,
                     approval_status='approved', approved_by=%s, approved_at=now(), version=version+1, updated_at=now()
                 WHERE id=%s
@@ -609,7 +611,7 @@ def decide_catalogue_change(request_id: UUID, decision: ApprovalDecision, identi
             conn.execute(
                 """
                 INSERT INTO products(id, name, category_id, common_name, formulation, dose, use_benefits,
-                    packing, application_method, safety_information, image_path, source_page,
+                    packing, price_per_pack, application_method, safety_information, image_path, source_page,
                     catalogue_version, status, approval_status, approved_by, approved_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                         %s, 'approved', %s, now())
@@ -1415,6 +1417,5 @@ def generate_dealer_referral(dealer_id: UUID, identity: AdminIdentity = Depends(
             )
             conn.commit()
             
-    download_url = f"https://app.croplife.ai/download?ref={token}"
+    download_url = f"https://ai.croplifescience.com/join/{token}"
     return {"token": token, "download_url": download_url}
-

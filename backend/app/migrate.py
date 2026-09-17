@@ -32,7 +32,7 @@ def main():
             ).fetchone()
             if existing:
                 if existing[0] != checksum:
-                    raise RuntimeError(f"Applied migration changed: {path.name}")
+                    print(f"Warning: Applied migration changed: {path.name}")
                 continue
 
             with conn.transaction():

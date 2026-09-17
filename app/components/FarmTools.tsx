@@ -1,10 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { catalog, CatalogProduct } from '../lib/catalog';
 import { LanguageCode } from '../lib/i18n';
 
-type Tool = 'spray' | 'farming';
 type AreaUnit = 'acre' | 'hectare' | 'guntha';
 type DoseUnit = 'ml' | 'g' | 'L' | 'kg';
 
@@ -65,15 +64,12 @@ function packSuggestion(product: CatalogProduct | undefined, unit: DoseUnit) {
 
 export function FarmTools({ language }: { language: LanguageCode }) {
   const c = copy[language] || copy.en;
-  const [tool, setTool] = useState<Tool>('spray');
   const [area, setArea] = useState('1');
   const [areaUnit, setAreaUnit] = useState<AreaUnit>('acre');
   const totalAcres = acres(number(area), areaUnit);
 
-  return <section className="tools-workspace"><div className="tools-heading"><p className="eyebrow"><span />{c.eyebrow}</p><h1>{c.title}</h1><p>{c.intro}</p></div><div className="tool-tabs two-tabs">{([
-    ['spray','◉',c.spray,c.sprayHelp],['farming','▦',c.farming,c.farmingHelp],
-  ] as const).map(([id,icon,title,help]) => <button key={id} className={tool === id ? 'selected' : ''} onClick={() => setTool(id)}><span>{icon}</span><b>{title}</b><small>{help}</small></button>)}</div>
-    <div className="calculator-shell"><AreaFields c={c} area={area} setArea={setArea} unit={areaUnit} setUnit={setAreaUnit} />{tool === 'spray' && <SprayCalculator c={c} totalAcres={totalAcres} />}{tool === 'farming' && <FarmingCalculator c={c} totalAcres={totalAcres} />}<p className="calculator-warning">ⓘ {c.warning}</p></div>
+  return <section className="tools-workspace"><div className="tools-heading"><p className="eyebrow"><span />{c.eyebrow}</p><h1>{c.title}</h1><p>{c.intro}</p></div>
+    <div className="calculator-shell"><AreaFields c={c} area={area} setArea={setArea} unit={areaUnit} setUnit={setAreaUnit} /><SprayCalculator c={c} totalAcres={totalAcres} /><p className="calculator-warning">ⓘ {c.warning}</p></div>
   </section>;
 }
 
@@ -82,20 +78,18 @@ function AreaFields({ c, area, setArea, unit, setUnit }: { c: Record<string,stri
 }
 
 function SprayCalculator({ c, totalAcres }: { c:Record<string,string>; totalAcres:number }) {
-  const [productId, setProductId] = useState('');
+  const [productQuery, setProductQuery] = useState('');
   const [dose, setDose] = useState('');
   const [doseUnit, setDoseUnit] = useState<DoseUnit>('ml');
   const [water, setWater] = useState('150');
   const [tank, setTank] = useState('15');
   const [packSize, setPackSize] = useState('');
-  const [packPrice, setPackPrice] = useState('');
-  const [applicationCost, setApplicationCost] = useState('250');
   const [autoDose, setAutoDose] = useState(false);
-  const product = protectionProducts.find((item) => item.id === productId);
+  const product = protectionProducts.find((item) => item.name === productQuery) || null;
 
-  const chooseProduct = (id: string) => {
-    setProductId(id);
-    const selected = protectionProducts.find((item) => item.id === id);
+  const chooseProduct = (query: string) => {
+    setProductQuery(query);
+    const selected = protectionProducts.find((item) => item.name === query);
     const suggested = doseSuggestion(selected);
     if (suggested) {
       setDose(String(suggested.value)); setDoseUnit(suggested.unit); setAutoDose(true);
@@ -115,27 +109,38 @@ function SprayCalculator({ c, totalAcres }: { c:Record<string,string>; totalAcre
   const finalTankWater = loads ? totalWater - tankSize * Math.max(0, loads - 1) : 0;
   const finalTankProduct = concentration * finalTankWater;
   const packCount = number(packSize) && totalProduct ? Math.ceil(totalProduct / number(packSize)) : 0;
-  const purchaseCost = packCount * number(packPrice);
-  const fieldCost = totalAcres * number(applicationCost);
-  const totalSprayCost = purchaseCost + fieldCost;
+
+  let purchaseCost = 0;
+  let totalSprayCost = 0;
+  const hasPrice = Boolean(product?.pricePerPack);
+  if (hasPrice && product?.pricePerPack) {
+    purchaseCost = packCount * product.pricePerPack;
+    totalSprayCost = purchaseCost;
+  }
+
+  const results = [
+    [c.totalProduct,`${display(totalProduct)} ${doseUnit}`],
+    [c.totalWater,`${display(totalWater)} L`],
+    [c.refills,`${loads}`],
+    [c.perTank,`${display(fullTankProduct)} ${doseUnit}`],
+    [c.lastTank,loads ? `${display(finalTankProduct)} ${doseUnit}` : '—'],
+    [c.packs,`${packCount}`]
+  ];
+  if (hasPrice) {
+    results.push([c.productCost,`₹${display(purchaseCost,0)}`]);
+    results.push([c.sprayCost,`₹${display(totalSprayCost,0)}`]);
+  }
 
   return <div className="calculator-body spray-calculator"><div className="spray-plan-head"><div><small>{c.mixTitle}</small><h2>{c.mixText}</h2></div><div className="spray-animation" aria-hidden="true"><span className="spray-nozzle">⌁</span><i /><i /><i /><b>♧</b></div></div>
-    <label className="product-select"><span>{c.product}</span><select value={productId} onChange={(event) => chooseProduct(event.target.value)}><option value="">{c.choose}</option>{protectionProducts.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.category}</option>)}</select></label>
+    <label className="product-select"><span>{c.product}</span><input list="calculator-products" value={productQuery} onChange={(event) => chooseProduct(event.target.value)} placeholder={c.choose} /><datalist id="calculator-products">{protectionProducts.map((item) => <option key={item.id} value={item.name} />)}</datalist></label>
     {product && <div className="catalog-dose"><small>{c.catalogDose}</small><b>{product.dose || '—'}</b><span>{product.commonName}</span></div>}
-    <div className="calculator-inputs"><label><span>{c.dose}</span><input type="number" min="0" step="0.01" value={dose} onChange={(event) => { setDose(event.target.value); setAutoDose(false); }} placeholder="0" /><select aria-label="Dose unit" value={doseUnit} onChange={(event) => { const unit = event.target.value as DoseUnit; setDoseUnit(unit); setPackSize(String(packSuggestion(product, unit) || '')); }}><option>ml</option><option>g</option><option>L</option><option>kg</option></select></label><label><span>{c.water}</span><input type="number" min="0" step="1" value={water} onChange={(event) => setWater(event.target.value)} /><em>L/ac</em></label><label><span>{c.tank}</span><input type="number" min="1" step="1" value={tank} onChange={(event) => setTank(event.target.value)} /><em>L</em></label></div>
+    <div className="calculator-inputs"><label><span>{c.dose}</span><input type="number" min="0" step="0.01" value={dose} onChange={(event) => { setDose(event.target.value); setAutoDose(false); }} placeholder="0" /><select aria-label="Dose unit" value={doseUnit} onChange={(event) => { const unit = event.target.value as DoseUnit; setDoseUnit(unit); setPackSize(String(packSuggestion(product || undefined, unit) || '')); }}><option>ml</option><option>g</option><option>L</option><option>kg</option></select></label><label><span>{c.water}</span><input type="number" min="0" step="1" value={water} onChange={(event) => setWater(event.target.value)} /><em>L/ac</em></label><label><span>{c.tank}</span><input type="number" min="1" step="1" value={tank} onChange={(event) => setTank(event.target.value)} /><em>L</em></label></div>
     {autoDose ? <p className="dose-help success">✓ {c.autoDose}</p> : !number(dose) && <p className="dose-help">{c.noDose}</p>}
-    <div className="calculator-inputs purchase-inputs"><label><span>{c.packSize}</span><input type="number" min="0" step="0.01" value={packSize} onChange={(event) => setPackSize(event.target.value)} placeholder="0" /><em>{doseUnit}</em></label><label><span>{c.packPrice}</span><input type="number" min="0" step="1" value={packPrice} onChange={(event) => setPackPrice(event.target.value)} placeholder="0" /><em>₹</em></label><label><span>{c.applicationCost}</span><input type="number" min="0" step="10" value={applicationCost} onChange={(event) => setApplicationCost(event.target.value)} /><em>₹/ac</em></label></div>
+    <div className="calculator-inputs purchase-inputs"><label><span>{c.packSize}</span><input type="number" min="0" step="0.01" value={packSize} onChange={(event) => setPackSize(event.target.value)} placeholder="0" /><em>{doseUnit}</em></label></div>
     <div className="mix-breakdown"><article><span>01</span><div><small>{c.fullTank}</small><b>{display(Math.min(tankSize, totalWater))} L + {display(fullTankProduct)} {doseUnit}</b></div></article><article><span>02</span><div><small>{c.finalTank}</small><b>{loads ? `${display(finalTankWater)} L + ${display(finalTankProduct)} ${doseUnit}` : c.notNeeded}</b></div></article></div>
-    <Results items={[[c.totalProduct,`${display(totalProduct)} ${doseUnit}`],[c.totalWater,`${display(totalWater)} L`],[c.refills,`${loads}`],[c.perTank,`${display(fullTankProduct)} ${doseUnit}`],[c.lastTank,loads ? `${display(finalTankProduct)} ${doseUnit}` : '—'],[c.packs,`${packCount}`],[c.productCost,`₹${display(purchaseCost,0)}`],[c.sprayCost,`₹${display(totalSprayCost,0)}`]]} />
-    <p className="cost-note">{c.costNote}</p>
+    <Results items={results} />
+    {hasPrice && <p className="cost-note">{c.costNote}</p>}
   </div>;
-}
-
-function FarmingCalculator({ c, totalAcres }: { c:Record<string,string>; totalAcres:number }) {
-  const [costs, setCosts] = useState({ seed:'2500', irrigation:'2000', protection:'3000', labour:'6000', harvest:'2500' });
-  const fields: Array<[keyof typeof costs,string]> = [['seed',c.seed],['irrigation',c.irrigation],['protection',c.protection],['labour',c.labour],['harvest',c.harvest]];
-  const perAcre = useMemo(() => Object.values(costs).reduce((sum, value) => sum + number(value), 0), [costs]);
-  return <div className="calculator-body"><div className="cost-inputs">{fields.map(([key,label]) => <label key={key}><span>{label}<small>{c.perAcre}</small></span><b>₹</b><input type="number" min="0" step="100" value={costs[key]} onChange={(event) => setCosts({ ...costs, [key]:event.target.value })} /></label>)}</div><Results items={[[c.perAcre,`₹${display(perAcre,0)}`],[c.totalCost,`₹${display(perAcre * totalAcres,0)}`]]} /></div>;
 }
 
 function Results({ items }: { items:string[][] }) { return <div className="calculation-results">{items.map(([label,value],index) => <article key={label} className={index === 0 || index === items.length - 1 ? 'primary-result' : ''} style={{ animationDelay: `${index * 45}ms` }}><small>{label}</small><b>{value}</b></article>)}</div>; }

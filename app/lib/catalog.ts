@@ -22,6 +22,8 @@ export type CatalogProduct = {
   matchScore?: number;
   matchReason?: string;
   matchTier?: 'primary' | 'supporting';
+  /** Estimated price per pack set by admin in dashboard (₹). Only shown if set. */
+  pricePerPack?: number;
 };
 
 export const catalog = catalogData as CatalogProduct[];

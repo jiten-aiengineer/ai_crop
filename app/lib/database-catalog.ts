@@ -5,7 +5,7 @@ type ApiProduct = {
   id?: unknown; name?: unknown; category?: unknown; common_name?: unknown;
   formulation?: unknown; dose?: unknown; use_benefits?: unknown; packing?: unknown;
   application_method?: unknown; safety_information?: unknown; image_path?: unknown;
-  source_page?: unknown; approved_crops?: unknown;
+  source_page?: unknown; approved_crops?: unknown; price_per_pack?: unknown;
 };
 
 function validUrl(value: string) {
@@ -56,6 +56,7 @@ function toCatalogProduct(row: ApiProduct, revealPrivateImageReference = false):
     image: imagePath.startsWith('s3:') && !revealPrivateImageReference ? `/api/catalogue/product-image/${encodeURIComponent(id)}` : imagePath,
     sourcePage: typeof row.source_page === 'number' ? row.source_page : 0,
     approvedCrops: asCrops(row.approved_crops), cropMappingSource: 'Approved live CLSL catalogue',
+    ...(typeof row.price_per_pack === 'number' && row.price_per_pack > 0 ? { pricePerPack: row.price_per_pack } : {}),
   };
 }
 

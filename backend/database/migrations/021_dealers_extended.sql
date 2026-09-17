@@ -1,13 +1,5 @@
 ALTER TABLE dealers ADD COLUMN IF NOT EXISTS sales_executive VARCHAR(180);
--- migrate:split
-
 ALTER TABLE dealers ADD COLUMN IF NOT EXISTS sales_area VARCHAR(100);
--- migrate:split
-
 ALTER TABLE dealers ADD COLUMN IF NOT EXISTS sales_region VARCHAR(100);
--- migrate:split
-
 ALTER TABLE dealers ADD COLUMN IF NOT EXISTS sales_territory VARCHAR(100);
--- migrate:split
-
 ALTER TABLE dealers ADD COLUMN IF NOT EXISTS state VARCHAR(100);

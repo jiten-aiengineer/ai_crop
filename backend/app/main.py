@@ -278,7 +278,7 @@ def list_products(
     params.append(limit)
     sql = f"""
         SELECT p.id, p.name, pc.name AS category, p.common_name, p.formulation,
-               p.dose, p.use_benefits, p.packing, p.application_method,
+               p.dose, p.use_benefits, p.packing, p.price_per_pack, p.application_method,
                p.safety_information, p.image_path, p.source_page,
                array_remove(array_agg(DISTINCT c.name), NULL) AS approved_crops
         FROM products p

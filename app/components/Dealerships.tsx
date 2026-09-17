@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 type Dealer = {
   id: string;
@@ -13,6 +13,19 @@ type Dealer = {
   state: string;
   status: string;
 };
+
+type ReferralResponse = { token?: string; download_url?: string };
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function isDealer(value: unknown): value is Dealer {
+  return isObject(value)
+    && typeof value.id === 'string'
+    && typeof value.dealer_code === 'string'
+    && typeof value.name === 'string';
+}
 
 export default function Dealerships() {
   const [dealers, setDealers] = useState<Dealer[]>([]);
@@ -30,11 +43,7 @@ export default function Dealerships() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
 
-  useEffect(() => {
-    fetchDealers();
-  }, [stateFilter, areaFilter, territoryFilter, statusFilter]);
-
-  async function fetchDealers() {
+  const fetchDealers = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -45,14 +54,19 @@ export default function Dealerships() {
       
       const response = await fetch(`/api/admin/portal/dealers?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch dealers');
-      const data = await response.json();
-      setDealers(data.items || []);
+      const data: unknown = await response.json();
+      const items = isObject(data) && Array.isArray(data.items) ? data.items.filter(isDealer) : [];
+      setDealers(items);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
-  }
+  }, [areaFilter, stateFilter, statusFilter, territoryFilter]);
+
+  useEffect(() => {
+    void Promise.resolve().then(fetchDealers);
+  }, [fetchDealers]);
 
   async function generateReferral(dealerId: string) {
     setGenerating(true);
@@ -63,9 +77,13 @@ export default function Dealerships() {
         method: 'POST'
       });
       if (!response.ok) throw new Error('Failed to generate referral link');
-      const data = await response.json();
-      setReferralToken(data.token);
-      setDownloadUrl(data.download_url);
+      const data: unknown = await response.json();
+      const referral: ReferralResponse = isObject(data)
+        ? { token: typeof data.token === 'string' ? data.token : undefined, download_url: typeof data.download_url === 'string' ? data.download_url : undefined }
+        : {};
+      if (!referral.token || !referral.download_url) throw new Error('The server returned an invalid referral link.');
+      setReferralToken(referral.token);
+      setDownloadUrl(referral.download_url);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -74,7 +92,6 @@ export default function Dealerships() {
   }
 
   // Unique values for filter dropdowns based on current data (for simplicity, ideally from backend)
-  const states = Array.from(new Set(dealers.map(d => d.state).filter(Boolean))).sort();
   const areas = Array.from(new Set(dealers.map(d => d.sales_area).filter(Boolean))).sort();
   const territories = Array.from(new Set(dealers.map(d => d.sales_territory).filter(Boolean))).sort();
 
@@ -181,23 +198,18 @@ export default function Dealerships() {
                 onClick={() => generateReferral(selectedDealer.id)}
                 disabled={generating}
               >
-                {generating ? 'Generating...' : 'Generate App Download QR'}
+                {generating ? 'Generating...' : 'Generate secure referral link'}
               </button>
               
               {downloadUrl && (
                 <div style={{ textAlign: 'center', background: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
                   <p style={{ marginBottom: '10px', fontSize: '14px', fontWeight: 'bold' }}>Referral Token: {referralToken}</p>
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(downloadUrl)}`} 
-                    alt="Dealer QR Code" 
-                    style={{ margin: '0 auto' }}
-                  />
                   <p style={{ marginTop: '10px', fontSize: '12px', color: '#6b7280' }}>
-                    Scan to download the app with this dealer's referral code.
+                    Copy this secure CLSL referral link. A locally generated QR image will be added before the public launch.
                   </p>
-                  <a href={downloadUrl} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: '10px', fontSize: '14px', color: '#0d9488' }}>
-                    Copy Link
-                  </a>
+                  <button type="button" className="admin-secondary" onClick={() => void navigator.clipboard.writeText(downloadUrl)}>
+                    Copy referral link
+                  </button>
                 </div>
               )}
             </div>
