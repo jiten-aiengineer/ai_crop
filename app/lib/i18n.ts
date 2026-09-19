@@ -250,6 +250,15 @@ const locationGateCopy: Record<LanguageCode, Record<string, string>> = {
   bho: { inspectionLocationTitle:'खेत के लोकेशन के अनुमति दीं', inspectionLocationHelp:'जाँच शुरू करत समये लोकेशन जरूरी बा। एहसे मौसम आ इलाका के मदद बेहतर होई।', inspectionAllowLocation:'लोकेशन अनुमति दीं', inspectionLocating:'लोकेशन मिलत बा…', inspectionLocationReady:'खेत के लोकेशन तैयार बा', inspectionLocationReadyHelp:'अब जाँच में इलाका के फसल आ मौसम जानकारी जुड़ी।', inspectionLocationRequired:'फसल जाँच से पहिले लोकेशन अनुमति दीं।', inspectionLocationDenied:'लोकेशन अनुमति ना मिलल। ब्राउज़र सेटिंग में चालू करीं।', inspectionLocationUnsupported:'ई डिवाइस पर लोकेशन उपलब्ध नइखे।' },
 };
 
+const sessionCopy: Record<LanguageCode, Record<string, string>> = {
+  en: { logout: 'Log out', logoutHelp: 'Return to the login screen to test another account.' },
+  hi: { logout: 'लॉग आउट', logoutHelp: 'दूसरे खाते की जाँच के लिए लॉगिन स्क्रीन पर लौटें।' },
+  gu: { logout: 'લૉગ આઉટ', logoutHelp: 'બીજા ખાતાની ચકાસણી માટે લૉગિન સ્ક્રીન પર પાછા જાઓ.' },
+  mr: { logout: 'लॉग आउट', logoutHelp: 'दुसऱ्या खात्याची चाचणी करण्यासाठी लॉगिन स्क्रीनवर परत जा.' },
+  bn: { logout: 'লগ আউট', logoutHelp: 'অন্য অ্যাকাউন্ট পরীক্ষা করতে লগইন স্ক্রিনে ফিরে যান।' },
+  bho: { logout: 'लॉग आउट', logoutHelp: 'दूसर खाता जाँचे खातिर लॉगिन स्क्रीन पर वापस जाईं।' },
+};
+
 export function getCopy(language: LanguageCode) {
   return {
     ...en,
@@ -259,5 +268,6 @@ export function getCopy(language: LanguageCode) {
     ...(modelNeutralInspectionCopy[language] || modelNeutralInspectionCopy.en),
     ...(clslAiCopy[language] || clslAiCopy.en),
     ...locationGateCopy[language],
+    ...sessionCopy[language],
   };
 }
