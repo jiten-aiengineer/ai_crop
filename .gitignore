@@ -45,6 +45,7 @@ next-env.d.ts
 # private production imports
 /backend/private-import/
 /backend/.env
+/backups/
 __pycache__/
 *.py[cod]
 .venv/

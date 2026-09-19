@@ -87,6 +87,7 @@ class RecommendationPayload(BaseModel):
 
 class InspectionPersistencePayload(BaseModel):
     inspection_id: UUID
+    public_session_token: str = Field(default="", max_length=128)
     photo_count: int = Field(ge=1, le=5)
     context: InspectionContext
     storage: StoragePayload
@@ -347,26 +348,37 @@ def persist_inspection(
     with connection() as conn:
         crop_id = _crop_id(conn, declared_crop or detected_crop)
         employee_id = None
+        farmer_id = None
         if payload.context.employee_code:
             employee = conn.execute("SELECT id FROM employees WHERE employee_code=%s AND status <> 'inactive'", (payload.context.employee_code,)).fetchone()
             if not employee:
                 raise HTTPException(422, 'The field employee is not active.')
             employee_id = employee['id']
+        if payload.public_session_token:
+            public_user = conn.execute(
+                """SELECT farmer_id FROM public_sessions
+                   WHERE session_token=%s AND expires_at>now() AND revoked_at IS NULL""",
+                (payload.public_session_token,),
+            ).fetchone()
+            if not public_user:
+                raise HTTPException(422, 'The public user session is not valid.')
+            farmer_id = public_user['farmer_id']
         conn.execute(
             """
             INSERT INTO inspections(
-                id, employee_id, crop_id, farmer_crop_text, plant_text, symptom_notes,
+                id, employee_id, farmer_id, crop_id, farmer_crop_text, plant_text, symptom_notes,
                 location_text, preferred_language, status, photo_count, failure_message,
                 completed_at, image_storage_status, image_storage_failures,
                 collection_mode, photo_requirements_met, photo_guidance_version,
                 declared_crop_text, crop_source, diagnosis_confidence,
                 ai_needs_more_information, dataset_quality_status, training_eligible
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     CASE WHEN %s = 'completed' THEN now() ELSE NULL END, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, 'awaiting_models', false)
             ON CONFLICT (id) DO UPDATE SET
                 employee_id = COALESCE(inspections.employee_id, EXCLUDED.employee_id),
+                farmer_id = COALESCE(inspections.farmer_id, EXCLUDED.farmer_id),
                 crop_id = EXCLUDED.crop_id,
                 farmer_crop_text = EXCLUDED.farmer_crop_text,
                 plant_text = EXCLUDED.plant_text,
@@ -391,6 +403,7 @@ def persist_inspection(
             (
                 payload.inspection_id,
                 employee_id,
+                farmer_id,
                 crop_id,
                 _clean(payload.context.crop, 160),
                 _clean(payload.context.plant, 160),

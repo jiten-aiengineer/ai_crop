@@ -7,7 +7,7 @@ import { getCopy, getLanguage, LanguageCode, languages } from './lib/i18n';
 import { FarmTools } from './components/FarmTools';
 import { WeatherAdvisory } from './components/WeatherAdvisory';
 import { PwaInstall } from './components/PwaInstall';
-import { AuthFlow } from './components/AuthFlow';
+import { AuthFlow, PublicUser, SprayerScene } from './components/AuthFlow';
 import salesContactData from './data/sales-contacts.json';
 import type { FieldIdentity } from './lib/field-access';
 
@@ -145,21 +145,36 @@ export default function Home() {
   const [approvedCatalogue, setApprovedCatalogue] = useState<CatalogProduct[] | null>(null);
   const [approvedCrops, setApprovedCrops] = useState<string[]>([]);
   const [catalogueUnavailable, setCatalogueUnavailable] = useState(false);
-  const [fieldSession, setFieldSession] = useState<{ employee: FieldIdentity | null; error?: string }>({ employee: null });
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [fieldSession, setFieldSession] = useState<{ employee: FieldIdentity | null; error?: string; loaded: boolean }>({ employee: null, loaded: false });
+  const [publicSession, setPublicSession] = useState<{ token: string; user: PublicUser | null; checked: boolean }>({ token: '', user: null, checked: false });
 
-  useEffect(() => {
-    const token = localStorage.getItem('clsl_auth_token');
-    if (token) setSessionToken(token);
-    setCheckingAuth(false);
-  }, []);
 
   useEffect(() => {
     fetch('/api/field/session', { cache: 'no-store' })
       .then(async (response) => ({ response, body: await response.json() as { employee?: FieldIdentity | null; error?: string } }))
-      .then(({ response, body }) => setFieldSession({ employee: body.employee || null, error: response.status === 401 ? body.error : undefined }))
-      .catch(() => setFieldSession({ employee: null }));
+      .then(({ response, body }) => setFieldSession({ employee: body.employee || null, error: response.status === 401 ? body.error : undefined, loaded: true }))
+      .catch(() => setFieldSession({ employee: null, loaded: true }));
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('clsl_auth_token') || '';
+    if (!token) {
+      const timer = window.setTimeout(() => setPublicSession({ token: '', user: null, checked: true }), 0);
+      return () => window.clearTimeout(timer);
+    }
+    fetch('/api/auth/me', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: '{}' })
+      .then(async (response) => ({ response, body: await response.json() as { user?: PublicUser } }))
+      .then(({ response, body }) => {
+        if (!response.ok || !body.user) throw new Error('Expired session');
+        setPublicSession({ token, user: body.user, checked: true });
+        const user = body.user;
+        setProfile((current) => {
+          const saved: Profile = { ...current, name: user.first_name || current.name, role: user.role || current.role, language: getLanguage(user.preferred_language), city: user.city || current.city, state: user.state || current.state, location: [user.village, user.city, user.district, user.state].filter(Boolean).join(', ') || current.location };
+          try { localStorage.setItem(PROFILE_KEY, JSON.stringify(saved)); } catch { /* device storage may be unavailable */ }
+          return saved;
+        });
+      })
+      .catch(() => { localStorage.removeItem('clsl_auth_token'); setPublicSession({ token: '', user: null, checked: true }); });
   }, []);
 
   useEffect(() => {
@@ -252,6 +267,14 @@ export default function Home() {
   const saveProfile = (next: Profile) => { const saved = { ...next, location: [next.city, next.state].filter(Boolean).join(', ') || next.location }; setProfile(saved); localStorage.setItem(PROFILE_KEY, JSON.stringify(saved)); setProfileOpen(false); };
   const changeLanguage = (next: LanguageCode) => { const updated = { ...profile, language: next }; setProfile(updated); localStorage.setItem(PROFILE_KEY, JSON.stringify(updated)); document.documentElement.lang = next; };
   const toggleTheme = () => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem(THEME_KEY, next); document.documentElement.dataset.theme = next; };
+  const completePublicLogin = (token: string, user: PublicUser) => {
+    setPublicSession({ token, user, checked: true });
+    setProfile((current) => {
+      const saved: Profile = { ...current, name: user.first_name || current.name, role: user.role || current.role, language: getLanguage(user.preferred_language), city: user.city || current.city, state: user.state || current.state, location: [user.village, user.city, user.district, user.state].filter(Boolean).join(', ') || current.location };
+      try { localStorage.setItem(PROFILE_KEY, JSON.stringify(saved)); } catch { /* device storage may be unavailable */ }
+      return saved;
+    });
+  };
   const chooseMascotPhotos = async (selected: File[]) => {
     const picked = selected.slice(0, 5);
     if (!picked.length) return;
@@ -277,7 +300,7 @@ export default function Home() {
     setAnalysisProgress(1); setLoading(true); setError('');
     const body = new FormData(form); body.set('language', language); files.forEach((file) => body.append('images', file));
     try {
-      const response = await fetch('/api/inspect', { method: 'POST', body });
+      const response = await fetch('/api/inspect', { method: 'POST', headers: publicSession.token ? { authorization: `Bearer ${publicSession.token}` } : undefined, body });
       const data = await readApiResponse<Diagnosis>(response);
       if (!response.ok) throw new Error(data.error || 'Unable to analyse these images.');
       setAnalysisProgress(100);
@@ -290,8 +313,10 @@ export default function Home() {
     finally { setLoading(false); setAnalysisProgress(0); }
   };
 
-  if (checkingAuth) return null;
-  if (!sessionToken) return <AuthFlow onComplete={(token) => setSessionToken(token)} t={t} />;
+
+  if (!fieldSession.loaded || !publicSession.checked) return <main className="auth-loading"><img src="/clsl-logo.png" alt="CLSL" /><b>CLSL AI</b><span>Preparing your crop companion…</span></main>;
+  if (!fieldSession.employee && !publicSession.user) return <AuthFlow onComplete={completePublicLogin} />;
+
 
   return <main className="app-shell">
     <Header view={view} nav={nav} profile={profile} onProfile={() => setProfileOpen(true)} language={language} changeLanguage={changeLanguage} theme={theme} toggleTheme={toggleTheme} t={t} />
@@ -299,14 +324,14 @@ export default function Home() {
     <TopWeatherBar location={profile.city || profile.location} openProfile={() => setProfileOpen(true)} t={t} />
     <div className="mascot-file-inputs" aria-hidden="true"><input ref={mascotCameraRef} tabIndex={-1} type="file" accept="image/*" capture="environment" onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /><input ref={mascotUploadRef} tabIndex={-1} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /></div>
     {view === 'home' && <HomeView nav={nav} t={t} language={language} location={profile.city || profile.location} mascotPreparing={mascotPreparing} takePhoto={() => mascotCameraRef.current?.click()} uploadPhotos={() => mascotUploadRef.current?.click()} />}
-    {view === 'inspect' && <section className="workspace"><PageTitle eyebrow={t.doctor} title={t.inspectHeading} text={t.inspectIntro} /><div className="inspection-layout"><div className="inspect-card large"><InspectionForm inputRef={inputRef} files={files} crops={approvedCrops} setFiles={setFiles} onAnalyse={analyse} loading={loading} analysisProgress={analysisProgress} error={error} t={t} fieldIdentity={fieldSession.employee} /></div><Tips t={t} /></div>{result && <Result result={result} profile={profile} onClose={() => setResult(null)} openProfile={() => setProfileOpen(true)} openProducts={openProducts} openProduct={setSelectedProduct} nav={nav} t={t} />}</section>}
+    {view === 'inspect' && <section className="workspace"><PageTitle eyebrow={t.doctor} title={t.inspectHeading} text={t.inspectIntro} /><div className="inspection-layout"><div className="inspect-card large"><InspectionForm inputRef={inputRef} files={files} crops={approvedCrops} setFiles={setFiles} onAnalyse={analyse} loading={loading} analysisProgress={analysisProgress} error={error} t={t} fieldIdentity={fieldSession.employee} initialCoordinates={publicSession.user?.location_latitude != null && publicSession.user?.location_longitude != null ? { latitude: publicSession.user.location_latitude, longitude: publicSession.user.location_longitude } : null} /></div><Tips t={t} /></div>{result && <Result result={result} profile={profile} onClose={() => setResult(null)} openProfile={() => setProfileOpen(true)} openProducts={openProducts} openProduct={setSelectedProduct} nav={nav} t={t} />}</section>}
     {view === 'assistant' && <Assistant openProduct={setSelectedProduct} language={language} crops={approvedCrops} t={t} />}
     {view === 'products' && <Products products={approvedCatalogue || []} loading={approvedCatalogue === null} unavailable={catalogueUnavailable} initialQuery={productQuery} onQuery={setProductQuery} openProduct={setSelectedProduct} t={t} />}
     {view === 'tools' && <FarmTools language={language} />}
     {view === 'history' && <HistoryView history={history} openResult={(savedResult) => { setResult(savedResult); nav('inspect'); }} nav={nav} clear={() => { setHistory([]); localStorage.removeItem(HISTORY_KEY); }} t={t} />}
     <MobileNav view={view} nav={nav} t={t} />
     <PwaInstall label={t.installApp} iosHelp={t.iosInstallHelp} />
-    <footer><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><div><b>{t.productOf}</b></div><button onClick={() => nav('home')}>{t.home} ↑</button></footer>
+    <div className="app-sprayer-footer"><SprayerScene /></div><footer><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><div><b>{t.productOf}</b></div><button onClick={() => nav('home')}>{t.home} ↑</button></footer>
     {selectedProduct && <ProductModal product={selectedProduct} close={() => setSelectedProduct(null)} nav={nav} t={t} />}
     {profileOpen && <ProfileModal profile={profile} save={saveProfile} close={() => setProfileOpen(false)} t={t} fieldIdentity={fieldSession.employee} />}
   </main>;
@@ -371,36 +396,40 @@ function PhotoPreview({ file, index, remove, compact = false }: { file: File; in
   return <figure className={`photo-preview ${compact ? 'compact' : ''}`}><img src={source} alt={`Uploaded crop photo ${index + 1}`} /><figcaption>{index + 1}</figcaption><button type="button" aria-label={`Remove uploaded crop photo ${index + 1}`} onClick={remove}>×</button></figure>;
 }
 
-function InspectionForm({ inputRef, files, crops, setFiles, onAnalyse, loading, analysisProgress, error, t, fieldIdentity }: { inputRef: RefObject<HTMLInputElement | null>; files: File[]; crops: string[]; setFiles: (files: File[]) => void; onAnalyse: (form: HTMLFormElement) => Promise<void>; loading: boolean; analysisProgress: number; error: string; t: Copy; fieldIdentity: FieldIdentity | null }) {
+function InspectionForm({ inputRef, files, crops, setFiles, onAnalyse, loading, analysisProgress, error, t, fieldIdentity, initialCoordinates }: { inputRef: RefObject<HTMLInputElement | null>; files: File[]; crops: string[]; setFiles: (files: File[]) => void; onAnalyse: (form: HTMLFormElement) => Promise<void>; loading: boolean; analysisProgress: number; error: string; t: Copy; fieldIdentity: FieldIdentity | null; initialCoordinates: { latitude: number; longitude: number } | null }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const [preparing, setPreparing] = useState(false);
   const [qualityMessage, setQualityMessage] = useState('');
   const [crop, setCrop] = useState('');
-  const [lat, setLat] = useState('');
-  const [lng, setLng] = useState('');
-
-  useEffect(() => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLat(String(position.coords.latitude));
-          setLng(String(position.coords.longitude));
-        },
-        () => {} // Silently ignore denial or errors, it's optional
-      );
-    }
-  }, []);
+  const [lat, setLat] = useState(initialCoordinates ? String(initialCoordinates.latitude) : '');
+  const [lng, setLng] = useState(initialCoordinates ? String(initialCoordinates.longitude) : '');
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState('');
 
   const salesMode = fieldIdentity?.collection_mode === 'sales_officer';
   const minimumImages = salesMode ? 4 : 1;
   const cropOptions = Array.from(new Set(crops.filter((item) => item && item.toLowerCase() !== 'other'))).sort((left, right) => left.localeCompare(right));
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!lat || !lng) {
+      setLocationError(t.inspectionLocationRequired);
+      return;
+    }
     if (!crop.trim()) {
       setQualityMessage(t.cropRequired);
       return;
     }
     void onAnalyse(event.currentTarget);
+  };
+  const requestLocation = () => {
+    setLocationError('');
+    if (!navigator.geolocation) { setLocationError(t.inspectionLocationUnsupported); return; }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => { setLat(String(position.coords.latitude)); setLng(String(position.coords.longitude)); setLocating(false); },
+      () => { setLocationError(t.inspectionLocationDenied); setLocating(false); },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 },
+    );
   };
   const chooseFiles = async (selected: File[]) => {
     const available = selected.slice(0, Math.max(0, 5 - files.length));
@@ -416,7 +445,7 @@ function InspectionForm({ inputRef, files, crops, setFiles, onAnalyse, loading, 
   const stage = analysisProgress < 28 ? t.stageIdentify : analysisProgress < 56 ? t.stageClassify : analysisProgress < 82 ? t.stageMatch : t.stageFinal;
   const inputChange = (event: ChangeEvent<HTMLInputElement>) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseFiles(selected); };
   const roles = fieldPhotoRoles(t);
-  return <form onSubmit={submit}><div className="card-heading"><span className="step-badge">01</span><div><h2>{salesMode ? t.fieldCompleteFour : t.addPhotos}</h2><p>{salesMode ? `${fieldIdentity?.full_name} · ${files.length}/4 ${t.fieldPhotosAdded}` : t.upToFive}</p></div></div>{salesMode && <section className="field-photo-contract"><header><div><small>{t.fieldStructuredCollection}</small><b>{t.fieldFourPhotoRequest}</b></div><span className={files.length >= 4 ? 'complete' : ''}>{Math.min(files.length, 4)}/4</span></header><div className="field-photo-slots">{roles.map((role, index) => <article key={role.title} className={files[index] ? 'filled' : ''}><i>{files[index] ? '✓' : index + 1}</i>{files[index] && <PhotoPreview file={files[index]} index={index} compact remove={() => setFiles(files.filter((_, item) => item !== index))} />}<div><b>{role.title}</b><small>{files[index]?.name || role.help}</small></div>{files[index] && <button type="button" aria-label={`${t.fieldRemovePhoto} ${index + 1}`} onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button>}</article>)}</div><p>{t.fieldDailyTarget}</p></section>}<div className={`upload-zone ${files.length ? 'has-files' : ''}`}><input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={inputChange} /><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={inputChange} /><span className="upload-icon">⌾</span><strong>{preparing ? t.preparing : files.length ? `${files.length} ${t.ready}` : t.upload}</strong><small>{preparing ? t.faster : salesMode ? `${t.fieldNextPhoto}: ${roles[Math.min(files.length, 3)].title}` : files.length ? t.photoPreviewReady : t.photoSourceHelp}</small><div className="photo-source-actions"><button type="button" onClick={() => cameraRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">⌾</span>{t.takeNewPhoto}</button><button type="button" className="gallery" onClick={() => inputRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">▧</span>{t.chooseGallery}</button></div></div>{qualityMessage && <p className="photo-quality-message passed">{qualityMessage}</p>}{files.length > 0 && <div className="photo-preview-grid" aria-label={t.photoPreviewReady}>{files.map((file, index) => <PhotoPreview key={`${file.name}-${index}`} file={file} index={index} remove={() => setFiles(files.filter((_, item) => item !== index))} />)}</div>}<div className="form-row"><label className="crop-picker full-width"><span>{t.crop} <b aria-label={t.cropRequired}>*</b></span><input name="crop" list="clsl-crop-options" value={crop} onChange={(event) => setCrop(event.target.value)} placeholder={t.cropSearchPlaceholder} required autoComplete="off" /><datalist id="clsl-crop-options">{cropOptions.map((item) => <option key={item} value={item} />)}<option value="Other">{t.otherCrop}</option></datalist><small>{t.cropRequired}</small></label>{lat && lng && <><input type="hidden" name="latitude" value={lat} /><input type="hidden" name="longitude" value={lng} /></>}</div><label className="full-field"><span>{t.notice} <small>{t.optional}</small></span><textarea name="description" placeholder={t.noticePlaceholder} /></label>{error && <p className="form-error">{error}</p>}{loading && <div className="analysis-progress" role="status" aria-live="polite"><div><span>{t.detailedAnalysis}</span><b>{analysisProgress}%</b></div><div className="analysis-track"><i style={{ width: `${analysisProgress}%` }} /></div><div className="analysis-mascot"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><p><b>{t.mascotAnalysing}</b><span>{stage}</span></p></div></div>}<button className="primary-button" disabled={files.length < minimumImages || loading || preparing || !crop.trim()}>{loading ? `${t.analysing} ${analysisProgress}%` : preparing ? t.preparing : salesMode && files.length < 4 ? t.fieldFourRequired : t.analyse} <span>{loading || preparing ? '◌' : '→'}</span></button><p className="safety-note">{salesMode ? `${t.fieldAnyPhotoAccepted} ` : ''}{t.safety}</p></form>;
+  return <form onSubmit={submit}><section className={`inspection-location-gate ${lat && lng ? 'ready' : ''}`}><span>{lat && lng ? '✓' : '⌖'}</span><div><b>{lat && lng ? t.inspectionLocationReady : t.inspectionLocationTitle}</b><p>{lat && lng ? t.inspectionLocationReadyHelp : t.inspectionLocationHelp}</p></div>{!lat && <button type="button" onClick={requestLocation} disabled={locating}>{locating ? t.inspectionLocating : t.inspectionAllowLocation}</button>}</section>{locationError && <p className="form-error">{locationError}</p>}<div className="card-heading"><span className="step-badge">01</span><div><h2>{salesMode ? t.fieldCompleteFour : t.addPhotos}</h2><p>{salesMode ? `${fieldIdentity?.full_name} · ${files.length}/4 ${t.fieldPhotosAdded}` : t.upToFive}</p></div></div>{salesMode && <section className="field-photo-contract"><header><div><small>{t.fieldStructuredCollection}</small><b>{t.fieldFourPhotoRequest}</b></div><span className={files.length >= 4 ? 'complete' : ''}>{Math.min(files.length, 4)}/4</span></header><div className="field-photo-slots">{roles.map((role, index) => <article key={role.title} className={files[index] ? 'filled' : ''}><i>{files[index] ? '✓' : index + 1}</i>{files[index] && <PhotoPreview file={files[index]} index={index} compact remove={() => setFiles(files.filter((_, item) => item !== index))} />}<div><b>{role.title}</b><small>{files[index]?.name || role.help}</small></div>{files[index] && <button type="button" aria-label={`${t.fieldRemovePhoto} ${index + 1}`} onClick={() => setFiles(files.filter((_, item) => item !== index))}>×</button>}</article>)}</div><p>{t.fieldDailyTarget}</p></section>}<div className={`upload-zone ${files.length ? 'has-files' : ''}`}><input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={inputChange} /><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={inputChange} /><span className="upload-icon">⌾</span><strong>{preparing ? t.preparing : files.length ? `${files.length} ${t.ready}` : t.upload}</strong><small>{preparing ? t.faster : salesMode ? `${t.fieldNextPhoto}: ${roles[Math.min(files.length, 3)].title}` : files.length ? t.photoPreviewReady : t.photoSourceHelp}</small><div className="photo-source-actions"><button type="button" onClick={() => cameraRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">⌾</span>{t.takeNewPhoto}</button><button type="button" className="gallery" onClick={() => inputRef.current?.click()} disabled={preparing || loading || files.length >= 5}><span aria-hidden="true">▧</span>{t.chooseGallery}</button></div></div>{qualityMessage && <p className="photo-quality-message passed">{qualityMessage}</p>}{files.length > 0 && <div className="photo-preview-grid" aria-label={t.photoPreviewReady}>{files.map((file, index) => <PhotoPreview key={`${file.name}-${index}`} file={file} index={index} remove={() => setFiles(files.filter((_, item) => item !== index))} />)}</div>}<div className="form-row"><label className="crop-picker full-width"><span>{t.crop} <b aria-label={t.cropRequired}>*</b></span><input name="crop" list="clsl-crop-options" value={crop} onChange={(event) => setCrop(event.target.value)} placeholder={t.cropSearchPlaceholder} required autoComplete="off" /><datalist id="clsl-crop-options">{cropOptions.map((item) => <option key={item} value={item} />)}<option value="Other">{t.otherCrop}</option></datalist><small>{t.cropRequired}</small></label>{lat && lng && <><input type="hidden" name="latitude" value={lat} /><input type="hidden" name="longitude" value={lng} /><input type="hidden" name="location" value={`${lat},${lng}`} /></>}</div><label className="full-field"><span>{t.notice} <small>{t.optional}</small></span><textarea name="description" placeholder={t.noticePlaceholder} /></label>{error && <p className="form-error">{error}</p>}{loading && <div className="analysis-progress" role="status" aria-live="polite"><div><span>{t.detailedAnalysis}</span><b>{analysisProgress}%</b></div><div className="analysis-track"><i style={{ width: `${analysisProgress}%` }} /></div><div className="analysis-mascot"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><p><b>{t.mascotAnalysing}</b><span>{stage}</span></p></div></div>}<button className="primary-button" disabled={files.length < minimumImages || loading || preparing || !crop.trim() || !lat || !lng}>{loading ? `${t.analysing} ${analysisProgress}%` : preparing ? t.preparing : salesMode && files.length < 4 ? t.fieldFourRequired : !lat || !lng ? t.inspectionLocationRequired : t.analyse} <span>{loading || preparing ? '◌' : '→'}</span></button><p className="safety-note">{salesMode ? `${t.fieldAnyPhotoAccepted} ` : ''}{t.safety}</p></form>;
 }
 function Tips({ t }: { t: Copy }) { return <aside className="tips"><h3>{t.tips}</h3><ol><li><b>{t.wholePlant}</b><span>{t.wholePlantHelp}</span></li><li><b>{t.affectedArea}</b><span>{t.affectedHelp}</span></li><li><b>{t.underside}</b><span>{t.undersideHelp}</span></li></ol><div className="privacy-box"><b>{t.cropData}</b><p>{t.privacy}</p></div></aside>; }
 

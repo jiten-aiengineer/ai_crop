@@ -1,221 +1,88 @@
-import React, { useState } from 'react';
+'use client';
 
-type AuthFlowProps = {
-  onComplete: (token: string, requiresOnboarding: boolean) => void;
-  t: Record<string, string>;
+import { ChangeEvent, FormEvent, useMemo, useRef, useState } from 'react';
+import { LanguageCode, languages } from '../lib/i18n';
+
+export type PublicUser = {
+  id: string; mobile_number: string; first_name: string; role: 'general_user' | 'farmer' | 'dealer' | 'other' | null;
+  preferred_language: LanguageCode; email?: string; city?: string; district?: string; village?: string; state?: string;
+  social_media_used?: string[]; acquisition_source?: string; location_latitude?: number; location_longitude?: number;
+  requires_onboarding?: boolean;
 };
 
-export function AuthFlow({ onComplete, t }: AuthFlowProps) {
-  const [step, setStep] = useState<'mobile' | 'otp' | 'role' | 'details'>('mobile');
-  const [mobile, setMobile] = useState('');
-  const [otp, setOtp] = useState('');
-  const [role, setRole] = useState('');
-  const [name, setName] = useState('');
-  const [crop, setCrop] = useState('');
-  const [location, setLocation] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [sessionToken, setSessionToken] = useState('');
+type Role = 'general_user' | 'farmer' | 'dealer' | 'other';
+type Step = 'language' | 'basics' | 'role' | 'details' | 'otp';
+type Dealer = { dealer_code: string; name: string; location?: string; sales_area?: string; sales_region?: string; sales_territory?: string; state?: string; already_bound?: boolean };
 
-  const sendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+const copy: Record<LanguageCode, Record<string, string>> = {
+  en: { welcome:'Welcome to CLSL AI', chooseLanguage:'Choose your language to continue', continue:'Continue', basics:'Let’s know you better', basicsHelp:'Your details help CLSL provide useful crop support.', firstName:'First name', mobile:'Mobile number', roleTitle:'How will you use CLSL AI?', roleHelp:'Choose one option. You can update your profile later.', general_user:'General user', farmer:'Farmer', dealer:'Dealer', other:'Other person', general_userHelp:'Crop information and CLSL support', farmerHelp:'Crop inspection, referrals and farmer benefits', dealerHelp:'Dealer tools, referrals and coupon support', otherHelp:'Explore CLSL AI and crop support', profile:'Complete your profile', city:'City', village:'Village', district:'District', state:'State', email:'Email (optional)', social:'Which social media do you use?', source:'Where did you hear about CLSL AI?', useLocation:'Use my current location', locationReady:'Location captured securely', referral:'Dealer referral code (optional)', referralHelp:'Ask your dealer for a referral code to receive eligible discounts and coupons.', scanQr:'Scan dealer QR', dealerCode:'CLSL dealer code', verifyDealer:'Verify dealer', dealerConfirm:'Confirm this is my dealership', sendOtp:'Login with OTP', otpTitle:'Verify your mobile', otpHelp:'Testing mode is active. Enter 123456.', otp:'6-digit OTP', verify:'Verify and enter CLSL AI', back:'Back', test:'TEST LOGIN · Airtel DLT will be connected after application testing', required:'Please complete the required information.', locateError:'Location could not be fetched. Enter your city or village manually.', qrError:'QR scanning is not supported on this device. Enter the referral code manually.', dealerRequired:'Verify and confirm your dealership first.', referralValid:'Dealer referral verified', loading:'Please wait…' },
+  hi: { welcome:'CLSL AI में आपका स्वागत है', chooseLanguage:'आगे बढ़ने के लिए भाषा चुनें', continue:'आगे बढ़ें', basics:'पहले आपकी जानकारी', basicsHelp:'आपकी जानकारी से CLSL बेहतर फसल सहायता दे पाएगा।', firstName:'पहला नाम', mobile:'मोबाइल नंबर', roleTitle:'आप CLSL AI का उपयोग कैसे करेंगे?', roleHelp:'एक विकल्प चुनें। प्रोफ़ाइल बाद में बदली जा सकती है।', general_user:'सामान्य उपयोगकर्ता', farmer:'किसान', dealer:'डीलर', other:'अन्य व्यक्ति', general_userHelp:'फसल जानकारी और CLSL सहायता', farmerHelp:'फसल जाँच, रेफरल और किसान लाभ', dealerHelp:'डीलर, रेफरल और कूपन सहायता', otherHelp:'CLSL AI और फसल सहायता देखें', profile:'अपनी प्रोफ़ाइल पूरी करें', city:'शहर', village:'गाँव', district:'जिला', state:'राज्य', email:'ईमेल (वैकल्पिक)', social:'आप कौन सा सोशल मीडिया उपयोग करते हैं?', source:'CLSL AI के बारे में कहाँ से पता चला?', useLocation:'मेरी वर्तमान लोकेशन लें', locationReady:'लोकेशन सुरक्षित रूप से मिल गई', referral:'डीलर रेफरल कोड (वैकल्पिक)', referralHelp:'योग्य छूट और कूपन के लिए अपने डीलर से रेफरल कोड माँगें।', scanQr:'डीलर QR स्कैन करें', dealerCode:'CLSL डीलर कोड', verifyDealer:'डीलर सत्यापित करें', dealerConfirm:'यह मेरी डीलरशिप है', sendOtp:'OTP से लॉगिन करें', otpTitle:'मोबाइल सत्यापित करें', otpHelp:'टेस्टिंग मोड चालू है। 123456 दर्ज करें।', otp:'6 अंकों का OTP', verify:'सत्यापित करें और CLSL AI खोलें', back:'पीछे', test:'टेस्ट लॉगिन · ऐप परीक्षण के बाद Airtel DLT जोड़ा जाएगा', required:'कृपया जरूरी जानकारी पूरी करें।', locateError:'लोकेशन नहीं मिली। शहर या गाँव स्वयं लिखें।', qrError:'इस डिवाइस पर QR स्कैन उपलब्ध नहीं है। कोड स्वयं लिखें।', dealerRequired:'पहले डीलरशिप सत्यापित और कन्फर्म करें।', referralValid:'डीलर रेफरल सत्यापित', loading:'कृपया प्रतीक्षा करें…' },
+  gu: { welcome:'CLSL AI માં આપનું સ્વાગત છે', chooseLanguage:'આગળ વધવા ભાષા પસંદ કરો', continue:'આગળ વધો', basics:'તમારી માહિતી આપો', basicsHelp:'તમારી માહિતી CLSL ને વધુ સારી પાક સહાયમાં મદદ કરે છે.', firstName:'પ્રથમ નામ', mobile:'મોબાઇલ નંબર', roleTitle:'તમે CLSL AI કેવી રીતે વાપરશો?', roleHelp:'એક વિકલ્પ પસંદ કરો.', general_user:'સામાન્ય વપરાશકર્તા', farmer:'ખેડૂત', dealer:'ડીલર', other:'અન્ય વ્યક્તિ', general_userHelp:'પાક માહિતી અને CLSL સહાય', farmerHelp:'પાક તપાસ, રેફરલ અને લાભ', dealerHelp:'ડીલર, રેફરલ અને કૂપન સહાય', otherHelp:'CLSL AI અને પાક સહાય', profile:'પ્રોફાઇલ પૂર્ણ કરો', city:'શહેર', village:'ગામ', district:'જિલ્લો', state:'રાજ્ય', email:'ઇમેઇલ (વૈકલ્પિક)', social:'તમે કયું સોશિયલ મીડિયા વાપરો છો?', source:'CLSL AI વિશે ક્યાંથી જાણ્યું?', useLocation:'મારું વર્તમાન સ્થાન લો', locationReady:'સ્થાન સુરક્ષિત રીતે મળ્યું', referral:'ડીલર રેફરલ કોડ (વૈકલ્પિક)', referralHelp:'ડિસ્કાઉન્ટ અને કૂપન માટે ડીલર પાસેથી રેફરલ કોડ માંગો.', scanQr:'ડીલર QR સ્કેન કરો', dealerCode:'CLSL ડીલર કોડ', verifyDealer:'ડીલર ચકાસો', dealerConfirm:'આ મારી ડીલરશિપ છે', sendOtp:'OTP થી લૉગિન', otpTitle:'મોબાઇલ ચકાસો', otpHelp:'ટેસ્ટ મોડ ચાલુ છે. 123456 દાખલ કરો.', otp:'6 અંકનો OTP', verify:'ચકાસો અને CLSL AI ખોલો', back:'પાછળ', test:'ટેસ્ટ લૉગિન · પરીક્ષણ પછી Airtel DLT જોડાશે', required:'જરૂરી માહિતી પૂર્ણ કરો.', locateError:'સ્થાન મળ્યું નહીં. શહેર અથવા ગામ લખો.', qrError:'આ ઉપકરણ પર QR સ્કેન ઉપલબ્ધ નથી.', dealerRequired:'ડીલરશિપ પહેલા ચકાસો.', referralValid:'ડીલર રેફરલ ચકાસાયું', loading:'કૃપા કરી રાહ જુઓ…' },
+  mr: { welcome:'CLSL AI मध्ये आपले स्वागत', chooseLanguage:'पुढे जाण्यासाठी भाषा निवडा', continue:'पुढे जा', basics:'तुमची माहिती द्या', basicsHelp:'तुमच्या माहितीतून CLSL चांगली पीक मदत देऊ शकते.', firstName:'पहिले नाव', mobile:'मोबाईल नंबर', roleTitle:'तुम्ही CLSL AI कसे वापरणार?', roleHelp:'एक पर्याय निवडा.', general_user:'सामान्य वापरकर्ता', farmer:'शेतकरी', dealer:'डीलर', other:'इतर व्यक्ती', general_userHelp:'पीक माहिती आणि CLSL मदत', farmerHelp:'पीक तपासणी, रेफरल आणि लाभ', dealerHelp:'डीलर, रेफरल आणि कूपन मदत', otherHelp:'CLSL AI आणि पीक मदत', profile:'प्रोफाइल पूर्ण करा', city:'शहर', village:'गाव', district:'जिल्हा', state:'राज्य', email:'ईमेल (ऐच्छिक)', social:'तुम्ही कोणते सोशल मीडिया वापरता?', source:'CLSL AI बद्दल कुठून कळले?', useLocation:'माझे सध्याचे स्थान वापरा', locationReady:'स्थान सुरक्षितपणे मिळाले', referral:'डीलर रेफरल कोड (ऐच्छिक)', referralHelp:'सवलत आणि कूपनसाठी डीलरकडून रेफरल कोड मागा.', scanQr:'डीलर QR स्कॅन', dealerCode:'CLSL डीलर कोड', verifyDealer:'डीलर तपासा', dealerConfirm:'ही माझी डीलरशिप आहे', sendOtp:'OTP ने लॉगिन', otpTitle:'मोबाईल तपासा', otpHelp:'चाचणी मोड सुरू आहे. 123456 टाका.', otp:'6 अंकी OTP', verify:'तपासा आणि CLSL AI उघडा', back:'मागे', test:'टेस्ट लॉगिन · चाचणीनंतर Airtel DLT जोडले जाईल', required:'आवश्यक माहिती पूर्ण करा.', locateError:'स्थान मिळाले नाही. शहर किंवा गाव लिहा.', qrError:'या डिव्हाइसवर QR स्कॅन उपलब्ध नाही.', dealerRequired:'आधी डीलरशिप तपासा.', referralValid:'डीलर रेफरल तपासले', loading:'कृपया थांबा…' },
+  bn: { welcome:'CLSL AI-তে স্বাগতম', chooseLanguage:'এগিয়ে যেতে ভাষা বেছে নিন', continue:'এগিয়ে যান', basics:'আপনার তথ্য দিন', basicsHelp:'আপনার তথ্য CLSL-কে ভালো ফসল সহায়তা দিতে সাহায্য করে।', firstName:'প্রথম নাম', mobile:'মোবাইল নম্বর', roleTitle:'আপনি CLSL AI কীভাবে ব্যবহার করবেন?', roleHelp:'একটি বিকল্প বেছে নিন।', general_user:'সাধারণ ব্যবহারকারী', farmer:'কৃষক', dealer:'ডিলার', other:'অন্যান্য ব্যক্তি', general_userHelp:'ফসল তথ্য ও CLSL সহায়তা', farmerHelp:'ফসল পরীক্ষা, রেফারেল ও সুবিধা', dealerHelp:'ডিলার, রেফারেল ও কুপন সহায়তা', otherHelp:'CLSL AI ও ফসল সহায়তা', profile:'প্রোফাইল সম্পূর্ণ করুন', city:'শহর', village:'গ্রাম', district:'জেলা', state:'রাজ্য', email:'ইমেল (ঐচ্ছিক)', social:'আপনি কোন সোশ্যাল মিডিয়া ব্যবহার করেন?', source:'CLSL AI সম্পর্কে কোথা থেকে জেনেছেন?', useLocation:'আমার বর্তমান অবস্থান নিন', locationReady:'অবস্থান নিরাপদে নেওয়া হয়েছে', referral:'ডিলার রেফারেল কোড (ঐচ্ছিক)', referralHelp:'ছাড় ও কুপনের জন্য ডিলারের কাছে রেফারেল কোড চান।', scanQr:'ডিলার QR স্ক্যান', dealerCode:'CLSL ডিলার কোড', verifyDealer:'ডিলার যাচাই', dealerConfirm:'এটি আমার ডিলারশিপ', sendOtp:'OTP দিয়ে লগইন', otpTitle:'মোবাইল যাচাই করুন', otpHelp:'টেস্ট মোড চালু। 123456 লিখুন।', otp:'৬ সংখ্যার OTP', verify:'যাচাই করে CLSL AI খুলুন', back:'পিছনে', test:'টেস্ট লগইন · পরীক্ষার পরে Airtel DLT যুক্ত হবে', required:'প্রয়োজনীয় তথ্য পূরণ করুন।', locateError:'অবস্থান পাওয়া যায়নি। শহর বা গ্রাম লিখুন।', qrError:'এই ডিভাইসে QR স্ক্যান নেই।', dealerRequired:'আগে ডিলারশিপ যাচাই করুন।', referralValid:'ডিলার রেফারেল যাচাই হয়েছে', loading:'অপেক্ষা করুন…' },
+  bho: { welcome:'CLSL AI में रउआ स्वागत बा', chooseLanguage:'आगे बढ़े खातिर भाषा चुनीं', continue:'आगे बढ़ीं', basics:'अपना जानकारी दीं', basicsHelp:'रउआ जानकारी से CLSL बेहतर फसल मदद दी।', firstName:'पहिल नाम', mobile:'मोबाइल नंबर', roleTitle:'रउआ CLSL AI के कइसे इस्तेमाल करब?', roleHelp:'एगो विकल्प चुनीं।', general_user:'सामान्य उपयोगकर्ता', farmer:'किसान', dealer:'डीलर', other:'दूसर व्यक्ति', general_userHelp:'फसल जानकारी आ CLSL मदद', farmerHelp:'फसल जाँच, रेफरल आ लाभ', dealerHelp:'डीलर, रेफरल आ कूपन मदद', otherHelp:'CLSL AI आ फसल मदद', profile:'प्रोफाइल पूरा करीं', city:'शहर', village:'गाँव', district:'जिला', state:'राज्य', email:'ईमेल (जरूरी नइखे)', social:'रउआ कवन सोशल मीडिया चलावेनी?', source:'CLSL AI के बारे में कहाँ से पता चलल?', useLocation:'हमार अभी के लोकेशन लीं', locationReady:'लोकेशन सुरक्षित मिल गइल', referral:'डीलर रेफरल कोड (जरूरी नइखे)', referralHelp:'छूट आ कूपन खातिर डीलर से रेफरल कोड माँगीं।', scanQr:'डीलर QR स्कैन करीं', dealerCode:'CLSL डीलर कोड', verifyDealer:'डीलर जाँचीं', dealerConfirm:'ई हमार डीलरशिप बा', sendOtp:'OTP से लॉगिन', otpTitle:'मोबाइल जाँचीं', otpHelp:'टेस्ट मोड चालू बा। 123456 डालीं।', otp:'6 अंक के OTP', verify:'जाँच के CLSL AI खोलीं', back:'पीछे', test:'टेस्ट लॉगिन · टेस्ट के बाद Airtel DLT जुड़ी', required:'जरूरी जानकारी पूरा करीं।', locateError:'लोकेशन ना मिलल। शहर भा गाँव लिखीं।', qrError:'ई डिवाइस पर QR स्कैन ना बा।', dealerRequired:'पहिले डीलरशिप जाँचीं।', referralValid:'डीलर रेफरल जाँच हो गइल', loading:'तनिका रुकीं…' },
+};
+
+const socialOptions = ['WhatsApp', 'Facebook', 'Instagram', 'YouTube', 'Telegram', 'X'];
+const sourceOptions = ['Dealer', 'Sales Officer', 'Facebook', 'Instagram', 'YouTube', 'WhatsApp', 'Google', 'Friend / Family', 'Other'];
+
+async function api<T extends Record<string, unknown> = Record<string, unknown>>(path: string, body: unknown, token?: string): Promise<T> {
+  const response = await fetch(`/api/auth/${path}`, { method:'POST', headers:{ 'content-type':'application/json', ...(token ? { authorization:`Bearer ${token}` } : {}) }, body:JSON.stringify(body) });
+  const text = await response.text();
+  let data: Record<string, unknown> = {};
+  try { const parsed: unknown = JSON.parse(text); if (parsed && typeof parsed === 'object') data = parsed as Record<string, unknown>; } catch { /* handled below */ }
+  if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : typeof data.error === 'string' ? data.error : 'Unable to continue. Please try again.');
+  return data as T;
+}
+
+export function SprayerScene({ compact = false }: { compact?: boolean }) {
+  return <div className={`sprayer-scene ${compact ? 'compact' : ''}`} aria-hidden="true"><div className="sprayer-track"><img src="/clsl-field-sprayer.png" alt="" /><b>CLSL</b><i /><i /><i /></div></div>;
+}
+
+export function AuthFlow({ onComplete }: { onComplete: (token: string, user: PublicUser) => void }) {
+  const [step,setStep] = useState<Step>('language');
+  const [language,setLanguage] = useState<LanguageCode>('en');
+  const [firstName,setFirstName] = useState(''); const [mobile,setMobile] = useState('');
+  const [role,setRole] = useState<Role>('general_user'); const [email,setEmail] = useState('');
+  const [city,setCity] = useState(''); const [village,setVillage] = useState(''); const [district,setDistrict] = useState(''); const [state,setState] = useState('');
+  const [social,setSocial] = useState<string[]>([]); const [source,setSource] = useState('');
+  const [referral,setReferral] = useState(''); const [referralName,setReferralName] = useState('');
+  const [dealerCode,setDealerCode] = useState(''); const [dealer,setDealer] = useState<Dealer | null>(null); const [dealerConfirmed,setDealerConfirmed] = useState(false);
+  const [coordinates,setCoordinates] = useState<{ latitude:number; longitude:number } | null>(null);
+  const [otp,setOtp] = useState(''); const [token,setToken] = useState('');
+  const [loading,setLoading] = useState(false); const [error,setError] = useState('');
+  const qrInput = useRef<HTMLInputElement>(null); const c = copy[language];
+  const normalizedMobile = useMemo(() => mobile.replace(/\D/g,'').replace(/^91(?=\d{10}$)/,''),[mobile]);
+  const previous: Record<Step,Step> = { language:'language', basics:'language', role:'basics', details:'role', otp:'details' };
+  const fail = (problem: unknown) => setError(problem instanceof Error ? problem.message : c.required);
+
+  const locate = () => {
     setError('');
+    if (!navigator.geolocation) return setError(c.locateError);
     setLoading(true);
-    let number = mobile.trim();
-    if (!number.startsWith('+')) {
-      number = '+91' + number;
-    }
-    try {
-      const res = await fetch('/api/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile_number: number })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Failed to send OTP');
-      setMobile(number);
-      setStep('otp');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
+    navigator.geolocation.getCurrentPosition(async position => {
+      const point = { latitude:position.coords.latitude, longitude:position.coords.longitude }; setCoordinates(point);
+      try { const response=await fetch(`/api/weather?lat=${point.latitude}&lon=${point.longitude}`); const data=await response.json() as { location?: string }; if(response.ok && data.location && !city) setCity(String(data.location).split(',')[0]); } catch { /* coordinates are still retained */ }
       setLoading(false);
-    }
+    },()=>{setError(c.locateError);setLoading(false);},{enableHighAccuracy:true,timeout:12000,maximumAge:300000});
   };
-
-  const verifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const res = await fetch('/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile_number: mobile, otp })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Invalid OTP');
-      
-      setSessionToken(data.session_token);
-      localStorage.setItem('clsl_auth_token', data.session_token);
-
-      if (data.requires_onboarding) {
-        setStep('role');
-      } else {
-        onComplete(data.session_token, false);
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const lookupDealer = async () => { setLoading(true);setError('');setDealer(null);setDealerConfirmed(false);try{const data=await api<{dealer:Dealer}>('dealer-lookup',{dealer_code:dealerCode});setDealer(data.dealer);}catch(problem){fail(problem);}finally{setLoading(false);} };
+  const verifyReferral = async () => { if(!referral.trim()){setReferralName('');return;} setLoading(true);setError('');try{const data=await api<{dealer:{name:string}}>('referral-lookup',{referral_code:referral.trim()});setReferralName(data.dealer.name);}catch(problem){setReferralName('');fail(problem);}finally{setLoading(false);} };
+  const scanQr = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file=event.target.files?.[0];event.target.value='';if(!file)return;
+    try { const Detector=(window as unknown as {BarcodeDetector?:new(o:{formats:string[]})=>{detect:(source:ImageBitmap)=>Promise<Array<{rawValue:string}>>}}).BarcodeDetector; if(!Detector)throw new Error(c.qrError);const bitmap=await createImageBitmap(file);const codes=await new Detector({formats:['qr_code']}).detect(bitmap);bitmap.close();if(!codes[0]?.rawValue)throw new Error(c.qrError);const raw=codes[0].rawValue;let value=raw;try{const url=new URL(raw);value=url.searchParams.get('ref')||url.pathname.split('/').filter(Boolean).pop()||raw;}catch{/* plain referral token */}setReferral(value); } catch(problem){fail(problem);}
   };
+  const startOtp = async (event: FormEvent) => { event.preventDefault();setError('');if(!city.trim()&&!village.trim()&&role!=='dealer')return setError(c.required);if(role==='dealer'&&(!dealer||!dealerConfirmed))return setError(c.dealerRequired);setLoading(true);try{await api('send-otp',{mobile_number:`+91${normalizedMobile}`});setOtp('');setStep('otp');}catch(problem){fail(problem);}finally{setLoading(false);} };
+  const finish = async (event: FormEvent) => { event.preventDefault();setLoading(true);setError('');try{const verified=await api<{session_token:string;user:PublicUser}>('verify-otp',{mobile_number:`+91${normalizedMobile}`,otp});const session=verified.session_token;setToken(session);if(!verified.user.requires_onboarding){localStorage.setItem('clsl_auth_token',session);onComplete(session,verified.user);return;}const data=await api<{user:PublicUser}>('profile',{role,first_name:firstName,preferred_language:language,email:email||null,city:city||null,district:district||null,village:village||null,state:state||null,social_media_used:social,acquisition_source:source||null,referral_code:role==='farmer'&&referral?referral:null,dealer_code:role==='dealer'?dealerCode:null,location_latitude:coordinates?.latitude,location_longitude:coordinates?.longitude,location_consent:Boolean(coordinates)},session);localStorage.setItem('clsl_auth_token',session);onComplete(session,data.user);}catch(problem){fail(problem);}finally{setLoading(false);} };
 
-  const submitRole = async (selectedRole: string) => {
-    setRole(selectedRole);
-    setStep('details');
-  };
-
-  const saveDetails = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const res = await fetch('/api/auth/role', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken}`
-        },
-        body: JSON.stringify({ role, name, crop, location })
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.detail || 'Failed to save profile');
-      }
-      onComplete(sessionToken, true);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-white dark:bg-slate-950 z-50 flex flex-col pt-12 px-6 overflow-y-auto">
-      <div className="max-w-md w-full mx-auto flex-1 flex flex-col">
-        <h1 className="text-2xl font-semibold mb-2">CLSL AI</h1>
-        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">{error}</div>}
-
-        {step === 'mobile' && (
-          <form onSubmit={sendOtp} className="flex-1 flex flex-col">
-            <h2 className="text-xl font-medium mb-6">Enter your mobile number</h2>
-            <div className="mb-4">
-              <label className="block text-sm text-slate-500 mb-1">Mobile Number</label>
-              <input 
-                type="tel"
-                value={mobile}
-                onChange={e => setMobile(e.target.value)}
-                placeholder="10-digit mobile number"
-                className="w-full text-lg p-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900"
-                required
-              />
-            </div>
-            <p className="text-sm text-slate-500 mb-6">We will send you an OTP to verify your number.</p>
-            <div className="mt-auto pb-6">
-              <button disabled={loading || mobile.length < 10} type="submit" className="w-full bg-green-600 text-white font-medium p-4 rounded-xl disabled:opacity-50">
-                {loading ? 'Sending...' : 'Continue'}
-              </button>
-            </div>
-          </form>
-        )}
-
-        {step === 'otp' && (
-          <form onSubmit={verifyOtp} className="flex-1 flex flex-col">
-            <h2 className="text-xl font-medium mb-6">Verify Mobile</h2>
-            <p className="text-slate-600 mb-6">OTP sent to {mobile}</p>
-            <div className="mb-4">
-              <label className="block text-sm text-slate-500 mb-1">Enter OTP</label>
-              <input 
-                type="text"
-                value={otp}
-                onChange={e => setOtp(e.target.value)}
-                placeholder="123456"
-                className="w-full text-lg p-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900 tracking-widest text-center"
-                required
-                maxLength={6}
-              />
-            </div>
-            <div className="mt-auto pb-6">
-              <button disabled={loading || otp.length < 4} type="submit" className="w-full bg-green-600 text-white font-medium p-4 rounded-xl disabled:opacity-50">
-                {loading ? 'Verifying...' : 'Verify OTP'}
-              </button>
-            </div>
-          </form>
-        )}
-
-        {step === 'role' && (
-          <div className="flex-1 flex flex-col">
-            <h2 className="text-2xl font-semibold mb-2">Tell us about yourself</h2>
-            <p className="text-slate-600 dark:text-slate-400 mb-8">This helps us personalize CLSL AI for you.</p>
-            
-            <div className="space-y-4">
-              <button onClick={() => submitRole('Farmer')} className="w-full text-left p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
-                <div className="font-medium text-lg">Farmer</div>
-                <div className="text-sm text-slate-500 mt-1">I grow crops and want to diagnose issues.</div>
-              </button>
-              
-              <button onClick={() => submitRole('Dealer')} className="w-full text-left p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
-                <div className="font-medium text-lg">Dealer / Retailer</div>
-                <div className="text-sm text-slate-500 mt-1">I sell CLSL products.</div>
-              </button>
-              
-              <button onClick={() => submitRole('General User')} className="w-full text-left p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
-                <div className="font-medium text-lg">General User</div>
-                <div className="text-sm text-slate-500 mt-1">I am just exploring CLSL AI.</div>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 'details' && (
-          <form onSubmit={saveDetails} className="flex-1 flex flex-col">
-            <h2 className="text-xl font-medium mb-6">Complete your profile</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-slate-500 mb-1">Your Name</label>
-                <input 
-                  type="text" value={name} onChange={e => setName(e.target.value)} required
-                  className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900"
-                />
-              </div>
-              
-              {role === 'Farmer' && (
-                <>
-                  <div>
-                    <label className="block text-sm text-slate-500 mb-1">Primary Crop Gown</label>
-                    <input 
-                      type="text" value={crop} onChange={e => setCrop(e.target.value)} required
-                      className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-slate-500 mb-1">Farming Location (Village/City)</label>
-                    <input 
-                      type="text" value={location} onChange={e => setLocation(e.target.value)} required
-                      className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="mt-auto pb-6">
-              <button disabled={loading || !name} type="submit" className="w-full bg-green-600 text-white font-medium p-4 rounded-xl mt-6 disabled:opacity-50">
-                {loading ? 'Saving...' : 'Finish Setup'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
-  );
+  return <main className="auth-shell"><section className="auth-visual"><div className="auth-brand"><img src="/clsl-logo.png" alt="Crop Life Science Limited"/><span><b>CLSL AI</b><small>Your crops. Our care.</small></span></div><div className="auth-welcome"><small>CROP LIFE SCIENCE LIMITED</small><h1>{c.welcome}</h1><p>{c.basicsHelp}</p></div><SprayerScene /></section><section className="auth-panel"><div className="auth-progress">{(['language','basics','role','details','otp'] as Step[]).map((item,index)=><i key={item} className={index<=['language','basics','role','details','otp'].indexOf(step)?'active':''}/>)}</div>{step!=='language'&&<button type="button" className="auth-back" onClick={()=>{setError('');setStep(previous[step]);}}>← {c.back}</button>}{error&&<p className="auth-error" role="alert">{error}</p>}
+    {step==='language'&&<div className="auth-step"><span className="auth-step-icon">文</span><h2>{c.chooseLanguage}</h2><div className="language-grid">{languages.map(item=><button type="button" key={item.code} className={language===item.code?'selected':''} onClick={()=>setLanguage(item.code)}><b>{item.name}</b><small>{item.code.toUpperCase()}</small></button>)}</div><button className="auth-primary" onClick={()=>setStep('basics')}>{c.continue} →</button></div>}
+    {step==='basics'&&<form className="auth-step" onSubmit={e=>{e.preventDefault();if(firstName.trim().length<2||normalizedMobile.length!==10)return setError(c.required);setError('');setStep('role');}}><h2>{c.basics}</h2><p>{c.basicsHelp}</p><label>{c.firstName}<input value={firstName} onChange={e=>setFirstName(e.target.value)} required autoComplete="given-name"/></label><label>{c.mobile}<div className="phone-field"><span>+91</span><input inputMode="numeric" value={mobile} onChange={e=>setMobile(e.target.value.replace(/\D/g,'').slice(0,10))} required placeholder="98765 43210" autoComplete="tel"/></div></label><button className="auth-primary">{c.continue} →</button></form>}
+    {step==='role'&&<div className="auth-step"><h2>{c.roleTitle}</h2><p>{c.roleHelp}</p><div className="role-grid">{(['general_user','farmer','dealer','other'] as Role[]).map((item,index)=><button type="button" key={item} className={role===item?'selected':''} onClick={()=>{setRole(item);setStep('details');}}><span>{['◎','♧','▣','＋'][index]}</span><div><b>{c[item]}</b><small>{c[`${item}Help`]}</small></div><i>→</i></button>)}</div></div>}
+    {step==='details'&&<form className="auth-step auth-details" onSubmit={startOtp}><h2>{c.profile}</h2>{role!=='dealer'&&<><div className="auth-field-grid"><label>{c.city}<input value={city} onChange={e=>setCity(e.target.value)}/></label><label>{c.village}<input value={village} onChange={e=>setVillage(e.target.value)}/></label><label>{c.district}<input value={district} onChange={e=>setDistrict(e.target.value)}/></label><label>{c.state}<input value={state} onChange={e=>setState(e.target.value)}/></label></div><button type="button" className={`location-consent ${coordinates?'ready':''}`} onClick={locate} disabled={loading}>⌖ {coordinates?c.locationReady:c.useLocation}</button><label>{c.email}<input type="email" value={email} onChange={e=>setEmail(e.target.value)}/></label><fieldset><legend>{c.social}</legend><div className="social-grid">{socialOptions.map(item=><label key={item}><input type="checkbox" checked={social.includes(item)} onChange={()=>setSocial(current=>current.includes(item)?current.filter(value=>value!==item):[...current,item])}/><span>{item}</span></label>)}</div></fieldset><label>{c.source}<select value={source} onChange={e=>setSource(e.target.value)}><option value="">—</option>{sourceOptions.map(item=><option key={item}>{item}</option>)}</select></label></>}
+      {role==='farmer'&&<section className="referral-card"><label>{c.referral}<input value={referral} onChange={e=>{setReferral(e.target.value);setReferralName('');}}/></label><p>{c.referralHelp}</p><div><button type="button" onClick={()=>qrInput.current?.click()}>▣ {c.scanQr}</button><button type="button" disabled={!referral.trim()||loading} onClick={verifyReferral}>✓ {c.verifyDealer}</button></div><input ref={qrInput} hidden type="file" accept="image/*" capture="environment" onChange={scanQr}/>{referralName&&<b className="verified-dealer">✓ {c.referralValid}: {referralName}</b>}</section>}
+      {role==='dealer'&&<section className="dealer-verify"><label>{c.dealerCode}<div className="dealer-code-row"><input value={dealerCode} onChange={e=>{setDealerCode(e.target.value);setDealer(null);setDealerConfirmed(false);}} required/><button type="button" onClick={lookupDealer} disabled={!dealerCode.trim()||loading}>{c.verifyDealer}</button></div></label>{dealer&&<article><b>{dealer.name}</b><p>{[dealer.location,dealer.sales_territory,dealer.state].filter(Boolean).join(' · ')}</p>{dealer.already_bound&&<small>This dealer already has a verified mobile login.</small>}<label><input type="checkbox" checked={dealerConfirmed} onChange={e=>setDealerConfirmed(e.target.checked)}/>{c.dealerConfirm}</label></article>}</section>}
+      <p className="test-login-note">{c.test}</p><button className="auth-primary" disabled={loading}>{loading?c.loading:c.sendOtp} →</button></form>}
+    {step==='otp'&&<form className="auth-step otp-step" onSubmit={finish}><span className="auth-step-icon">•••</span><h2>{c.otpTitle}</h2><p>{c.otpHelp}</p><b className="otp-number">+91 {normalizedMobile}</b><label>{c.otp}<input value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="1 2 3 4 5 6" autoFocus/></label><button className="auth-primary" disabled={loading||otp.length!==6}>{loading?c.loading:c.verify} →</button></form>}
+    {token&&<span hidden>{token}</span>}<SprayerScene compact /></section></main>;
 }

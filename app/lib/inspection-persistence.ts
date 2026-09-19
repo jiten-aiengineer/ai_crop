@@ -6,6 +6,7 @@ export type InspectionPersistenceStatus = 'saved' | 'skipped' | 'failed';
 
 type PersistInspectionInput = {
   employeeCode?: string;
+  publicSessionToken?: string;
   collectionMode: 'general_employee' | 'sales_officer';
   inspectionId: string;
   input: InspectionInput;
@@ -60,6 +61,7 @@ export async function persistInspection(input: PersistInspectionInput): Promise<
 
   const body = {
     inspection_id: input.inspectionId,
+    public_session_token: input.publicSessionToken || '',
     photo_count: input.imageCount,
     context: { ...input.input.context, employee_code: input.employeeCode || '', collection_mode: input.collectionMode },
     storage: {

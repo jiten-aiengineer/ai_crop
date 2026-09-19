@@ -92,4 +92,20 @@ QWEN_EARLY_STOP_ENABLED = os.getenv("QWEN_EARLY_STOP_ENABLED", "false").strip().
 QWEN_IDLE_STOP_SECONDS = max(60, min(3600, int(os.getenv("QWEN_IDLE_STOP_SECONDS", "300"))))
 QWEN_SCHEDULE_AUTOMATION = os.getenv("QWEN_SCHEDULE_AUTOMATION", "not_configured").strip() or "not_configured"
 
-TWOFACTOR_API_KEY = os.getenv(TWOFACTOR_API_KEY, ")
+# Public onboarding stays in an explicit test mode until CLSL's Airtel DLT
+# templates and credentials are approved.  Never silently fall back from a
+# production SMS provider to the shared test OTP.
+PUBLIC_AUTH_MODE = os.getenv("PUBLIC_AUTH_MODE", "test").strip().lower()
+PUBLIC_TEST_OTP = os.getenv("PUBLIC_TEST_OTP", "123456").strip()
+PUBLIC_AUTH_TOKEN_PEPPER = os.getenv(
+    "PUBLIC_AUTH_TOKEN_PEPPER", "clsl-local-public-auth-only"
+).strip()
+PUBLIC_SESSION_DAYS = max(1, min(90, int(os.getenv("PUBLIC_SESSION_DAYS", "30"))))
+
+# Reserved for the final Airtel DLT integration.  They are intentionally not
+# consumed while PUBLIC_AUTH_MODE=test so onboarding cannot block UI testing.
+AIRTEL_DLT_API_URL = os.getenv("AIRTEL_DLT_API_URL", "").strip()
+AIRTEL_DLT_API_KEY = os.getenv("AIRTEL_DLT_API_KEY", "").strip()
+AIRTEL_DLT_ENTITY_ID = os.getenv("AIRTEL_DLT_ENTITY_ID", "").strip()
+AIRTEL_DLT_TEMPLATE_ID = os.getenv("AIRTEL_DLT_TEMPLATE_ID", "").strip()
+AIRTEL_DLT_SENDER_ID = os.getenv("AIRTEL_DLT_SENDER_ID", "").strip()

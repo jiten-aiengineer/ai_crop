@@ -241,6 +241,15 @@ const clslAiCopy: Partial<Record<LanguageCode, Record<string, string>>> = {
   },
 };
 
+const locationGateCopy: Record<LanguageCode, Record<string, string>> = {
+  en: { inspectionLocationTitle:'Allow field location', inspectionLocationHelp:'Location is required only when you start an inspection. It improves weather guidance and helps CLSL understand where crop support is needed.', inspectionAllowLocation:'Allow location', inspectionLocating:'Getting location…', inspectionLocationReady:'Field location ready', inspectionLocationReadyHelp:'Your inspection can now include local crop and weather context.', inspectionLocationRequired:'Allow location before analysing this crop.', inspectionLocationDenied:'Location permission was not granted. Enable it in browser settings to use crop inspection.', inspectionLocationUnsupported:'Location is not available on this device.' },
+  hi: { inspectionLocationTitle:'खेत की लोकेशन की अनुमति दें', inspectionLocationHelp:'लोकेशन केवल जाँच शुरू करते समय जरूरी है। इससे मौसम की सलाह और क्षेत्रीय सहायता बेहतर होती है।', inspectionAllowLocation:'लोकेशन की अनुमति दें', inspectionLocating:'लोकेशन ली जा रही है…', inspectionLocationReady:'खेत की लोकेशन तैयार है', inspectionLocationReadyHelp:'अब जाँच में स्थानीय फसल और मौसम की जानकारी जुड़ सकती है।', inspectionLocationRequired:'फसल जाँच से पहले लोकेशन की अनुमति दें।', inspectionLocationDenied:'लोकेशन की अनुमति नहीं मिली। फसल जाँच के लिए ब्राउज़र सेटिंग में इसे चालू करें।', inspectionLocationUnsupported:'इस डिवाइस पर लोकेशन उपलब्ध नहीं है।' },
+  gu: { inspectionLocationTitle:'ખેતરનું સ્થાન મંજૂર કરો', inspectionLocationHelp:'તપાસ શરૂ કરતી વખતે જ સ્થાન જરૂરી છે. તે હવામાન અને સ્થાનિક સહાય સુધારે છે.', inspectionAllowLocation:'સ્થાન મંજૂર કરો', inspectionLocating:'સ્થાન મેળવી રહ્યા છીએ…', inspectionLocationReady:'ખેતરનું સ્થાન તૈયાર છે', inspectionLocationReadyHelp:'હવે તપાસમાં સ્થાનિક પાક અને હવામાન સંદર્ભ જોડાશે.', inspectionLocationRequired:'પાક તપાસ પહેલાં સ્થાન મંજૂર કરો.', inspectionLocationDenied:'સ્થાનની મંજૂરી મળી નથી. બ્રાઉઝર સેટિંગમાં ચાલુ કરો.', inspectionLocationUnsupported:'આ ઉપકરણ પર સ્થાન ઉપલબ્ધ નથી.' },
+  mr: { inspectionLocationTitle:'शेताचे स्थान मंजूर करा', inspectionLocationHelp:'तपासणी सुरू करतानाच स्थान आवश्यक आहे. त्यामुळे हवामान आणि स्थानिक मदत सुधारते.', inspectionAllowLocation:'स्थान मंजूर करा', inspectionLocating:'स्थान घेत आहे…', inspectionLocationReady:'शेताचे स्थान तयार आहे', inspectionLocationReadyHelp:'तपासणीत आता स्थानिक पीक आणि हवामान संदर्भ जोडला जाईल.', inspectionLocationRequired:'पीक तपासण्यापूर्वी स्थान मंजूर करा.', inspectionLocationDenied:'स्थानाची परवानगी मिळाली नाही. ब्राउझर सेटिंगमध्ये ती सुरू करा.', inspectionLocationUnsupported:'या डिव्हाइसवर स्थान उपलब्ध नाही.' },
+  bn: { inspectionLocationTitle:'খেতের অবস্থান অনুমতি দিন', inspectionLocationHelp:'পরীক্ষা শুরু করার সময়ই অবস্থান প্রয়োজন। এটি আবহাওয়া ও স্থানীয় সহায়তা উন্নত করে।', inspectionAllowLocation:'অবস্থান অনুমতি দিন', inspectionLocating:'অবস্থান নেওয়া হচ্ছে…', inspectionLocationReady:'খেতের অবস্থান প্রস্তুত', inspectionLocationReadyHelp:'এখন পরীক্ষায় স্থানীয় ফসল ও আবহাওয়ার তথ্য যুক্ত হবে।', inspectionLocationRequired:'ফসল পরীক্ষা করার আগে অবস্থান অনুমতি দিন।', inspectionLocationDenied:'অবস্থানের অনুমতি পাওয়া যায়নি। ব্রাউজার সেটিংসে চালু করুন।', inspectionLocationUnsupported:'এই ডিভাইসে অবস্থান পাওয়া যায় না।' },
+  bho: { inspectionLocationTitle:'खेत के लोकेशन के अनुमति दीं', inspectionLocationHelp:'जाँच शुरू करत समये लोकेशन जरूरी बा। एहसे मौसम आ इलाका के मदद बेहतर होई।', inspectionAllowLocation:'लोकेशन अनुमति दीं', inspectionLocating:'लोकेशन मिलत बा…', inspectionLocationReady:'खेत के लोकेशन तैयार बा', inspectionLocationReadyHelp:'अब जाँच में इलाका के फसल आ मौसम जानकारी जुड़ी।', inspectionLocationRequired:'फसल जाँच से पहिले लोकेशन अनुमति दीं।', inspectionLocationDenied:'लोकेशन अनुमति ना मिलल। ब्राउज़र सेटिंग में चालू करीं।', inspectionLocationUnsupported:'ई डिवाइस पर लोकेशन उपलब्ध नइखे।' },
+};
+
 export function getCopy(language: LanguageCode) {
   return {
     ...en,
@@ -249,5 +258,6 @@ export function getCopy(language: LanguageCode) {
     ...fieldCollectionTranslations[language],
     ...(modelNeutralInspectionCopy[language] || modelNeutralInspectionCopy.en),
     ...(clslAiCopy[language] || clslAiCopy.en),
+    ...locationGateCopy[language],
   };
 }

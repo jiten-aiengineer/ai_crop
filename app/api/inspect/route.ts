@@ -1,10 +1,8 @@
-import sharp from 'sharp';
 import { NextResponse } from 'next/server';
 import { catalogCropName } from '../../lib/catalog';
 import { approvedCatalogueRecommendations } from '../../lib/database-catalog';
 import { canMatchProducts, geminiFlashInspection, geminiFlashLiteInspection, legacyDiagnosis, InspectionInput } from '../../lib/inspection-ai';
 import { persistInspection } from '../../lib/inspection-persistence';
-import { storeInspectionImages } from '../../lib/s3-storage';
 import { fieldIdentityFor } from '../../lib/field-access';
 
 // S3 uses the AWS SDK default credential chain, including the EC2 instance role.
@@ -13,6 +11,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  const publicSessionToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   let employeeCode: string | undefined;
   let collectionMode: 'general_employee' | 'sales_officer' = 'general_employee';
   try {
@@ -33,29 +32,30 @@ export async function POST(request: Request) {
   if (!declaredCrop) {
     return NextResponse.json({ error: 'Select the crop before submitting photos. Choose Other if it is not in the list.' }, { status: 400 });
   }
+  const latitudeText = field('latitude', 24).trim();
+  const longitudeText = field('longitude', 24).trim();
+  const latitude = Number(latitudeText);
+  const longitude = Number(longitudeText);
+  if (!latitudeText || !longitudeText || !Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+    return NextResponse.json({ error: 'Allow field location before analysing the crop.' }, { status: 400 });
+  }
   const preparedImages = await Promise.all(images.map(async (image, index) => {
     const originalBytes = new Uint8Array(await image.arrayBuffer());
-    const metadata = await sharp(originalBytes).metadata();
-    const width = metadata.width ? Math.round(metadata.width * 0.5) : undefined;
-    const optimizedBuffer = await sharp(originalBytes)
-      .resize({ width })
-      .jpeg({ quality: 80 })
-      .toBuffer();
-    
+    // The client has already resized and JPEG-compressed large images before
+    // upload. Reusing that exact payload keeps Gemini and the private archive
+    // aligned and avoids a slow, platform-specific second image conversion.
     let binary='';
-    for(let i=0; i<optimizedBuffer.length; i+=0x8000) {
-      binary += String.fromCharCode(...optimizedBuffer.subarray(i, i+0x8000));
-    }
+    for(let i=0; i<originalBytes.length; i+=0x8000) binary += String.fromCharCode(...originalBytes.subarray(i, i+0x8000));
     return { 
       bytes: originalBytes, 
       originalMimeType: image.type, 
-      optimizedMimeType: 'image/jpeg', 
+      optimizedMimeType: image.type,
       imageOrder: index + 1, 
       data: btoa(binary) 
     };
   }));
   const input: InspectionInput = {
-    context:{crop:declaredCrop,plant:field('plant',80),description:field('description',800),location:field('location',120),notes:field('notes',800),language:field('language',20)||'en'},
+    context:{crop:declaredCrop,plant:field('plant',80),description:field('description',800),location:`${latitude.toFixed(6)},${longitude.toFixed(6)}`,notes:field('notes',800),language:field('language',20)||'en'},
     images:preparedImages.map((image) => ({ mimeType: image.optimizedMimeType, data: image.data })),
   };
   const inspectionId = crypto.randomUUID();
@@ -67,7 +67,8 @@ export async function POST(request: Request) {
 
   const [live, storage] = await Promise.all([
     aiPromise,
-    storeInspectionImages(inspectionId, preparedImages.map(({ bytes, originalMimeType, imageOrder }) => ({ bytes, mimeType: originalMimeType, imageOrder })))
+    import('../../lib/s3-storage')
+      .then(({ storeInspectionImages }) => storeInspectionImages(inspectionId, preparedImages.map(({ bytes, originalMimeType, imageOrder }) => ({ bytes, mimeType: originalMimeType, imageOrder }))))
       .catch(() => ({ status: 'failed' as const, images: [], failures: preparedImages.map((image) => ({ imageOrder: image.imageOrder, code: 'upload_failed' as const })) })),
   ]);
   // “Other” deliberately lets the vision model recognise the crop. It is not
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
     ? await approvedCatalogueRecommendations(grounded)
     : { recommendations: [], source: grounded ? 'insufficient_diagnostic_evidence' as const : 'catalogue_unavailable' as const };
   const recommendations = catalogue.recommendations;
-  const persistence = await persistInspection({ inspectionId, input, employeeCode, collectionMode, imageCount: images.length, storage, provider: live, additionalProviders: [], recommendations });
+  const persistence = await persistInspection({ inspectionId, input, employeeCode, publicSessionToken, collectionMode, imageCount: images.length, storage, provider: live, additionalProviders: [], recommendations });
   const storageMetadata = {
     inspection_id: inspectionId,
     comparison_status: persistence.shadowStatus || 'not_queued',

@@ -1,29 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+const BACKEND_URL = process.env.PUBLIC_AUTH_BACKEND_URL || process.env.BACKEND_URL
+  || (process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:8002' : 'http://127.0.0.1:8000');
 
-export async function POST(req: NextRequest, { params }: { params: { path: string[] } }) {
-  const path = params.path.join('/');
+export const runtime = 'nodejs';
+
+export async function POST(request: Request, context: { params: Promise<{ path: string[] }> }) {
+  const { path } = await context.params;
+  const endpoint = path.join('/');
+  if (!['send-otp', 'verify-otp', 'profile', 'me', 'logout', 'dealer-lookup', 'referral-lookup'].includes(endpoint)) {
+    return NextResponse.json({ detail: 'Unknown authentication action.' }, { status: 404 });
+  }
   try {
-    const body = await req.json();
-    const token = req.headers.get('authorization') || '';
-    
-    const response = await fetch(`${BACKEND_URL}/api/v1/public/auth/${path}`, {
+    const body = await request.text();
+    const response = await fetch(`${BACKEND_URL}/api/v1/public/auth/${endpoint}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token,
-        'x-forwarded-for': req.headers.get('x-forwarded-for') || req.ip || '127.0.0.1'
+        'content-type': 'application/json',
+        authorization: request.headers.get('authorization') || '',
+        'user-agent': request.headers.get('user-agent') || '',
+        'x-forwarded-for': request.headers.get('x-forwarded-for') || '127.0.0.1',
       },
-      body: JSON.stringify(body)
+      body: body || '{}',
+      cache: 'no-store',
     });
-
-    const data = await response.text();
-    return new NextResponse(data, {
+    return new NextResponse(await response.text(), {
       status: response.status,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
     });
-  } catch (err) {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  } catch {
+    return NextResponse.json({ detail: 'The sign-in service is temporarily unavailable.' }, { status: 502 });
   }
 }
