@@ -29,6 +29,25 @@ function unique(values: Array<string | undefined>) {
 
 function getPosition(): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      console.warn('Using mock location for local development');
+      return resolve({
+        coords: {
+          latitude: 23.0225, // Ahmedabad (CLSL HQ)
+          longitude: 72.5714,
+          accuracy: 10,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+        } as GeolocationCoordinates,
+        timestamp: Date.now(),
+        toJSON: () => ({
+          coords: { latitude: 23.0225, longitude: 72.5714, accuracy: 10 },
+          timestamp: Date.now(),
+        }),
+      });
+    }
     if (!navigator.geolocation) return reject(new Error('Location is not supported on this device.'));
     navigator.geolocation.getCurrentPosition(resolve, reject, {
       enableHighAccuracy: true,

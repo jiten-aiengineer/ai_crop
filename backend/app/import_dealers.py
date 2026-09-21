@@ -8,6 +8,7 @@ or coupon relationships.
 from __future__ import annotations
 
 import csv
+import secrets
 import sys
 from pathlib import Path
 
@@ -29,6 +30,13 @@ def clean(value: object) -> str:
     return " ".join(str(value or "").strip().split())
 
 
+def dealer_login_code() -> str:
+    """Generate a readable but non-sequential 80-bit dealer credential."""
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    value = "".join(secrets.choice(alphabet) for _ in range(16))
+    return f"DLR-{value[:4]}{value[4:8]}{value[8:12]}{value[12:]}"
+
+
 def load_rows(csv_path: Path) -> tuple[dict[str, dict[str, str]], int]:
     rows_by_code: dict[str, dict[str, str]] = {}
     duplicate_rows = 0
@@ -48,7 +56,7 @@ def load_rows(csv_path: Path) -> tuple[dict[str, dict[str, str]], int]:
                 duplicate_rows += 1
             status = clean(raw.get("Status")).lower()
             rows_by_code[code] = {
-                "dealer_code": code,
+            "master_code": code,
                 "name": name,
                 "sales_executive": clean(raw.get("Sales Executive")),
                 "sales_area": clean(raw.get("Sales Area")),
@@ -72,16 +80,22 @@ def import_dealers(csv_path: Path) -> None:
 
     with connection() as conn:
         with conn.cursor() as cursor:
+            existing = {
+                row["master_code"]
+                for row in cursor.execute("SELECT master_code FROM dealers WHERE master_code = ANY(%s)", ([row["master_code"] for row in rows],)).fetchall()
+            }
+            for row in rows:
+                row["dealer_code"] = dealer_login_code() if row["master_code"] not in existing else None
             cursor.executemany(
                 """
                 INSERT INTO dealers (
-                    dealer_code, name, sales_executive, sales_area,
+                    dealer_code, master_code, name, sales_executive, sales_area,
                     sales_region, sales_territory, state, status
                 ) VALUES (
-                    %(dealer_code)s, %(name)s, %(sales_executive)s, %(sales_area)s,
+                    %(dealer_code)s, %(master_code)s, %(name)s, %(sales_executive)s, %(sales_area)s,
                     %(sales_region)s, %(sales_territory)s, %(state)s, %(status)s
                 )
-                ON CONFLICT (dealer_code) DO UPDATE SET
+                ON CONFLICT (master_code) DO UPDATE SET
                     name = EXCLUDED.name,
                     sales_executive = EXCLUDED.sales_executive,
                     sales_area = EXCLUDED.sales_area,

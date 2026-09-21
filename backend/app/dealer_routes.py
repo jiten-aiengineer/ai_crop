@@ -241,7 +241,7 @@ def dealer_referral(authorization: str = Header(...)):
         if existing:
             token = existing["referral_token"]
         else:
-            token = secrets.token_hex(8)
+            token = "REF-" + secrets.token_urlsafe(18).replace("_", "").replace("-", "").upper()
             conn.execute(
                 "INSERT INTO dealer_referrals(dealer_id, referral_token) VALUES (%s, %s)",
                 (dealer_id, token),

@@ -1,7 +1,6 @@
 'use client';
 import '../dealer-portal.css';
 
-
 import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { PublicUser } from './AuthFlow';
 
@@ -37,7 +36,7 @@ type DealerReferral = {
   qr_data_url: string | null;
 };
 
-type DealerPortalTab = 'dashboard' | 'redeem' | 'referral';
+type DealerPortalTab = 'splash' | 'inspect' | 'redeem' | 'referral';
 
 // ─── API helper ─────────────────────────────────────────────────────────────
 
@@ -75,156 +74,156 @@ async function couponApi<T>(token: string, body: unknown): Promise<T> {
   return data as T;
 }
 
-// ─── Target progress ring ───────────────────────────────────────────────────
+// ─── Splash / Mode Select Screen ────────────────────────────────────────────
 
-function TargetRing({ count, target, tier }: { count: number; target: number; tier: 0 | 1 | 2 }) {
-  const pct = Math.min(1, count / target);
-  const radius = 44;
-  const circumference = 2 * Math.PI * radius;
-  const dashOffset = circumference * (1 - pct);
-  const color = tier === 2 ? '#22c55e' : tier === 1 ? '#f59e0b' : '#6366f1';
-
-  return (
-    <svg className="dp-target-ring" viewBox="0 0 100 100" aria-hidden="true">
-      <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="10" />
-      <circle
-        cx="50" cy="50" r={radius} fill="none"
-        stroke={color} strokeWidth="10"
-        strokeDasharray={circumference}
-        strokeDashoffset={dashOffset}
-        strokeLinecap="round"
-        style={{ transition: 'stroke-dashoffset 1s ease', transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
-      />
-      <text x="50" y="46" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="700">{count}</text>
-      <text x="50" y="62" textAnchor="middle" fill="rgba(255,255,255,.6)" fontSize="10">of {target}</text>
-    </svg>
-  );
-}
-
-// ─── Dashboard tab ──────────────────────────────────────────────────────────
-
-function DashboardTab({ token }: { token: string }) {
-  const [data, setData] = useState<DealerDashboard | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const load = useCallback(async () => {
-    setLoading(true); setError('');
-    try { setData(await dealerApi<DealerDashboard>('me/dashboard', token)); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Unable to load dashboard.'); }
-    finally { setLoading(false); }
-  }, [token]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  if (loading) return <div className="dp-loading"><span className="dp-spinner" />Loading your dashboard…</div>;
-  if (error) return <div className="dp-error"><b>⚠ {error}</b><button type="button" onClick={() => void load()}>Retry</button></div>;
-  if (!data) return null;
-
-  const { dealer, targets, redemptions } = data;
-  const tierBadge = targets.eligible_tier === 2
-    ? { label: '🏆 Tier 2 Eligible', cls: 'dp-tier-2' }
-    : targets.eligible_tier === 1
-      ? { label: '🎁 Tier 1 Eligible', cls: 'dp-tier-1' }
-      : { label: 'Keep going!', cls: 'dp-tier-none' };
+function SplashScreen({
+  user,
+  dashboard,
+  onSelect,
+  onLogout,
+}: {
+  user: PublicUser;
+  dashboard: DealerDashboard | null;
+  onSelect: (tab: Exclude<DealerPortalTab, 'splash'>) => void;
+  onLogout: () => Promise<void>;
+}) {
+  const dealer = dashboard?.dealer;
+  const targets = dashboard?.targets;
 
   return (
-    <div className="dp-dashboard">
-      {/* Dealer identity card */}
-      <section className="dp-identity-card">
-        <div className="dp-identity-avatar">{dealer.name.slice(0, 2).toUpperCase()}</div>
-        <div>
-          <small>CLSL DEALER PORTAL</small>
-          <b>{dealer.name}</b>
-          <p>{dealer.dealer_code}{dealer.sales_territory ? ` · ${dealer.sales_territory}` : ''}{dealer.state ? `, ${dealer.state}` : ''}</p>
-        </div>
-      </section>
-
-      {/* Target section */}
-      <section className="dp-section dp-targets-section">
-        <header>
+    <div className="dp-splash">
+      {/* Header */}
+      <header className="dp-splash-header">
+        <div className="dp-splash-brand">
+          <img src="/clsl-logo.png" alt="CLSL" />
           <div>
-            <small>THIS MONTH</small>
-            <h2>Farmer Referral Target</h2>
-          </div>
-          <span className={`dp-tier-badge ${tierBadge.cls}`}>{tierBadge.label}</span>
-        </header>
-
-        <div className="dp-target-grid">
-          {/* Tier 1 */}
-          <article className={`dp-target-card ${targets.monthly_referrals >= targets.tier1_target ? 'achieved' : ''}`}>
-            <TargetRing
-              count={targets.monthly_referrals}
-              target={targets.tier1_target}
-              tier={targets.eligible_tier}
-            />
-            <div>
-              <b>Tier 1 Target</b>
-              <p>{targets.tier1_label}</p>
-              <small>{targets.monthly_referrals} / {targets.tier1_target} farmers this month</small>
-            </div>
-          </article>
-
-          {/* Tier 2 */}
-          <article className={`dp-target-card dp-target-2 ${targets.monthly_referrals >= targets.tier2_target ? 'achieved' : ''}`}>
-            <TargetRing
-              count={targets.monthly_referrals}
-              target={targets.tier2_target}
-              tier={targets.eligible_tier === 2 ? 2 : 0}
-            />
-            <div>
-              <b>Tier 2 Target</b>
-              <p>{targets.tier2_label}</p>
-              <small>{targets.monthly_referrals} / {targets.tier2_target} farmers this month</small>
-            </div>
-          </article>
-        </div>
-
-        <div className="dp-stats-row">
-          <div className="dp-stat">
-            <b>{targets.monthly_referrals}</b>
-            <small>Farmers referred this month</small>
-          </div>
-          <div className="dp-stat">
-            <b>{targets.total_referrals}</b>
-            <small>Total farmers (all time)</small>
+            <strong>CLSL AI</strong>
+            <small>Dealer Portal</small>
           </div>
         </div>
-      </section>
+        <button type="button" className="dp-logout-btn" onClick={() => void onLogout()}>
+          ↪ Logout
+        </button>
+      </header>
 
-      {/* Coupon redemption summary */}
-      <section className="dp-section dp-coupon-summary">
-        <header>
-          <div>
-            <small>COUPON REDEMPTIONS</small>
-            <h2>{redemptions.month_label}</h2>
+      {/* Hero identity */}
+      <div className="dp-splash-hero">
+        <div className="dp-splash-avatar">{(dealer?.name || user.first_name || 'D').slice(0, 2).toUpperCase()}</div>
+        <h1>{dealer?.name || user.first_name || 'Dealer'}</h1>
+        {dealer && (
+          <p className="dp-splash-meta">
+            {dealer.dealer_code}
+            {dealer.sales_territory ? ` · ${dealer.sales_territory}` : ''}
+            {dealer.state ? `, ${dealer.state}` : ''}
+          </p>
+        )}
+        {targets && (
+          <div className="dp-splash-tier-badge">
+            {targets.eligible_tier === 2
+              ? <span className="dp-tier-pill dp-tier-2">🏆 Tier 2 Eligible</span>
+              : targets.eligible_tier === 1
+                ? <span className="dp-tier-pill dp-tier-1">🎁 Tier 1 Eligible</span>
+                : <span className="dp-tier-pill dp-tier-none">{targets.monthly_referrals} / {targets.tier1_target} farmers this month</span>}
           </div>
-        </header>
-        <div className="dp-stats-row">
-          <div className="dp-stat dp-stat-highlight">
-            <b>₹ {redemptions.monthly_amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</b>
-            <small>Total redeemed value this month</small>
+        )}
+      </div>
+
+      {/* Mode cards */}
+      <div className="dp-splash-grid">
+        <button type="button" className="dp-mode-card dp-mode-inspect" onClick={() => onSelect('inspect')}>
+          <div className="dp-mode-icon">⌾</div>
+          <div className="dp-mode-body">
+            <strong>Crop Inspection</strong>
+            <p>AI-powered crop disease detection for farmers</p>
           </div>
-          <div className="dp-stat">
-            <b>{redemptions.monthly_count}</b>
-            <small>Coupons redeemed this month</small>
+          <span className="dp-mode-arrow">→</span>
+        </button>
+
+        <button type="button" className="dp-mode-card dp-mode-redeem" onClick={() => onSelect('redeem')}>
+          <div className="dp-mode-icon">✓</div>
+          <div className="dp-mode-body">
+            <strong>Redeem Coupon</strong>
+            <p>Scan or enter farmer coupon codes instantly</p>
           </div>
-          <div className="dp-stat">
-            <b>{redemptions.alltime_count}</b>
-            <small>Coupons redeemed (all time)</small>
+          {dashboard && dashboard.redemptions.monthly_count > 0 && (
+            <span className="dp-mode-badge">{dashboard.redemptions.monthly_count} this month</span>
+          )}
+          <span className="dp-mode-arrow">→</span>
+        </button>
+
+        <button type="button" className="dp-mode-card dp-mode-referral" onClick={() => onSelect('referral')}>
+          <div className="dp-mode-icon">▣</div>
+          <div className="dp-mode-body">
+            <strong>Farmer Referral</strong>
+            <p>Share your QR code and grow your network</p>
+          </div>
+          {targets && (
+            <span className="dp-mode-badge">{targets.total_referrals} total</span>
+          )}
+          <span className="dp-mode-arrow">→</span>
+        </button>
+      </div>
+
+      {/* Quick stats */}
+      {dashboard && (
+        <div className="dp-splash-stats">
+          <div className="dp-splash-stat">
+            <b>{dashboard.targets.monthly_referrals}</b>
+            <small>Farmers this month</small>
+          </div>
+          <div className="dp-splash-stat-divider" />
+          <div className="dp-splash-stat">
+            <b>{dashboard.redemptions.monthly_count}</b>
+            <small>Coupons redeemed</small>
+          </div>
+          <div className="dp-splash-stat-divider" />
+          <div className="dp-splash-stat">
+            <b>₹{dashboard.redemptions.monthly_amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</b>
+            <small>Redemption value</small>
           </div>
         </div>
-        <p className="dp-credit-note-hint">
-          ✓ CLSL will generate a credit note based on your monthly redemption total at month end.
-        </p>
-      </section>
+      )}
+
+      <footer className="dp-splash-footer">
+        <img src="/clsl-logo.png" alt="Crop Life Science Limited" />
+        <span>Crop Life Science Limited · Dealer Partner Portal</span>
+      </footer>
     </div>
   );
 }
 
-// ─── Redeem coupon tab ──────────────────────────────────────────────────────
+// ─── Crop Inspection mode (embedded) ────────────────────────────────────────
 
-function RedeemTab({ token }: { token: string }) {
+function InspectMode({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="dp-inner-screen">
+      <div className="dp-inner-head">
+        <button type="button" className="dp-back-btn" onClick={onBack}>← Back</button>
+        <h2>Crop Inspection</h2>
+      </div>
+      <div className="dp-inner-body dp-inspect-body">
+        <div className="dp-inspect-hero">
+          <img src="/crop-life-mitra-tomato-doctor.jpg" alt="Crop Life Mitra" className="dp-inspect-mascot" />
+          <div>
+            <p className="dp-inspect-eyebrow">CLSL AI · Powered by Gemini</p>
+            <h3>AI Crop Doctor</h3>
+            <p className="dp-inspect-desc">Use the CLSL AI crop inspection tool to help farmers identify crop diseases and get product recommendations.</p>
+          </div>
+        </div>
+        <a href="/?open=inspect" className="dp-primary-btn dp-inspect-open-btn" target="_self">
+          ⌾ Open Crop Inspection Tool
+        </a>
+        <p className="dp-inspect-note">
+          The full CLSL AI crop inspection with Gemini AI analysis, product recommendations, and inspection history is available in the main app.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Redeem coupon mode ──────────────────────────────────────────────────────
+
+function RedeemMode({ token, onBack }: { token: string; onBack: () => void }) {
   const [couponCode, setCouponCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<{ coupon_code: string; campaign_name: string; discount_value: number; discount_type: string } | null>(null);
@@ -238,7 +237,7 @@ function RedeemTab({ token }: { token: string }) {
     try {
       const data = await dealerApi<{ items: Redemption[] }>('me/redemptions?per_page=10', token);
       setRedemptions(data.items || []);
-    } catch { /* non-critical, don't block redeem flow */ }
+    } catch { /* non-critical */ }
     finally { setListLoading(false); }
   }, [token]);
 
@@ -274,11 +273,9 @@ function RedeemTab({ token }: { token: string }) {
       const codes = await new Detector({ formats: ['qr_code'] }).detect(bitmap);
       bitmap.close();
       if (!codes[0]?.rawValue) throw new Error('No QR code found in this image. Please try again.');
-      // Extract code from URL or use raw value
       let value = codes[0].rawValue;
       try {
         const url = new URL(value);
-        // If the QR contains a URL, extract the coupon code from query or last segment
         value = url.searchParams.get('code') || url.searchParams.get('coupon') || url.pathname.split('/').filter(Boolean).pop() || value;
       } catch { /* plain code token */ }
       setCouponCode(value.toUpperCase());
@@ -286,105 +283,100 @@ function RedeemTab({ token }: { token: string }) {
   };
 
   return (
-    <div className="dp-redeem">
-      <section className="dp-section">
-        <header>
-          <div>
-            <small>SCAN OR ENTER</small>
-            <h2>Redeem Farmer Coupon</h2>
-          </div>
-        </header>
-        <p className="dp-help-text">
-          Ask the farmer to show you the coupon code from their CLSL AI app. Enter or scan the code below to redeem it.
-        </p>
+    <div className="dp-inner-screen">
+      <div className="dp-inner-head">
+        <button type="button" className="dp-back-btn" onClick={onBack}>← Back</button>
+        <h2>Redeem Coupon</h2>
+      </div>
+      <div className="dp-inner-body">
+        <div className="dp-section">
+          <div className="dp-section-label">SCAN OR ENTER</div>
+          <h3 className="dp-section-title">Redeem Farmer Coupon</h3>
+          <p className="dp-help-text">Ask the farmer to show you the coupon code from their CLSL AI app. Enter or scan the code below to redeem it.</p>
 
-        <form className="dp-redeem-form" onSubmit={(e) => void submit(e)}>
-          <div className="dp-code-input-row">
-            <input
-              id="dp-coupon-code"
-              type="text"
-              value={couponCode}
-              onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setSuccess(null); setError(''); }}
-              placeholder="Enter coupon code (e.g. CLJ-2024-XXXX)"
-              autoCapitalize="characters"
-              autoComplete="off"
-              className="dp-code-input"
-            />
-            <button
-              type="button"
-              className="dp-scan-btn"
-              onClick={() => qrInput.current?.click()}
-              title="Scan QR code from farmer's phone"
-            >
-              <span aria-hidden="true">▣</span> Scan QR
-            </button>
-          </div>
-          <input ref={qrInput} hidden type="file" accept="image/*" capture="environment" onChange={(e) => void scanQr(e)} />
+          <form className="dp-redeem-form" onSubmit={(e) => void submit(e)}>
+            <div className="dp-code-input-row">
+              <input
+                id="dp-coupon-code"
+                type="text"
+                value={couponCode}
+                onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setSuccess(null); setError(''); }}
+                placeholder="Enter coupon code (e.g. CLJ-2024-XXXX)"
+                autoCapitalize="characters"
+                autoComplete="off"
+                className="dp-code-input"
+              />
+              <button
+                type="button"
+                className="dp-scan-btn"
+                onClick={() => qrInput.current?.click()}
+                title="Scan QR code from farmer's phone"
+              >
+                <span aria-hidden="true">▣</span> Scan QR
+              </button>
+            </div>
+            <input ref={qrInput} hidden type="file" accept="image/*" capture="environment" onChange={(e) => void scanQr(e)} />
 
-          {error && <p className="dp-error-msg" role="alert">⚠ {error}</p>}
+            {error && <p className="dp-error-msg" role="alert">⚠ {error}</p>}
 
-          {success && (
-            <div className="dp-success-card" role="status">
-              <span className="dp-success-icon">✓</span>
-              <div>
-                <b>Coupon Redeemed!</b>
-                <p>{success.coupon_code} · {success.campaign_name}</p>
-                <small>
-                  Value: {success.discount_type === 'percentage'
-                    ? `${success.discount_value}%`
-                    : `₹${success.discount_value.toLocaleString('en-IN')}`}
-                </small>
+            {success && (
+              <div className="dp-success-card" role="status">
+                <span className="dp-success-icon">✓</span>
+                <div>
+                  <b>Coupon Redeemed!</b>
+                  <p>{success.coupon_code} · {success.campaign_name}</p>
+                  <small>
+                    Value: {success.discount_type === 'percentage'
+                      ? `${success.discount_value}%`
+                      : `₹${success.discount_value.toLocaleString('en-IN')}`}
+                  </small>
+                </div>
               </div>
+            )}
+
+            <button
+              type="submit"
+              className="dp-primary-btn"
+              disabled={loading || !couponCode.trim()}
+            >
+              {loading ? <><span className="dp-spinner" /> Processing…</> : '✓ Redeem Coupon'}
+            </button>
+          </form>
+        </div>
+
+        <div className="dp-section">
+          <div className="dp-section-label">HISTORY</div>
+          <h3 className="dp-section-title">Recent Redemptions</h3>
+          {listLoading ? (
+            <div className="dp-loading"><span className="dp-spinner" />Loading…</div>
+          ) : redemptions.length === 0 ? (
+            <p className="dp-empty">No coupons redeemed yet. Redeem your first coupon above.</p>
+          ) : (
+            <div className="dp-redemption-list">
+              {redemptions.map((r) => (
+                <article key={r.id} className="dp-redemption-row">
+                  <span className="dp-redemption-icon">✓</span>
+                  <div>
+                    <b>{r.coupon_code}</b>
+                    <small>{r.campaign_name}</small>
+                  </div>
+                  <div className="dp-redemption-amount">
+                    <b>₹{r.amount_redeemed.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</b>
+                    <small>{r.redeemed_at ? new Date(r.redeemed_at).toLocaleDateString('en-IN') : '—'}</small>
+                  </div>
+                </article>
+              ))}
             </div>
           )}
-
-          <button
-            type="submit"
-            className="dp-primary-btn"
-            disabled={loading || !couponCode.trim()}
-          >
-            {loading ? <><span className="dp-spinner" /> Processing…</> : '✓ Redeem Coupon'}
-          </button>
-        </form>
-      </section>
-
-      {/* Recent redemptions */}
-      <section className="dp-section">
-        <header>
-          <div>
-            <small>HISTORY</small>
-            <h2>Recent Redemptions</h2>
-          </div>
-        </header>
-        {listLoading ? (
-          <div className="dp-loading"><span className="dp-spinner" />Loading…</div>
-        ) : redemptions.length === 0 ? (
-          <p className="dp-empty">No coupons redeemed yet. Redeem your first coupon above.</p>
-        ) : (
-          <div className="dp-redemption-list">
-            {redemptions.map((r) => (
-              <article key={r.id} className="dp-redemption-row">
-                <span className="dp-redemption-icon">✓</span>
-                <div>
-                  <b>{r.coupon_code}</b>
-                  <small>{r.campaign_name}</small>
-                </div>
-                <div className="dp-redemption-amount">
-                  <b>₹{r.amount_redeemed.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</b>
-                  <small>{r.redeemed_at ? new Date(r.redeemed_at).toLocaleDateString('en-IN') : '—'}</small>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ─── Referral tab ───────────────────────────────────────────────────────────
+// ─── Referral mode ───────────────────────────────────────────────────────────
 
-function ReferralTab({ token }: { token: string }) {
+function ReferralMode({ token, onBack }: { token: string; onBack: () => void }) {
   const [data, setData] = useState<DealerReferral | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -411,72 +403,68 @@ function ReferralTab({ token }: { token: string }) {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   };
 
-  if (loading) return <div className="dp-loading"><span className="dp-spinner" />Loading your referral code…</div>;
-  if (error) return <div className="dp-error"><b>⚠ {error}</b><button type="button" onClick={() => void load()}>Retry</button></div>;
-
   return (
-    <div className="dp-referral">
-      <section className="dp-section">
-        <header>
-          <div>
-            <small>YOUR REFERRAL TOOL</small>
-            <h2>Invite Farmers</h2>
+    <div className="dp-inner-screen">
+      <div className="dp-inner-head">
+        <button type="button" className="dp-back-btn" onClick={onBack}>← Back</button>
+        <h2>Farmer Referral</h2>
+      </div>
+      <div className="dp-inner-body">
+        {loading && <div className="dp-loading"><span className="dp-spinner" />Loading your referral code…</div>}
+        {error && (
+          <div className="dp-error">
+            <b>⚠ {error}</b>
+            <button type="button" onClick={() => void load()}>Retry</button>
           </div>
-        </header>
-        <p className="dp-help-text">
-          Share your referral link or let farmers scan your QR code with their phone camera.
-          Farmers who register through your link are attributed to your dealership for the monthly target.
-        </p>
-
+        )}
         {data && (
           <>
-            {/* QR code */}
-            {data.qr_data_url ? (
-              <div className="dp-qr-card">
-                <img
-                  src={data.qr_data_url}
-                  alt={`Referral QR code for ${data.dealer_name}`}
-                  className="dp-qr-image"
-                />
-                <p><small>Farmers scan this with their phone camera</small></p>
-              </div>
-            ) : (
-              <div className="dp-qr-card dp-qr-unavailable">
-                <span>▣</span>
-                <p><small>QR generation unavailable on this server. Use the link below.</small></p>
-              </div>
-            )}
+            <div className="dp-section">
+              <div className="dp-section-label">YOUR REFERRAL TOOL</div>
+              <h3 className="dp-section-title">Invite Farmers</h3>
+              <p className="dp-help-text">Share your referral link or let farmers scan your QR code. Each registration counts toward your monthly target.</p>
 
-            {/* Link */}
-            <div className="dp-referral-link-box">
-              <code className="dp-referral-link">{data.referral_url}</code>
-              <div className="dp-referral-actions">
-                <button type="button" className="dp-copy-btn" onClick={() => void copyLink()}>
-                  {copied ? '✓ Copied!' : '⎘ Copy link'}
-                </button>
-                <button type="button" className="dp-whatsapp-btn" onClick={shareWhatsApp}>
-                  ◉ Share via WhatsApp
-                </button>
+              {data.qr_data_url ? (
+                <div className="dp-qr-card">
+                  <img src={data.qr_data_url} alt={`Referral QR code for ${data.dealer_name}`} className="dp-qr-image" />
+                  <p><small>Farmers scan this with their phone camera</small></p>
+                </div>
+              ) : (
+                <div className="dp-qr-card dp-qr-unavailable">
+                  <span>▣</span>
+                  <p><small>QR generation unavailable on this server. Use the link below.</small></p>
+                </div>
+              )}
+
+              <div className="dp-referral-link-box">
+                <code className="dp-referral-link">{data.referral_url}</code>
+                <div className="dp-referral-actions">
+                  <button type="button" className="dp-copy-btn" onClick={() => void copyLink()}>
+                    {copied ? '✓ Copied!' : '⎘ Copy link'}
+                  </button>
+                  <button type="button" className="dp-whatsapp-btn" onClick={shareWhatsApp}>
+                    ◉ Share via WhatsApp
+                  </button>
+                </div>
               </div>
+
+              <button type="button" className="dp-secondary-btn" onClick={() => void load()} disabled={loading}>
+                ↻ Refresh code
+              </button>
             </div>
 
-            {/* Refresh button */}
-            <button type="button" className="dp-secondary-btn" onClick={() => void load()} disabled={loading}>
-              ↻ Refresh code
-            </button>
+            <div className="dp-section dp-how-section">
+              <h3 className="dp-section-title">How it works</h3>
+              <ol className="dp-how-list">
+                <li><b>Share your link or QR</b> with farmers in your area.</li>
+                <li><b>Farmer registers</b> on CLSL AI using your link — they get free crop care.</li>
+                <li><b>You get credit</b> — the farmer counts toward your monthly referral target.</li>
+                <li><b>Earn rewards</b> — reach your target to unlock CLSL gifts!</li>
+              </ol>
+            </div>
           </>
         )}
-      </section>
-
-      <section className="dp-section dp-referral-info">
-        <h3>How it works</h3>
-        <ol className="dp-how-list">
-          <li><b>Share your link or QR</b> with farmers in your area.</li>
-          <li><b>Farmer registers</b> on CLSL AI using your link — they get free crop care.</li>
-          <li><b>You get credit</b> — the farmer is counted toward your monthly referral target.</li>
-          <li><b>Earn rewards</b> — reach your target to unlock CLSL gifts!</li>
-        </ol>
-      </section>
+      </div>
     </div>
   );
 }
@@ -492,61 +480,38 @@ export function DealerPortal({
   user: PublicUser;
   onLogout: () => Promise<void>;
 }) {
-  const [tab, setTab] = useState<DealerPortalTab>('dashboard');
+  const [tab, setTab] = useState<DealerPortalTab>('splash');
+  const [dashboard, setDashboard] = useState<DealerDashboard | null>(null);
+  const [dashError, setDashError] = useState('');
+
+  // Load dashboard data in background for the splash screen stats
+  useEffect(() => {
+    let active = true;
+    dealerApi<DealerDashboard>('me/dashboard', token)
+      .then((data) => { if (active) setDashboard(data); })
+      .catch((e) => { if (active) setDashError(e instanceof Error ? e.message : 'Unable to load dashboard.'); });
+    return () => { active = false; };
+  }, [token]);
+
+  const goBack = () => setTab('splash');
+
+  if (tab === 'inspect') return <InspectMode onBack={goBack} />;
+  if (tab === 'redeem') return <RedeemMode token={token} onBack={goBack} />;
+  if (tab === 'referral') return <ReferralMode token={token} onBack={goBack} />;
 
   return (
-    <main className="dp-shell">
-      {/* Top bar */}
-      <header className="dp-topbar">
-        <div className="dp-topbar-brand">
-          <img src="/clsl-logo.png" alt="CLSL" />
-          <span><strong>CLSL AI</strong><small>Dealer Portal</small></span>
+    <div className="dp-shell">
+      {dashError && !dashboard && (
+        <div className="dp-top-error" role="alert">
+          ⚠ {dashError} — some stats may be unavailable.
         </div>
-        <div className="dp-topbar-right">
-          <span className="dp-user-chip">{user.first_name || 'Dealer'}</span>
-          <button type="button" className="dp-logout-btn" onClick={() => void onLogout()}>
-            ↪ Logout
-          </button>
-        </div>
-      </header>
-
-      {/* Navigation tabs */}
-      <nav className="dp-tabs" aria-label="Dealer portal sections">
-        <button
-          className={tab === 'dashboard' ? 'active' : ''}
-          onClick={() => setTab('dashboard')}
-          aria-current={tab === 'dashboard' ? 'page' : undefined}
-        >
-          <span aria-hidden="true">⌂</span> Dashboard
-        </button>
-        <button
-          className={tab === 'redeem' ? 'active' : ''}
-          onClick={() => setTab('redeem')}
-          aria-current={tab === 'redeem' ? 'page' : undefined}
-        >
-          <span aria-hidden="true">✓</span> Redeem Coupon
-        </button>
-        <button
-          className={tab === 'referral' ? 'active' : ''}
-          onClick={() => setTab('referral')}
-          aria-current={tab === 'referral' ? 'page' : undefined}
-        >
-          <span aria-hidden="true">▣</span> Referral
-        </button>
-      </nav>
-
-      {/* Tab content */}
-      <div className="dp-content">
-        {tab === 'dashboard' && <DashboardTab token={token} />}
-        {tab === 'redeem' && <RedeemTab token={token} />}
-        {tab === 'referral' && <ReferralTab token={token} />}
-      </div>
-
-      {/* Footer */}
-      <footer className="dp-footer">
-        <img src="/clsl-logo.png" alt="Crop Life Science Limited" />
-        <div><b>Crop Life Science Limited</b><small>Dealer Partner Portal</small></div>
-      </footer>
-    </main>
+      )}
+      <SplashScreen
+        user={user}
+        dashboard={dashboard}
+        onSelect={setTab}
+        onLogout={onLogout}
+      />
+    </div>
   );
 }

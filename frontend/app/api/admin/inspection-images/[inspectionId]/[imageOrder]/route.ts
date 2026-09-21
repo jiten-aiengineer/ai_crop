@@ -25,7 +25,7 @@ export async function GET(request: Request, context: { params: Promise<{ inspect
     const image = await readPrivateInspectionImage({ bucket: metadata.bucket, key: metadata.key, mimeType: metadata.mime_type as InspectionImageMimeType });
     const body = new Uint8Array(image.bytes.byteLength);
     body.set(image.bytes);
-    return new NextResponse(body.buffer, { headers: {
+    return new Response(body.buffer, { headers: {
       'Content-Type': image.mimeType,
       'Content-Disposition': `inline; filename="inspection-${inspectionId.slice(0, 8)}-${imageOrder}.${image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : 'jpg'}"`,
       'Cache-Control': 'private, no-store, max-age=0', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; img-src 'self' data:",

@@ -40,7 +40,9 @@ export async function GET(request: Request) {
     if (access.denied) return access.denied;
     const key = new URL(request.url).searchParams.get('key') || '';
     const image = await readPrivateProductImage(key);
-    return new NextResponse(Buffer.from(image.bytes), { headers: { 'Content-Type': image.mimeType, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' } });
+    const body = new Uint8Array(image.bytes.byteLength);
+    body.set(image.bytes);
+    return new Response(body.buffer, { headers: { 'Content-Type': image.mimeType, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Product image is unavailable.' }, { status: 502 });
   }

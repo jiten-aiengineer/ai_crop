@@ -1380,22 +1380,27 @@ def list_dealers(
     _require(identity, ADMIN_READ_ROLES)
     filters = []
     params = []
-    if search:
-        filters.append("(name ILIKE %s OR dealer_code ILIKE %s OR sales_territory ILIKE %s)")
+    if search.strip():
+        filters.append("""(
+            COALESCE(name, '') ILIKE %s OR COALESCE(dealer_code, '') ILIKE %s
+            OR COALESCE(sales_executive, '') ILIKE %s OR COALESCE(sales_area, '') ILIKE %s
+            OR COALESCE(sales_region, '') ILIKE %s OR COALESCE(sales_territory, '') ILIKE %s
+            OR COALESCE(state, '') ILIKE %s OR COALESCE(location, '') ILIKE %s
+        )""")
         term = f"%{search.strip()}%"
-        params.extend([term, term, term])
+        params.extend([term] * 8)
     
     if state:
-        filters.append("state = %s")
+        filters.append("LOWER(BTRIM(COALESCE(state, ''))) = LOWER(BTRIM(%s))")
         params.append(state)
     if area:
-        filters.append("sales_area = %s")
+        filters.append("LOWER(BTRIM(COALESCE(sales_area, ''))) = LOWER(BTRIM(%s))")
         params.append(area)
     if territory:
-        filters.append("sales_territory = %s")
+        filters.append("LOWER(BTRIM(COALESCE(sales_territory, ''))) = LOWER(BTRIM(%s))")
         params.append(territory)
     if status:
-        filters.append("status = %s")
+        filters.append("LOWER(BTRIM(COALESCE(status, ''))) = LOWER(BTRIM(%s))")
         params.append(status)
         
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
@@ -1404,9 +1409,9 @@ def list_dealers(
     with connection() as conn:
         rows = conn.execute(sql, params).fetchall()
         facets = conn.execute(
-            """SELECT ARRAY(SELECT DISTINCT state FROM dealers WHERE state<>'' ORDER BY state) AS states,
-                      ARRAY(SELECT DISTINCT sales_area FROM dealers WHERE sales_area<>'' ORDER BY sales_area) AS areas,
-                      ARRAY(SELECT DISTINCT sales_territory FROM dealers WHERE sales_territory<>'' ORDER BY sales_territory) AS territories"""
+            """SELECT ARRAY(SELECT DISTINCT BTRIM(state) FROM dealers WHERE BTRIM(COALESCE(state, ''))<>'' ORDER BY BTRIM(state)) AS states,
+                      ARRAY(SELECT DISTINCT BTRIM(sales_area) FROM dealers WHERE BTRIM(COALESCE(sales_area, ''))<>'' ORDER BY BTRIM(sales_area)) AS areas,
+                      ARRAY(SELECT DISTINCT BTRIM(sales_territory) FROM dealers WHERE BTRIM(COALESCE(sales_territory, ''))<>'' ORDER BY BTRIM(sales_territory)) AS territories"""
         ).fetchone()
         
     return {"items": rows, "facets": facets}
@@ -1420,7 +1425,7 @@ def generate_dealer_referral(dealer_id: UUID, identity: AdminIdentity = Depends(
         if existing:
             token = existing["referral_token"]
         else:
-            token = secrets.token_hex(8)
+            token = "REF-" + secrets.token_urlsafe(18).replace("_", "").replace("-", "").upper()
             conn.execute(
                 "INSERT INTO dealer_referrals(dealer_id, referral_token) VALUES (%s, %s)",
                 (dealer_id, token)
@@ -1517,4 +1522,3 @@ def dealer_redemption_summary(
         "grand_total_redemptions": sum(i["redemption_count"] for i in items),
         "items": items,
     }
-

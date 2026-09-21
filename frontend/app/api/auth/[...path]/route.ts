@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.PUBLIC_AUTH_BACKEND_URL || process.env.BACKEND_URL
-  || (process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:8002' : 'http://127.0.0.1:8000');
+const BACKEND_URL = process.env.PUBLIC_AUTH_BACKEND_URL || process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
   const endpoint = path.join('/');
-  if (!['send-otp', 'verify-otp', 'profile', 'me', 'logout', 'dealer-lookup', 'dealer-search', 'dealer-referral', 'referral-lookup'].includes(endpoint)) {
+  if (!['send-otp', 'verify-otp', 'profile', 'me', 'logout', 'dealer-lookup', 'dealer-referral', 'referral-lookup'].includes(endpoint)) {
     return NextResponse.json({ detail: 'Unknown authentication action.' }, { status: 404 });
   }
   try {
@@ -24,7 +23,7 @@ export async function POST(request: Request, context: { params: Promise<{ path: 
       body: body || '{}',
       cache: 'no-store',
     });
-    return new NextResponse(await response.text(), {
+    return new Response(await response.text(), {
       status: response.status,
       headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
     });

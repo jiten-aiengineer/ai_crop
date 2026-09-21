@@ -27,7 +27,8 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
       cache: 'no-store',
       signal: AbortSignal.timeout(12_000),
     });
-    return new NextResponse(backend.body, { status: backend.status, headers: { 'Content-Type': backend.headers.get('content-type') || 'application/json', 'Cache-Control': 'no-store' } });
+    const responseText = await backend.text();
+    return new Response(responseText, { status: backend.status, headers: { 'Content-Type': backend.headers.get('content-type') || 'application/json', 'Cache-Control': 'no-store' } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Administration request failed.';
     const status = message.includes('hostname') ? 404 : 502;

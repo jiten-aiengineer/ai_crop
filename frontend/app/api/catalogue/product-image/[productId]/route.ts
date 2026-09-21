@@ -11,7 +11,9 @@ export async function GET(_request: Request, context: { params: Promise<{ produc
     const product = catalogue.products.find((item) => item.id === productId);
     if (!product || !product.image.startsWith('s3:')) return NextResponse.json({ error: 'Product image not found.' }, { status: 404 });
     const image = await readPrivateProductImage(product.image);
-    return new NextResponse(Buffer.from(image.bytes), { headers: { 'Content-Type': image.mimeType, 'Cache-Control': 'private, max-age=300', 'X-Content-Type-Options': 'nosniff' } });
+    const body = new Uint8Array(image.bytes.byteLength);
+    body.set(image.bytes);
+    return new Response(body.buffer, { headers: { 'Content-Type': image.mimeType, 'Cache-Control': 'private, max-age=300', 'X-Content-Type-Options': 'nosniff' } });
   } catch {
     return NextResponse.json({ error: 'Product image is temporarily unavailable.' }, { status: 502 });
   }

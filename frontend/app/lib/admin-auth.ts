@@ -12,7 +12,7 @@ export type AdminSession = { email: string; name: string; exp: number };
 type AuthMode = 'password' | 'microsoft' | 'none';
 type TemporaryAccount = { username: string; email: string; name: string; passwordHash: string };
 
-function environment(name: string) { return (process.env[name] || '').trim(); }
+function environment(name: string) { return (process.env[name] || '').trim().replace(/^['"]|['"]$/g, ''); }
 
 function temporaryAccounts() {
   const legacy: TemporaryAccount[] = [];
@@ -115,8 +115,10 @@ function equalText(a: string, b: string) {
   return aBytes.length === bBytes.length && timingSafeEqual(aBytes, bBytes);
 }
 function requestIsHttps(request: Request) {
+  const url = new URL(request.url);
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true;
   const forwarded = request.headers.get('x-forwarded-proto')?.split(',')[0].trim();
-  return forwarded === 'https' || new URL(request.url).protocol === 'https:';
+  return forwarded === 'https' || url.protocol === 'https:';
 }
 function verifyTemporaryPassword(password: string, encoded: string) {
   const [scheme, logN, r, p, saltValue, expectedValue] = encoded.split('$');

@@ -39,10 +39,6 @@ class ReferralLookupPayload(BaseModel):
     referral_code: str = Field(min_length=2, max_length=128)
 
 
-class DealerSearchPayload(BaseModel):
-    query: str = Field(min_length=2, max_length=120)
-
-
 class ProfilePayload(BaseModel):
     role: PublicRole
     first_name: str = Field(min_length=2, max_length=180)
@@ -145,22 +141,6 @@ def dealer_lookup(payload: DealerLookupPayload):
     return {"status": "success", "dealer": row}
 
 
-@router.post("/dealer-search")
-def dealer_search(payload: DealerSearchPayload):
-    term = f"%{payload.query.strip()}%"
-    with connection() as conn:
-        rows = conn.execute(
-            """SELECT dealer_code,name,location,sales_area,sales_region,sales_territory,state,
-                      (portal_mobile_number IS NOT NULL) AS already_bound
-               FROM dealers
-               WHERE status='active' AND (
-                 name ILIKE %s OR dealer_code ILIKE %s OR sales_territory ILIKE %s OR state ILIKE %s
-               ) ORDER BY CASE WHEN name ILIKE %s THEN 0 ELSE 1 END,name LIMIT 20""",
-            (term, term, term, term, term),
-        ).fetchall()
-    return {"status": "success", "items": rows}
-
-
 @router.post("/referral-lookup")
 def referral_lookup(payload: ReferralLookupPayload):
     with connection() as conn:
@@ -249,11 +229,15 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
                 raise HTTPException(400, "Referral code not found or expired.")
             referral_dealer_id = referral["dealer_id"]
         if payload.role == "dealer":
-            dealer = conn.execute("SELECT id,portal_mobile_number,status FROM dealers WHERE lower(dealer_code)=lower(%s) LIMIT 1", (payload.dealer_code.strip(),)).fetchone()
+            dealer = conn.execute("SELECT id,portal_mobile_number,contact_number,status FROM dealers WHERE lower(dealer_code)=lower(%s) LIMIT 1", (payload.dealer_code.strip(),)).fetchone()
             if not dealer or dealer["status"] != "active":
                 raise HTTPException(400, "Active dealer code not found.")
             if dealer["portal_mobile_number"] and dealer["portal_mobile_number"] != user["mobile_number"]:
                 raise HTTPException(409, "This dealer code is already linked to another verified mobile number.")
+            registered_mobile = "".join(character for character in (dealer["contact_number"] or "") if character.isdigit())[-10:]
+            user_mobile = "".join(character for character in user["mobile_number"] if character.isdigit())[-10:]
+            if registered_mobile and registered_mobile != user_mobile:
+                raise HTTPException(403, "Use the mobile number registered for this dealer code.")
             conn.execute("UPDATE dealers SET portal_mobile_number=%s,updated_at=now() WHERE id=%s", (user["mobile_number"], dealer["id"]))
             verified_dealer_id = dealer["id"]
         metadata = {"dealer_code": payload.dealer_code, "referral_code": payload.referral_code, "profile_completed_at": datetime.now(timezone.utc).isoformat()}
