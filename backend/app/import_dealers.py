@@ -31,10 +31,10 @@ def clean(value: object) -> str:
 
 
 def dealer_login_code() -> str:
-    """Generate a readable but non-sequential 80-bit dealer credential."""
+    """Generate a readable but non-sequential 100-bit dealer credential."""
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-    value = "".join(secrets.choice(alphabet) for _ in range(16))
-    return f"DLR-{value[:4]}{value[4:8]}{value[8:12]}{value[12:]}"
+    value = "".join(secrets.choice(alphabet) for _ in range(20))
+    return f"DLR-{value}"
 
 
 def load_rows(csv_path: Path) -> tuple[dict[str, dict[str, str]], int]:
