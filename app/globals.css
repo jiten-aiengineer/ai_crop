@@ -64,6 +64,43 @@
   .auth-field-grid{grid-template-columns:1fr}.role-grid button{padding:12px}
 }
 @media(prefers-reduced-motion:reduce){.auth-mascot{animation:none!important}}
+
+/* CLSL green sign-in system and a compact, app-like phone layout. */
+.auth-shell{--auth-blue:#4b7f21;--auth-deep:#1f491f;--auth-sky:#eff7df;background:#f2f6ed;color:#1d3322}
+.auth-visual{background:radial-gradient(circle at 88% 16%,rgba(188,220,84,.29),transparent 29%),linear-gradient(150deg,#173b1b 0%,#3e7025 55%,#72a52f 100%)}
+.auth-brand small{color:#e7f3cf}.auth-welcome small{color:#cce989}.auth-welcome p{color:#e5f0dd}.auth-trust span{color:#f6fbe9}
+.auth-panel{box-shadow:-22px 0 65px rgba(36,78,28,.12)}
+.auth-primary{box-shadow:0 12px 26px rgba(75,127,33,.24)}.auth-primary:hover{background:#3d6a1a}
+.auth-step input:focus,.auth-step select:focus,.phone-field:focus-within{box-shadow:0 0 0 4px rgba(75,127,33,.12)}
+.auth-progress i.active{box-shadow:0 3px 10px rgba(75,127,33,.2)}
+.auth-mascot{width:clamp(210px,20vw,242px);height:clamp(250px,24vw,286px);border-radius:28px;box-shadow:0 28px 70px rgba(16,48,17,.38)}
+.auth-mascot img{object-fit:contain;object-position:center;transform:none;background:#fff}
+.auth-mascot figcaption{background:rgba(31,73,31,.9)}
+.district-location-card{display:grid;gap:10px;padding:14px;border:1px solid #d9e6cc;border-radius:16px;background:#f8fbf3}
+.district-location-card .location-consent{width:100%;border-color:#93b475;background:#f1f8e8;color:#3e6e1d;padding:9px 12px;line-height:1.35}
+.location-consent.ready{background:#eaf7e4;color:#29691f;border-color:#83ba70}
+.social-grid{position:relative}.social-grid input{left:0;width:1px!important;height:1px!important;min-height:0!important;margin:0;clip-path:inset(50%)}
+
+@media(max-width:900px){
+  .auth-visual{height:192px;min-height:192px;border-radius:0 0 26px 26px;padding:15px 18px}
+  .auth-brand img{width:43px;height:43px;border-radius:12px}.auth-brand b{font-size:18px}.auth-brand small{font-size:9px}
+  .auth-welcome{margin:19px 0 0;max-width:58%}.auth-welcome h1{font-size:23px;margin:7px 0 0;line-height:1.08}
+  .auth-mascot{right:16px;bottom:14px;width:104px;height:122px;border-width:4px;border-radius:19px;box-shadow:0 14px 30px rgba(13,46,17,.3)}
+  .auth-mascot figcaption{left:6px;right:6px;bottom:6px;padding:5px 4px;border-radius:7px}.auth-mascot b{font-size:8px}
+  .auth-panel{min-height:calc(100dvh - 174px);margin:-18px auto 0;padding:26px 18px 38px;border-radius:22px 22px 0 0;box-shadow:0 -9px 28px rgba(28,71,24,.12)}
+  .auth-panel-head{margin-bottom:8px}.auth-progress{margin-bottom:20px}.auth-back{margin-bottom:14px}
+  .auth-step{gap:14px}.auth-step h2{font-size:26px}.auth-step>p{font-size:13px}
+}
+@media(max-width:520px){
+  .auth-visual{height:174px;min-height:174px;padding:13px 15px;border-radius:0 0 23px 23px}
+  .auth-brand img{width:40px;height:40px}.auth-brand b{font-size:17px}.auth-brand small{font-size:8px}
+  .auth-welcome{margin-top:17px;max-width:61%}.auth-welcome h1{font-size:21px}
+  .auth-mascot{width:92px;height:108px;right:12px;bottom:13px;border-radius:17px}
+  .auth-panel{min-height:calc(100dvh - 158px);margin-top:-16px;padding:23px 14px 32px}
+  .auth-step h2{font-size:24px}.language-grid button{height:60px;padding:9px 11px}.role-grid button{padding:11px;grid-template-columns:40px 1fr auto}.role-grid button>span{width:39px;height:39px}
+  .auth-step input,.auth-step select,.phone-field{height:50px}.auth-primary{height:52px}.district-location-card{padding:12px}
+}
+@media(max-width:370px){.auth-welcome h1{font-size:19px}.auth-mascot{width:84px;height:100px}.auth-panel{padding-left:12px;padding-right:12px}.language-grid{gap:7px}.language-grid button{padding:8px}}
 .auth-loading{min-height:100dvh;display:grid;place-content:center;justify-items:center;gap:10px;background:#f5f8fb;color:#064878}.auth-loading img{width:84px;height:84px;object-fit:contain}.auth-loading b{font-size:25px}.auth-loading span{font-size:12px;color:#657e8e}
 .inspection-location-gate{display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:12px;margin-bottom:22px;padding:14px;border:1px solid #f0cf8a;border-radius:14px;background:#fff9e9}.inspection-location-gate>span{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:#fff1c8;color:#8b5c00;font-size:20px}.inspection-location-gate b,.inspection-location-gate p{display:block;margin:0}.inspection-location-gate b{font-size:13px}.inspection-location-gate p{font-size:10px;line-height:1.45;color:#7e745f;margin-top:3px}.inspection-location-gate button{height:38px;border:0;border-radius:10px;background:#064878;color:white;padding:0 13px;font-size:11px;font-weight:800;cursor:pointer}.inspection-location-gate.ready{border-color:#9bc9aa;background:#eef9f1}.inspection-location-gate.ready>span{background:#d8f0df;color:#18713a}
 .app-sprayer-footer{position:relative;height:145px;max-width:1204px;margin:20px auto -10px;overflow:hidden;border-radius:24px;background:linear-gradient(180deg,transparent,#eff8fd)}.app-sprayer-footer .sprayer-scene{height:145px}.app-sprayer-footer .sprayer-track{width:560px;left:calc(50% - 280px);bottom:-32px}

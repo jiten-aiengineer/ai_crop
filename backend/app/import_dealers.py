@@ -1,59 +1,108 @@
+"""Import the private CLSL customer/dealer master into PostgreSQL.
+
+The source file is deliberately mounted at runtime and excluded from Git.  The
+import is idempotent by dealer code and does not touch referral, login, farmer,
+or coupon relationships.
+"""
+
+from __future__ import annotations
+
 import csv
+import sys
 from pathlib import Path
-from app.db import connection
 
-def import_dealers():
-    csv_path = Path(__file__).parent / "data" / "dealers.csv"
-    
-    if not csv_path.exists():
-        print(f"File not found: {csv_path}")
-        return
+from .db import connection
 
-    print("Importing dealers from CSV...")
-    success_count = 0
-    error_count = 0
+
+REQUIRED_COLUMNS = {
+    "Code",
+    "Name",
+    "Sales Executive",
+    "Sales Area",
+    "Sales Region",
+    "Sales Territory",
+    "State",
+}
+
+
+def clean(value: object) -> str:
+    return " ".join(str(value or "").strip().split())
+
+
+def load_rows(csv_path: Path) -> tuple[dict[str, dict[str, str]], int]:
+    rows_by_code: dict[str, dict[str, str]] = {}
+    duplicate_rows = 0
+
+    with csv_path.open("r", encoding="utf-8-sig", newline="") as source:
+        reader = csv.DictReader(source)
+        missing = REQUIRED_COLUMNS.difference(reader.fieldnames or [])
+        if missing:
+            raise ValueError(f"Dealer import is missing columns: {', '.join(sorted(missing))}")
+
+        for raw in reader:
+            code = clean(raw.get("Code"))
+            name = clean(raw.get("Name"))
+            if not code or not name:
+                continue
+            if code in rows_by_code:
+                duplicate_rows += 1
+            status = clean(raw.get("Status")).lower()
+            rows_by_code[code] = {
+                "dealer_code": code,
+                "name": name,
+                "sales_executive": clean(raw.get("Sales Executive")),
+                "sales_area": clean(raw.get("Sales Area")),
+                "sales_region": clean(raw.get("Sales Region")),
+                "sales_territory": clean(raw.get("Sales Territory")),
+                "state": clean(raw.get("State")),
+                "status": "inactive" if status in {"inactive", "blocked", "block"} else "active",
+            }
+
+    return rows_by_code, duplicate_rows
+
+
+def import_dealers(csv_path: Path) -> None:
+    if not csv_path.is_file():
+        raise FileNotFoundError(f"Dealer import file not found: {csv_path}")
+
+    rows_by_code, duplicate_rows = load_rows(csv_path)
+    rows = list(rows_by_code.values())
+    if not rows:
+        raise ValueError("Dealer import contains no valid dealer records.")
 
     with connection() as conn:
-        with open(csv_path, mode='r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                dealer_code = row.get("Code", "").strip()
-                name = row.get("Name", "").strip()
-                sales_exec = row.get("Sales Executive", "").strip()
-                sales_area = row.get("Sales Area", "").strip()
-                sales_region = row.get("Sales Region", "").strip()
-                sales_territory = row.get("Sales Territory", "").strip()
-                state = row.get("State", "").strip()
-
-                if not dealer_code:
-                    continue
-
-                try:
-                    with conn.transaction():
-                        conn.execute(
-                            """
-                            INSERT INTO dealers (
-                                dealer_code, name, sales_executive, sales_area, sales_region, sales_territory, state, status
-                            ) VALUES (
-                                %s, %s, %s, %s, %s, %s, %s, 'active'
-                            ) ON CONFLICT (dealer_code) DO UPDATE SET
-                                name = EXCLUDED.name,
-                                sales_executive = EXCLUDED.sales_executive,
-                                sales_area = EXCLUDED.sales_area,
-                                sales_region = EXCLUDED.sales_region,
-                                sales_territory = EXCLUDED.sales_territory,
-                                state = EXCLUDED.state,
-                                status = 'active'
-                            """,
-                            (dealer_code, name, sales_exec, sales_area, sales_region, sales_territory, state)
-                        )
-                    success_count += 1
-                except Exception as e:
-                    print(f"Error inserting {dealer_code}: {e}")
-        
+        with conn.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO dealers (
+                    dealer_code, name, sales_executive, sales_area,
+                    sales_region, sales_territory, state, status
+                ) VALUES (
+                    %(dealer_code)s, %(name)s, %(sales_executive)s, %(sales_area)s,
+                    %(sales_region)s, %(sales_territory)s, %(state)s, %(status)s
+                )
+                ON CONFLICT (dealer_code) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    sales_executive = EXCLUDED.sales_executive,
+                    sales_area = EXCLUDED.sales_area,
+                    sales_region = EXCLUDED.sales_region,
+                    sales_territory = EXCLUDED.sales_territory,
+                    state = EXCLUDED.state,
+                    status = EXCLUDED.status,
+                    updated_at = now()
+                """,
+                rows,
+            )
         conn.commit()
 
-    print(f"Import complete! Successfully imported {success_count} dealers. Errors: {error_count}")
+    active = sum(row["status"] == "active" for row in rows)
+    print(
+        f"Dealer import complete: {len(rows)} unique records "
+        f"({active} active, {len(rows) - active} inactive); "
+        f"{duplicate_rows} duplicate source rows resolved."
+    )
+
 
 if __name__ == "__main__":
-    import_dealers()
+    source_path = Path(sys.argv[1] if len(sys.argv) > 1 else "/imports/dealers_master.csv")
+    import_dealers(source_path)

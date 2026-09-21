@@ -199,8 +199,8 @@ def verify_otp(payload: VerifyOtpPayload, request: Request):
 
 @router.post("/profile")
 def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
-    if payload.role in {"farmer", "general_user", "other"} and not (payload.city or payload.village):
-        raise HTTPException(400, "Add a city or village to continue.")
+    if payload.role in {"farmer", "general_user", "other"} and not payload.district:
+        raise HTTPException(400, "Add your district to continue.")
     if payload.role == "dealer" and not payload.dealer_code:
         raise HTTPException(400, "Dealer code is required.")
     with connection() as conn:
