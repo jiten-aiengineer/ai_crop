@@ -75,7 +75,14 @@ export function adminConfiguration() {
 export function assertAdminHost(request: Request) {
   const configuration = adminConfiguration();
   if (!configuration.configured) return configuration;
-  const host = new URL(request.url).hostname.toLowerCase();
+  // Vinext runs behind Nginx on AWS. `request.url` therefore carries the
+  // internal loopback address, while Host/X-Forwarded-Host carries the public
+  // HTTPS hostname the administrator actually used.
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0].trim();
+  const hostHeader = forwardedHost || request.headers.get('host');
+  const host = hostHeader
+    ? hostHeader.replace(/^\[|\]$/g, '').split(':')[0].toLowerCase()
+    : new URL(request.url).hostname.toLowerCase();
   if (host !== configuration.hostname) throw new Error('This route is available only on the configured administration hostname.');
   return configuration;
 }
