@@ -21,7 +21,7 @@ ALTER TABLE dealers ADD COLUMN IF NOT EXISTS referral_target_label_2 VARCHAR(180
 
 -- Efficient monthly aggregation for the dealer dashboard and admin credit-note view
 CREATE INDEX IF NOT EXISTS coupon_redemptions_dealer_month_idx
-    ON coupon_redemptions(dealer_id, created_at);
+    ON coupon_redemptions(dealer_id, redeemed_at);
 -- migrate:split
 
 -- Index to quickly count farmers acquired through a dealer (for target progress)
