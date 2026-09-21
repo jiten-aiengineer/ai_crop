@@ -24,6 +24,10 @@ PublicRole = Literal["general_user", "farmer", "dealer", "other"]
 
 class SendOtpPayload(BaseModel):
     mobile_number: str = Field(pattern=r"^\+?[1-9]\d{9,14}$")
+    # A dealer code is only supplied by the private dealer onboarding path.  It
+    # lets us fail early when a mobile is already bound to a different dealer,
+    # before we consume the one-time code and create a short-lived session.
+    dealer_code: Optional[str] = Field(default=None, max_length=64)
 
 
 class VerifyOtpPayload(BaseModel):
@@ -163,6 +167,26 @@ def send_otp(payload: SendOtpPayload, request: Request):
         raise HTTPException(503, "Airtel DLT is not configured yet. Use test mode during development.")
     ip = _client_ip(request)
     with connection() as conn:
+        if payload.dealer_code:
+            dealer = conn.execute(
+                """SELECT id, portal_mobile_number, contact_number, status
+                   FROM dealers WHERE lower(dealer_code)=lower(%s) LIMIT 1""",
+                (payload.dealer_code.strip(),),
+            ).fetchone()
+            if not dealer or dealer["status"] != "active":
+                raise HTTPException(400, "Active dealer code not found. Check the code with CLSL.")
+            if dealer["portal_mobile_number"] and dealer["portal_mobile_number"] != payload.mobile_number:
+                raise HTTPException(409, "This dealer code is already linked to another verified mobile number.")
+            registered_mobile = "".join(character for character in (dealer["contact_number"] or "") if character.isdigit())[-10:]
+            submitted_mobile = "".join(character for character in payload.mobile_number if character.isdigit())[-10:]
+            if registered_mobile and registered_mobile != submitted_mobile:
+                raise HTTPException(403, "Use the mobile number registered for this dealer code.")
+            another_dealer = conn.execute(
+                "SELECT 1 FROM dealers WHERE portal_mobile_number=%s AND id<>%s LIMIT 1",
+                (payload.mobile_number, dealer["id"]),
+            ).fetchone()
+            if another_dealer:
+                raise HTTPException(409, "This mobile is already linked to a different dealership. Use its registered mobile number or ask CLSL administration to reset the old test binding.")
         ip_count = conn.execute("SELECT COUNT(*) AS c FROM auth_rate_limits WHERE identifier=%s AND action='otp_request_ip' AND expires_at>now()", (ip,)).fetchone()["c"]
         mobile_count = conn.execute("SELECT COUNT(*) AS c FROM auth_rate_limits WHERE identifier=%s AND action='otp_request_mobile' AND expires_at>now()", (payload.mobile_number,)).fetchone()["c"]
         if ip_count >= 30:
@@ -238,6 +262,12 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
             user_mobile = "".join(character for character in user["mobile_number"] if character.isdigit())[-10:]
             if registered_mobile and registered_mobile != user_mobile:
                 raise HTTPException(403, "Use the mobile number registered for this dealer code.")
+            another_dealer = conn.execute(
+                "SELECT 1 FROM dealers WHERE portal_mobile_number=%s AND id<>%s LIMIT 1",
+                (user["mobile_number"], dealer["id"]),
+            ).fetchone()
+            if another_dealer:
+                raise HTTPException(409, "This mobile is already linked to a different dealership. Use its registered mobile number or ask CLSL administration to reset the old test binding.")
             conn.execute("UPDATE dealers SET portal_mobile_number=%s,updated_at=now() WHERE id=%s", (user["mobile_number"], dealer["id"]))
             verified_dealer_id = dealer["id"]
         metadata = {"dealer_code": payload.dealer_code, "referral_code": payload.referral_code, "profile_completed_at": datetime.now(timezone.utc).isoformat()}

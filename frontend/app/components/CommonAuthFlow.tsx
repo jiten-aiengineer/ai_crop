@@ -90,7 +90,14 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
     if (relationship==='dealer' && (!dealer || !dealerConfirmed)) return setError('Verify and confirm your dealership.');
     if (relationship==='referral' && !referralName) return setError('Verify the referral code first.');
     setLoading(true);
-    try { await api('send-otp',{mobile_number:`+91${normalizedMobile}`}); setOtp(''); setStep('otp'); }
+    try {
+      await api('send-otp', {
+        mobile_number:`+91${normalizedMobile}`,
+        ...(relationship==='dealer' ? { dealer_code: dealerCode } : {}),
+      });
+      setOtp('');
+      setStep('otp');
+    }
     catch(problem){fail(problem);} finally{setLoading(false);}
   }
   async function finish(event: FormEvent) {
