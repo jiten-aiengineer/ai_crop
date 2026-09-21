@@ -46,7 +46,7 @@ from .model_consensus import refresh_consensus
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = json.loads((ROOT / "app/data/inspection-contract.json").read_text(encoding="utf-8"))
+CONTRACT = json.loads((ROOT / "frontend/app/data/inspection-contract.json").read_text(encoding="utf-8"))
 SCHEMA = CONTRACT["schema"]
 MAX_IMAGE_BYTES = 4 * 1024 * 1024
 WORKER_ID = f"{socket.gethostname()}:{uuid.uuid4().hex[:10]}"

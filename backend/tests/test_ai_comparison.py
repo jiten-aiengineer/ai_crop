@@ -136,7 +136,7 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(response.headers["cache-control"], "no-store")
 
     def test_catalogue_boundary(self):
-        route = (c.ROOT / "app/api/inspect/route.ts").read_text()
+        route = (c.ROOT / "frontend/app/api/inspect/route.ts").read_text()
         self.assertIn("approvedCatalogueRecommendations(grounded)", route)
         self.assertNotIn("qwen.diagnosis", route)
         self.assertNotIn("products", c.SCHEMA["properties"])

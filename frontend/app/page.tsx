@@ -7,9 +7,11 @@ import { getCopy, getLanguage, LanguageCode, languages } from './lib/i18n';
 import { FarmTools } from './components/FarmTools';
 import { WeatherAdvisory } from './components/WeatherAdvisory';
 import { PwaInstall } from './components/PwaInstall';
-import { AuthFlow, PublicUser, SprayerScene } from './components/AuthFlow';
+import { PublicUser, SprayerScene } from './components/AuthFlow';
+import { CommonAuthFlow } from './components/CommonAuthFlow';
 import salesContactData from './data/sales-contacts.json';
 import type { FieldIdentity } from './lib/field-access';
+import { reverseGeocode } from './lib/device-location';
 
 type View = 'home' | 'inspect' | 'assistant' | 'products' | 'tools' | 'history';
 type Diagnosis = {
@@ -26,7 +28,7 @@ type Diagnosis = {
 };
 type ChatMessage = { role: 'user' | 'assistant'; content: string; products?: CatalogProduct[]; contacts?: SalesContact[] };
 type StoredInspection = { id: string; createdAt: string; crop: string; issue: string; confidence: number; summary: string; result: Diagnosis; city?: string; };
-type Profile = { name: string; location: string; state: string; territory: string; city: string; language: LanguageCode; crop?: string; role?: string; };
+type Profile = { name: string; location: string; state: string; district?: string; village?: string; territory: string; city: string; language: LanguageCode; crop?: string; role?: string; };
 type SalesContact = { name: string; designation: string; state: string; territory: string; city: string; email: string; phone: string };
 type TopWeatherData = {
   location: string;
@@ -147,6 +149,8 @@ export default function Home() {
   const [catalogueUnavailable, setCatalogueUnavailable] = useState(false);
   const [fieldSession, setFieldSession] = useState<{ employee: FieldIdentity | null; error?: string; loaded: boolean }>({ employee: null, loaded: false });
   const [publicSession, setPublicSession] = useState<{ token: string; user: PublicUser | null; checked: boolean }>({ token: '', user: null, checked: false });
+  const [liveCoordinates, setLiveCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [livePlaceName, setLivePlaceName] = useState('');
 
 
   useEffect(() => {
@@ -165,17 +169,37 @@ export default function Home() {
     fetch('/api/auth/me', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: '{}' })
       .then(async (response) => ({ response, body: await response.json() as { user?: PublicUser } }))
       .then(({ response, body }) => {
-        if (!response.ok || !body.user) throw new Error('Expired session');
+        if (!response.ok || !body.user || body.user.requires_onboarding) throw new Error('Profile setup required');
         setPublicSession({ token, user: body.user, checked: true });
         const user = body.user;
         setProfile((current) => {
-          const saved: Profile = { ...current, name: user.first_name || current.name, role: user.role || current.role, language: getLanguage(user.preferred_language), city: user.city || current.city, state: user.state || current.state, location: [user.village, user.city, user.district, user.state].filter(Boolean).join(', ') || current.location };
+          const saved: Profile = { ...current, name: user.first_name || current.name, role: user.role || current.role, language: getLanguage(user.preferred_language), city: user.city || current.city, district:user.district, village:user.village, state: user.state || current.state, location: user.location_label || [user.village, user.city, user.district, user.state].filter(Boolean).join(', ') || current.location };
           try { localStorage.setItem(PROFILE_KEY, JSON.stringify(saved)); } catch { /* device storage may be unavailable */ }
           return saved;
         });
       })
       .catch(() => { localStorage.removeItem('clsl_auth_token'); setPublicSession({ token: '', user: null, checked: true }); });
   }, []);
+
+  useEffect(() => {
+    const user = publicSession.user;
+    if (!user || !navigator.geolocation) return;
+    if (user.location_latitude != null && user.location_longitude != null) {
+      setLiveCoordinates({ latitude: user.location_latitude, longitude: user.location_longitude });
+      setLivePlaceName(user.location_label || [user.village,user.city,user.district,user.state].filter(Boolean).join(', '));
+    }
+    let lastNamedAt = 0;
+    const watcher = navigator.geolocation.watchPosition((position) => {
+      const latitude = Math.round(position.coords.latitude * 10000) / 10000;
+      const longitude = Math.round(position.coords.longitude * 10000) / 10000;
+      setLiveCoordinates({ latitude, longitude });
+      if (Date.now() - lastNamedAt > 10 * 60 * 1000) {
+        lastNamedAt = Date.now();
+        void reverseGeocode(latitude, longitude, 'en').then((place) => setLivePlaceName(place.label)).catch(() => undefined);
+      }
+    }, () => undefined, { enableHighAccuracy:false, maximumAge:5*60*1000, timeout:15000 });
+    return () => navigator.geolocation.clearWatch(watcher);
+  }, [publicSession.user]);
 
   useEffect(() => {
     const employee = fieldSession.employee;
@@ -270,7 +294,7 @@ export default function Home() {
   const completePublicLogin = (token: string, user: PublicUser) => {
     setPublicSession({ token, user, checked: true });
     setProfile((current) => {
-      const saved: Profile = { ...current, name: user.first_name || current.name, role: user.role || current.role, language: getLanguage(user.preferred_language), city: user.city || current.city, state: user.state || current.state, location: [user.village, user.city, user.district, user.state].filter(Boolean).join(', ') || current.location };
+      const saved: Profile = { ...current, name: user.first_name || current.name, role: user.role || current.role, language: getLanguage(user.preferred_language), city: user.city || current.city, district:user.district, village:user.village, state: user.state || current.state, location: user.location_label || [user.village, user.city, user.district, user.state].filter(Boolean).join(', ') || current.location };
       try { localStorage.setItem(PROFILE_KEY, JSON.stringify(saved)); } catch { /* device storage may be unavailable */ }
       return saved;
     });
@@ -286,6 +310,8 @@ export default function Home() {
       localStorage.removeItem(PROFILE_KEY);
     } catch { /* Device storage may be unavailable. */ }
     setPublicSession({ token: '', user: null, checked: true });
+    setLiveCoordinates(null);
+    setLivePlaceName('');
     setProfile(DEFAULT_PROFILE);
     setFiles([]);
     setResult(null);
@@ -331,16 +357,17 @@ export default function Home() {
 
 
   if (!fieldSession.loaded || !publicSession.checked) return <main className="auth-loading"><img src="/clsl-logo.png" alt="CLSL" /><b>CLSL AI</b><span>Preparing your crop companion…</span></main>;
-  if (!fieldSession.employee && !publicSession.user) return <AuthFlow onComplete={completePublicLogin} />;
+  if (!fieldSession.employee && !publicSession.user) return <CommonAuthFlow onComplete={completePublicLogin} />;
 
 
   return <main className="app-shell">
     <Header view={view} nav={nav} profile={profile} onProfile={() => setProfileOpen(true)} language={language} changeLanguage={changeLanguage} theme={theme} toggleTheme={toggleTheme} t={t} />
     <FieldIdentityBanner employee={fieldSession.employee} error={fieldSession.error} t={t} />
-    <TopWeatherBar location={profile.city || profile.location} openProfile={() => setProfileOpen(true)} t={t} />
+    {publicSession.user?.role === 'dealer' && <DealerReferralBanner token={publicSession.token} />}
+    <TopWeatherBar location={livePlaceName || profile.location || profile.city} coordinates={liveCoordinates} openProfile={() => setProfileOpen(true)} t={t} />
     <div className="mascot-file-inputs" aria-hidden="true"><input ref={mascotCameraRef} tabIndex={-1} type="file" accept="image/*" capture="environment" onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /><input ref={mascotUploadRef} tabIndex={-1} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /></div>
-    {view === 'home' && <HomeView nav={nav} t={t} language={language} location={profile.city || profile.location} mascotPreparing={mascotPreparing} takePhoto={() => mascotCameraRef.current?.click()} uploadPhotos={() => mascotUploadRef.current?.click()} />}
-    {view === 'inspect' && <section className="workspace"><PageTitle eyebrow={t.doctor} title={t.inspectHeading} text={t.inspectIntro} /><div className="inspection-layout"><div className="inspect-card large"><InspectionForm inputRef={inputRef} files={files} crops={approvedCrops} setFiles={setFiles} onAnalyse={analyse} loading={loading} analysisProgress={analysisProgress} error={error} t={t} fieldIdentity={fieldSession.employee} initialCoordinates={publicSession.user?.location_latitude != null && publicSession.user?.location_longitude != null ? { latitude: publicSession.user.location_latitude, longitude: publicSession.user.location_longitude } : null} /></div><Tips t={t} /></div>{result && <Result result={result} profile={profile} onClose={() => setResult(null)} openProfile={() => setProfileOpen(true)} openProducts={openProducts} openProduct={setSelectedProduct} nav={nav} t={t} />}</section>}
+    {view === 'home' && <HomeView nav={nav} t={t} language={language} location={livePlaceName || profile.location || profile.city} coordinates={liveCoordinates} mascotPreparing={mascotPreparing} takePhoto={() => mascotCameraRef.current?.click()} uploadPhotos={() => mascotUploadRef.current?.click()} />}
+    {view === 'inspect' && <section className="workspace"><PageTitle eyebrow={t.doctor} title={t.inspectHeading} text={t.inspectIntro} /><div className="inspection-layout"><div className="inspect-card large"><InspectionForm inputRef={inputRef} files={files} crops={approvedCrops} setFiles={setFiles} onAnalyse={analyse} loading={loading} analysisProgress={analysisProgress} error={error} t={t} fieldIdentity={fieldSession.employee} initialCoordinates={liveCoordinates} /></div><Tips t={t} /></div>{result && <Result result={result} profile={profile} onClose={() => setResult(null)} openProfile={() => setProfileOpen(true)} openProducts={openProducts} openProduct={setSelectedProduct} nav={nav} t={t} />}</section>}
     {view === 'assistant' && <Assistant openProduct={setSelectedProduct} language={language} crops={approvedCrops} t={t} />}
     {view === 'products' && <Products products={approvedCatalogue || []} loading={approvedCatalogue === null} unavailable={catalogueUnavailable} initialQuery={productQuery} onQuery={setProductQuery} openProduct={setSelectedProduct} t={t} />}
     {view === 'tools' && <FarmTools language={language} />}
@@ -349,20 +376,21 @@ export default function Home() {
     <PwaInstall label={t.installApp} iosHelp={t.iosInstallHelp} />
     <div className="app-sprayer-footer"><SprayerScene /></div><footer><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><div><b>{t.productOf}</b></div><button onClick={() => nav('home')}>{t.home} ↑</button></footer>
     {selectedProduct && <ProductModal product={selectedProduct} close={() => setSelectedProduct(null)} nav={nav} t={t} />}
-    {profileOpen && <ProfileModal profile={profile} save={saveProfile} close={() => setProfileOpen(false)} logout={publicSession.user ? logoutPublicSession : undefined} t={t} fieldIdentity={fieldSession.employee} />}
+    {profileOpen && <ProfileModal profile={profile} save={saveProfile} close={() => setProfileOpen(false)} logout={publicSession.user ? logoutPublicSession : undefined} sessionToken={publicSession.token} publicRole={publicSession.user?.role || null} t={t} fieldIdentity={fieldSession.employee} />}
   </main>;
 }
 
-function TopWeatherBar({ location, openProfile, t }: { location: string; openProfile: () => void; t: Copy }) {
+function TopWeatherBar({ location, coordinates, openProfile, t }: { location: string; coordinates: {latitude:number;longitude:number}|null; openProfile: () => void; t: Copy }) {
   const [weather, setWeather] = useState<TopWeatherData | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     const city = location.trim();
-    if (!city) return;
+    if (!city && !coordinates) return;
     let active = true;
     const update = async () => {
       try {
-        const response = await fetch(`/api/weather?location=${encodeURIComponent(city)}`);
+        const query = coordinates ? `lat=${coordinates.latitude}&lon=${coordinates.longitude}&display=${encodeURIComponent(city || 'Current field location')}` : `location=${encodeURIComponent(city)}`;
+        const response = await fetch(`/api/weather?${query}`);
         const data = await readApiResponse<TopWeatherData>(response);
         if (!response.ok) throw new Error(data.error || 'Weather unavailable');
         if (active) { setWeather(data); setFailed(false); }
@@ -371,7 +399,7 @@ function TopWeatherBar({ location, openProfile, t }: { location: string; openPro
     void update();
     const timer = window.setInterval(update, 15 * 60 * 1000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [location]);
+  }, [location, coordinates]);
 
   if (!location.trim()) return <button className="top-weather-bar weather-setup" type="button" onClick={openProfile}><span>☀</span><b>{t.addCityWeather}</b><small>{t.addCityWeatherHelp}</small><i>＋</i></button>;
   const alert = weather ? weather.current.precipitation > 0 || weather.nextSix.rainChance >= 55 || weather.nextSix.rainMm >= 2
@@ -388,10 +416,10 @@ function Header({ view, nav, profile, onProfile, language, changeLanguage, theme
 function NavButton({ label, target, view, nav }: { label: string; target: View; view: View; nav: (view: View) => void }) { return <button className={view === target ? 'active' : ''} onClick={() => nav(target)}>{label}</button>; }
 function initials(name: string) { return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'F'; }
 
-function HomeView({ nav, t, language, location, mascotPreparing, takePhoto, uploadPhotos }: { nav: (view: View) => void; t: Copy; language: LanguageCode; location: string; mascotPreparing: boolean; takePhoto: () => void; uploadPhotos: () => void }) {
+function HomeView({ nav, t, language, location, coordinates, mascotPreparing, takePhoto, uploadPhotos }: { nav: (view: View) => void; t: Copy; language: LanguageCode; location: string; coordinates:{latitude:number;longitude:number}|null; mascotPreparing: boolean; takePhoto: () => void; uploadPhotos: () => void }) {
   return <><section className="home-brief"><div className="home-brief-copy"><div className="home-brief-brand"><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><span><small>{t.developed}</small><b>Crop Life Science Limited</b></span></div><p className="eyebrow"><span /> CLSL AI</p><h1>{t.heroTitle}<em>{t.heroAccent}</em></h1><p className="home-brief-intro">{t.homeHeroBrief}</p><div className="home-brief-actions"><button type="button" onClick={() => nav('inspect')}>⌾ {t.inspectTitle}</button><button type="button" className="secondary" onClick={() => nav('assistant')}>✦ {t.askMitra}</button></div><div className="home-proof"><span>{t.photoHelp}</span><i /> <span>{t.cropGuidance}</span><i /> <span>{t.fieldSupport}</span></div></div><MascotGuide t={t} preparing={mascotPreparing} takePhoto={takePhoto} uploadPhotos={uploadPhotos} ask={() => nav('assistant')} /></section>
     <section className="quick-section home-quick-section"><div className="section-label"><span>{t.startHere}</span><p>{t.appTagline}</p></div><div className="quick-grid"><Quick featured icon="⌁" label={t.geminiPowered} title={t.inspectTitle} text={t.inspectCardText} onClick={() => nav('inspect')} /><Quick icon="✦" label="CLSL AI" title={t.assistantTitle} text={t.assistantCardText} onClick={() => nav('assistant')} /><Quick icon="◫" label="CLSL" title={t.marketplace} text={t.marketCardText} onClick={() => nav('products')} /><Quick icon="⚖" label={t.fieldTools} title={t.navTools} text={t.calculatorCardText} onClick={() => nav('tools')} /></div></section>
-    <WeatherAdvisory language={language} initialLocation={location} /></>;
+    <WeatherAdvisory language={language} initialLocation={location} initialCoordinates={coordinates} /></>;
 }
 function MascotGuide({ t, preparing, takePhoto, uploadPhotos, ask }: { t: Copy; preparing: boolean; takePhoto: () => void; uploadPhotos: () => void; ask: () => void }) {
   return <aside className="mitra-brief-card" aria-labelledby="mascot-greeting"><div className="mitra-brief-image"><img src="/crop-life-mitra-tomato-doctor.jpg" alt={`${t.mascotName}, CLSL AI assistant`} /><span><b>{t.mascotName}</b><small>● {t.online}</small></span></div><div className="mitra-brief-copy"><p className="eyebrow"><span /> CLSL AI</p><h2 id="mascot-greeting">{t.mascotGreeting}</h2><p>{t.mascotPhotoPrompt}</p><div className="mitra-brief-actions"><button type="button" onClick={takePhoto} disabled={preparing}><span aria-hidden="true">⌾</span>{preparing ? t.mascotPreparing : t.mascotTakePhoto}</button><button type="button" className="secondary" onClick={uploadPhotos} disabled={preparing}><span aria-hidden="true">↑</span>{t.mascotUpload}</button></div><button type="button" className="mitra-chat-link" onClick={ask}>✦ {t.askMitra}<span>→</span></button></div></aside>;
@@ -421,6 +449,13 @@ function InspectionForm({ inputRef, files, crops, setFiles, onAnalyse, loading, 
   const [lng, setLng] = useState(initialCoordinates ? String(initialCoordinates.longitude) : '');
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
+
+  useEffect(() => {
+    if (!initialCoordinates) return;
+    setLat(String(initialCoordinates.latitude));
+    setLng(String(initialCoordinates.longitude));
+    setLocationError('');
+  }, [initialCoordinates]);
 
   const salesMode = fieldIdentity?.collection_mode === 'sales_officer';
   const minimumImages = salesMode ? 4 : 1;
@@ -538,8 +573,11 @@ function ProductModal({ product, close, nav, t }: { product: CatalogProduct; clo
 
 function HistoryView({ history, openResult, nav, clear, t }: { history: StoredInspection[]; openResult: (result: Diagnosis) => void; nav: (view: View) => void; clear: () => void; t: Copy }) { return <section className="workspace"><PageTitle eyebrow={t.savedDevice} title={t.historyHeading} text={t.historyIntro} />{history.length ? <><div className="history-tools"><span>{history.length}</span><button onClick={clear}>{t.clearHistory}</button></div><div className="history-list">{history.map((item) => <article className="history-item" key={item.id}><div className="history-date">{new Date(item.createdAt).toLocaleDateString()}</div><span className="crop-avatar">⌁</span><div><small>{item.crop}{item.city ? ` · ${item.city}` : ''}</small><h3>{item.issue}</h3><p>{item.summary}</p></div><span className="history-confidence">{Math.round(item.confidence * 100)}%</span><button onClick={() => openResult(item.result)}>{t.open} →</button></article>)}</div></> : <div className="empty-state history-empty"><span>⌁</span><h3>{t.noInspections}</h3><p>{t.historyEmpty}</p><button onClick={() => nav('inspect')}>{t.startInspection}</button></div>}</section>; }
 
-function ProfileModal({ profile, save, close, logout, t, fieldIdentity }: { profile: Profile; save: (profile: Profile) => void; close: () => void; logout?: () => Promise<void>; t: Copy; fieldIdentity: FieldIdentity | null }) {
+function ProfileModal({ profile, save, close, logout, sessionToken, publicRole, t, fieldIdentity }: { profile: Profile; save: (profile: Profile) => void; close: () => void; logout?: () => Promise<void>; sessionToken:string; publicRole:PublicUser['role']; t: Copy; fieldIdentity: FieldIdentity | null }) {
   const [draft, setDraft] = useState(profile);
+  const [referralLink,setReferralLink] = useState('');
+  const [referralBusy,setReferralBusy] = useState(false);
+  const [referralError,setReferralError] = useState('');
   const states = Array.from(new Set(salesContacts.map((contact) => contact.state))).sort();
   const stateContacts = salesContacts.filter((contact) => !draft.state || contact.state === draft.state);
   const territories = Array.from(new Set(stateContacts.map((contact) => contact.territory))).sort();
@@ -550,7 +588,23 @@ function ProfileModal({ profile, save, close, logout, t, fieldIdentity }: { prof
     const first = salesContacts.find((contact) => contact.state === draft.state && contact.territory === territory);
     setDraft({ ...draft, territory, city: first?.city || '' });
   };
+  const generateReferral = async () => {
+    setReferralBusy(true); setReferralError('');
+    try {
+      const response=await fetch('/api/auth/dealer-referral',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${sessionToken}`},body:'{}'});
+      const data=await readApiResponse<{download_url?:string;detail?:string}>(response);
+      if(!response.ok||!data.download_url) throw new Error(data.detail||'Unable to create referral link.');
+      setReferralLink(data.download_url);
+    } catch(problem) { setReferralError(problem instanceof Error?problem.message:'Unable to create referral link.'); }
+    finally { setReferralBusy(false); }
+  };
   return <div className="modal-backdrop" role="dialog" aria-modal="true"><form className="profile-modal contact-profile" onSubmit={(event) => { event.preventDefault(); save(draft); }}><button type="button" className="modal-close" onClick={close}>×</button><span className="profile-avatar">{initials(draft.name)}</span><h2>{fieldIdentity ? t.fieldOfficerProfile : t.profile}</h2><p>{fieldIdentity ? t.fieldProfileStored : t.profilePrivacy}</p>{fieldIdentity && <section className="field-profile-card"><small>{t.fieldOfficialIdentity}</small><b>{fieldIdentity.full_name} · {fieldIdentity.employee_code}</b><p>{fieldIdentity.designation || t.fieldSalesOfficer} · {fieldIdentity.department || 'CLSL'}</p><dl><div><dt>{t.territory}</dt><dd>{fieldIdentity.territory}, {fieldIdentity.state}</dd></div><div><dt>{t.officialContact}</dt><dd>{fieldIdentity.office_email || fieldIdentity.office_mobile || '—'}</dd></div></dl></section>}<div className="profile-fields"><label>{t.name}<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required readOnly={Boolean(fieldIdentity)} /></label><label>{t.preferredLanguage}<select value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value as LanguageCode })}>{languages.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label><label>Role<select value={draft.role || 'General User'} onChange={(event) => setDraft({ ...draft, role: event.target.value })}><option>Farmer</option><option>Dealer</option><option>General User</option></select></label>{draft.role === 'Farmer' && <label>Primary Crop<input value={draft.crop || ''} onChange={(event) => setDraft({ ...draft, crop: event.target.value })} /></label>}</div><section className="contact-directory"><div className="contact-title"><span>☎</span><div><small>{t.contactSales}</small><h3>{t.areaContact}</h3><p>{t.contactHelp}</p></div></div><div className="contact-location-grid"><label>{t.state}<select value={draft.state} disabled={Boolean(fieldIdentity)} onChange={(event) => setDraft({ ...draft, state: event.target.value, territory: '', city: '' })}><option value="">{t.chooseState}</option>{states.map((state) => <option key={state}>{state}</option>)}</select></label><label>{t.territory}<select value={draft.territory} disabled={Boolean(fieldIdentity) || !draft.state} onChange={(event) => changeTerritory(event.target.value)}><option value="">{t.chooseTerritory}</option>{territories.map((territory) => <option key={territory}>{territory}</option>)}</select></label><label>{t.city}<select value={draft.city} disabled={Boolean(fieldIdentity) || !draft.territory} onChange={(event) => setDraft({ ...draft, city: event.target.value })}><option value="">{t.chooseCity}</option>{cities.map((city) => <option key={city}>{city}</option>)}</select></label></div>{draft.state && draft.territory ? <div className="contact-results">{matches.map((contact) => <article key={`${contact.email}-${contact.territory}`}><span className="contact-avatar">{initials(contact.name)}</span><div><small>{t.officialContact}</small><b>{contact.name}</b><p>{contact.designation} · {contact.territory}</p></div><ContactButtons contact={contact} message={`${t.whatsappGreeting} ${draft.city || draft.territory}. ${t.whatsappHelp}`} t={t} /></article>)}</div> : <p className="no-area-contact">{t.noAreaContact}</p>}<p className="directory-privacy">✓ {t.directoryPrivacy}</p></section><button className="primary-button">{t.saveProfile}</button>{logout && <section className="profile-session-actions"><div><b>{t.logout}</b><small>{t.logoutHelp}</small></div><button type="button" onClick={() => void logout()}>↪ {t.logout}</button></section>}</form></div>;
 }
 
 function MobileNav({ view, nav, t }: { view: View; nav: (view: View) => void; t: Copy }) { return <nav className="mobile-nav" aria-label="Mobile navigation"><button className={view === 'home' ? 'active' : ''} onClick={() => nav('home')}><span>⌂</span>{t.home}</button><button className={view === 'assistant' ? 'active' : ''} onClick={() => nav('assistant')}><span>✦</span>{t.assistant}</button><button className="camera" onClick={() => nav('inspect')} aria-label={t.navInspect}><span>＋</span></button><button className={view === 'tools' ? 'active' : ''} onClick={() => nav('tools')}><span>⚖</span>{t.navTools}</button><button className={view === 'products' ? 'active' : ''} onClick={() => nav('products')}><span>◫</span>{t.navProducts}</button></nav>; }
+
+function DealerReferralBanner({ token }: { token:string }) {
+  const [link,setLink]=useState(''); const [busy,setBusy]=useState(false); const [error,setError]=useState('');
+  const generate=async()=>{setBusy(true);setError('');try{const response=await fetch('/api/auth/dealer-referral',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:'{}'});const data=await readApiResponse<{download_url?:string;detail?:string}>(response);if(!response.ok||!data.download_url)throw new Error(data.detail||'Unable to create referral link.');setLink(data.download_url);}catch(problem){setError(problem instanceof Error?problem.message:'Unable to create referral link.');}finally{setBusy(false);}};
+  return <section className="dealer-referral-banner"><div><small>CLSL DEALER TOOL</small><b>Invite farmers with your referral code</b><p>Farmers using this link are securely associated with your dealership.</p></div>{link?<div className="dealer-referral-link"><code>{link}</code><button type="button" onClick={()=>void navigator.clipboard.writeText(link)}>Copy link</button></div>:<button type="button" onClick={()=>void generate()} disabled={busy}>{busy?'Creating…':'Generate referral code'}</button>}{error&&<p className="form-error">{error}</p>}</section>;
+}

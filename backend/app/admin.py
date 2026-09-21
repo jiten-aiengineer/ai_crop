@@ -1370,6 +1370,7 @@ def create_expert_review(inspection_id: UUID, payload: ExpertReviewInput, identi
 
 @router.get("/dealers")
 def list_dealers(
+    search: str = Query(default="", max_length=120),
     state: str = Query(default="", max_length=100),
     area: str = Query(default="", max_length=100),
     territory: str = Query(default="", max_length=100),
@@ -1379,6 +1380,10 @@ def list_dealers(
     _require(identity, ADMIN_READ_ROLES)
     filters = []
     params = []
+    if search:
+        filters.append("(name ILIKE %s OR dealer_code ILIKE %s OR sales_territory ILIKE %s)")
+        term = f"%{search.strip()}%"
+        params.extend([term, term, term])
     
     if state:
         filters.append("state = %s")
@@ -1398,8 +1403,13 @@ def list_dealers(
     
     with connection() as conn:
         rows = conn.execute(sql, params).fetchall()
+        facets = conn.execute(
+            """SELECT ARRAY(SELECT DISTINCT state FROM dealers WHERE state<>'' ORDER BY state) AS states,
+                      ARRAY(SELECT DISTINCT sales_area FROM dealers WHERE sales_area<>'' ORDER BY sales_area) AS areas,
+                      ARRAY(SELECT DISTINCT sales_territory FROM dealers WHERE sales_territory<>'' ORDER BY sales_territory) AS territories"""
+        ).fetchone()
         
-    return {"items": rows}
+    return {"items": rows, "facets": facets}
 
 
 @router.post("/dealers/{dealer_id}/referral")
@@ -1417,5 +1427,5 @@ def generate_dealer_referral(dealer_id: UUID, identity: AdminIdentity = Depends(
             )
             conn.commit()
             
-    download_url = f"https://ai.croplifescience.com/join/{token}"
+    download_url = f"https://ai.croplifescience.com/?ref={token}"
     return {"token": token, "download_url": download_url}

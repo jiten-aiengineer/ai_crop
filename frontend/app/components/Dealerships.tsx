@@ -29,6 +29,7 @@ function isDealer(value: unknown): value is Dealer {
 
 export default function Dealerships() {
   const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [facets,setFacets] = useState<{states:string[];areas:string[];territories:string[]}>({states:[],areas:[],territories:[]});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
@@ -37,6 +38,7 @@ export default function Dealerships() {
   const [areaFilter, setAreaFilter] = useState('');
   const [territoryFilter, setTerritoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [search,setSearch] = useState('');
   
   const [selectedDealer, setSelectedDealer] = useState<Dealer | null>(null);
   const [referralToken, setReferralToken] = useState<string | null>(null);
@@ -51,18 +53,24 @@ export default function Dealerships() {
       if (areaFilter) params.append('area', areaFilter);
       if (territoryFilter) params.append('territory', territoryFilter);
       if (statusFilter) params.append('status', statusFilter);
+      if (search.trim()) params.append('search', search.trim());
       
       const response = await fetch(`/api/admin/portal/dealers?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch dealers');
       const data: unknown = await response.json();
       const items = isObject(data) && Array.isArray(data.items) ? data.items.filter(isDealer) : [];
       setDealers(items);
+      if (isObject(data) && isObject(data.facets)) setFacets({
+        states:Array.isArray(data.facets.states)?data.facets.states.filter((item):item is string=>typeof item==='string'):[],
+        areas:Array.isArray(data.facets.areas)?data.facets.areas.filter((item):item is string=>typeof item==='string'):[],
+        territories:Array.isArray(data.facets.territories)?data.facets.territories.filter((item):item is string=>typeof item==='string'):[],
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
-  }, [areaFilter, stateFilter, statusFilter, territoryFilter]);
+  }, [areaFilter, search, stateFilter, statusFilter, territoryFilter]);
 
   useEffect(() => {
     void Promise.resolve().then(fetchDealers);
@@ -92,8 +100,8 @@ export default function Dealerships() {
   }
 
   // Unique values for filter dropdowns based on current data (for simplicity, ideally from backend)
-  const areas = Array.from(new Set(dealers.map(d => d.sales_area).filter(Boolean))).sort();
-  const territories = Array.from(new Set(dealers.map(d => d.sales_territory).filter(Boolean))).sort();
+  const areas = facets.areas.length ? facets.areas : Array.from(new Set(dealers.map(d => d.sales_area).filter(Boolean))).sort();
+  const territories = facets.territories.length ? facets.territories : Array.from(new Set(dealers.map(d => d.sales_territory).filter(Boolean))).sort();
 
   return (
     <div className="admin-content">
@@ -107,13 +115,14 @@ export default function Dealerships() {
       
       <div className="admin-catalogue-filters" style={{ marginBottom: '20px' }}>
         <label className="admin-search">
+          <span>Dealer name or code</span>
+          <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search dealer name, code or territory" />
+        </label>
+        <label className="admin-search">
           <span>State</span>
           <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
             <option value="">All States</option>
-            <option value="Gujarat">Gujarat</option>
-            <option value="Maharashtra">Maharashtra</option>
-            <option value="Madhya Pradesh">Madhya Pradesh</option>
-            {/* Add more states dynamically based on data if needed */}
+            {facets.states.map(state=><option key={state} value={state}>{state}</option>)}
           </select>
         </label>
         

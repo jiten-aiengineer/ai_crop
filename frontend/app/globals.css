@@ -55,6 +55,23 @@
   .auth-panel-head{margin-bottom:10px}.auth-progress{margin-bottom:24px}
   .auth-step h2{font-size:29px}.auth-panel>.sprayer-scene.compact{display:none}
 }
+
+/* Common public login and dealer referral tools */
+.common-auth .auth-panel{overflow-y:auto}
+.common-login-details{gap:16px}
+.login-location-card{border:1px solid #cbd5e1;border-radius:20px;padding:14px;background:#f8fafc}
+.login-location-card.ready{border-color:#64a30f;background:#f4fae9}
+.login-location-card .location-consent{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;min-height:52px;border:0;border-radius:14px;background:var(--auth-blue);color:#fff;font:inherit}
+.login-location-card .location-consent span{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#fff;color:var(--auth-blue)}
+.login-location-card dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0 0}
+.login-location-card dl div{padding:10px;border-radius:12px;background:#fff;border:1px solid #dbe6ed;min-width:0}
+.login-location-card dt{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em}.login-location-card dd{margin:3px 0 0;font-weight:750;color:#0f3550;overflow-wrap:anywhere}
+.relationship-card{border:1px solid #dbe6ed;border-radius:20px;padding:16px;background:#fff}.relationship-card h3{margin:0;color:#0f3550}.relationship-card>p{margin:5px 0 12px;color:#64748b;font-size:13px}
+.relationship-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.relationship-tabs button{border:1px solid #bdd0dc;border-radius:11px;background:#f8fafc;color:#19445e;padding:10px 7px;font-weight:700}.relationship-tabs button.active{background:var(--auth-blue);color:#fff;border-color:var(--auth-blue)}
+.dealer-search-box,.referral-card{display:grid;gap:12px;margin-top:14px}.dealer-results{display:grid;gap:6px;max-height:190px;overflow:auto}.dealer-results button{text-align:left;border:1px solid #dbe6ed;border-radius:12px;padding:10px;background:#f8fafc}.dealer-results b,.dealer-results small{display:block}.dealer-results small{margin-top:3px;color:#64748b}
+.verified-dealer-card{padding:12px;border-radius:12px;background:#eff8df;border:1px solid #b8dc79}.verified-dealer-card>b,.verified-dealer-card>small{display:block}.verified-dealer-card label{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;margin-top:10px}.verified-dealer-card input{width:auto!important}
+.dealer-referral-banner{max-width:1240px;margin:12px auto;padding:14px 18px;border-radius:18px;background:#eaf3f8;border:1px solid #c2d9e6;display:flex;align-items:center;gap:18px;color:#123b55}.dealer-referral-banner>div:first-child{flex:1}.dealer-referral-banner small,.dealer-referral-banner b,.dealer-referral-banner p{display:block;margin:0}.dealer-referral-banner p{margin-top:3px;color:#526b7c}.dealer-referral-banner>button,.dealer-referral-link button{border:0;border-radius:12px;padding:12px 16px;background:#064878;color:#fff;font-weight:750}.dealer-referral-link{display:flex;align-items:center;gap:8px;max-width:50%}.dealer-referral-link code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#fff;padding:10px;border-radius:10px;border:1px solid #c2d9e6}
+@media(max-width:720px){.common-auth .auth-panel{padding-bottom:30px}.login-location-card dl{grid-template-columns:1fr}.relationship-tabs{grid-template-columns:1fr}.dealer-referral-banner{margin:8px 12px;align-items:stretch;flex-direction:column}.dealer-referral-link{max-width:none;flex-direction:column;align-items:stretch}.dealer-referral-link code{white-space:normal;overflow-wrap:anywhere}}
 @media(max-width:520px){
   .auth-visual{height:224px;min-height:224px;padding:16px 18px}.auth-brand img{width:44px;height:44px}.auth-brand b{font-size:19px}
   .auth-welcome{margin-top:25px;max-width:57%}.auth-welcome h1{font-size:24px}

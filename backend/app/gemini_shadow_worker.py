@@ -29,7 +29,7 @@ from .qwen_worker import WorkerError, parse_diagnosis
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = json.loads((ROOT / "app/data/inspection-contract.json").read_text(encoding="utf-8"))
+CONTRACT = json.loads((ROOT / "frontend/app/data/inspection-contract.json").read_text(encoding="utf-8"))
 WORKER_ID = f"{socket.gethostname()}:gemini:{uuid.uuid4().hex[:10]}"
 MAX_IMAGE_BYTES = 4 * 1024 * 1024
 LOG = logging.getLogger("crop-life-gemini-shadow-worker")

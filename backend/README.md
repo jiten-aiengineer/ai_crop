@@ -19,7 +19,7 @@ Invoke-RestMethod http://localhost:8000/health
 ```
 
 The API startup applies versioned SQL migrations and imports the 73 products
-from `app/data/products.json`.
+from `frontend/app/data/products.json`.
 
 The project database is exposed on host port `5434` because this development
 PC already has native PostgreSQL services on ports `5432` and `5433`. Containers
@@ -33,7 +33,7 @@ Git, and imported with:
 
 ```powershell
 docker compose run --rm api python -m app.import_employees /imports/employees.csv
-docker compose run --rm api python -m app.import_catalog_knowledge app/data/products.json
+docker compose run --rm api python -m app.import_catalog_knowledge /seed/products.json
 ```
 
 `CLSL-1415` is assigned the supplied Microsoft email and receives the initial
@@ -53,7 +53,7 @@ fields are excluded.
 
 ```powershell
 $env:PYTHONPATH = "backend"
-python backend/tools/export_sales_contacts.py app/data/sales-contacts.json
+python backend/tools/export_sales_contacts.py frontend/app/data/sales-contacts.json
 ```
 
 Re-export this file after an approved employee or territory change. The public

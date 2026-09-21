@@ -45,6 +45,7 @@ export default defineConfig(async () => {
   const { cloudflare } = await import('@cloudflare/vite-plugin');
 
   return {
+    publicDir: 'frontend/public',
     css: { postcss: { plugins: [tailwindcss()] } },
     // The AWS SDK must run as Node's installed package on the EC2 service.
     // Bundling it into Vinext's server output caused the S3 signer to fail at
@@ -54,7 +55,7 @@ export default defineConfig(async () => {
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
     plugins: [
-      vinext(),
+      vinext({ appDir: 'frontend' }),
       sites(),
       cloudflare({
         viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },

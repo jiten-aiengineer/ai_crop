@@ -22,8 +22,8 @@ function load(file, overrides={}) {
 }
 const data={crop:'Tomato',crop_confidence:.9,condition:'affected',issue_detected:true,issue_type:'fungal_disease',probable_issue:'Early blight',confidence:.85,severity:'moderate',visible_symptoms:['Brown spots']};
 const input={context:{crop:'Tomato',plant:'',description:'Brown spots',location:'',notes:'',language:'en'},images:[{mimeType:'image/png',data:'dGVzdA=='}]};
-const ai=load('app/lib/inspection-ai.ts');
-const catalogue=load('app/lib/catalog.ts');
+const ai=load('frontend/app/lib/inspection-ai.ts');
+const catalogue=load('frontend/app/lib/catalog.ts');
 
 test('normalized output preserves legacy catalogue matching without invented products',()=>{
   const normalized=ai.normalizeDiagnosis({...data,products:[{name:'Invented Spray'}]});
@@ -80,12 +80,12 @@ test('Flash-Lite replaces only a weak Gemma live result',()=>{
 test('administrator proxy fails closed before any service request',async()=>{
   const prior=global.fetch;const old=process.env.COMPARISON_ADMIN_TOKEN;delete process.env.COMPARISON_ADMIN_TOKEN;
   global.fetch=async()=>{throw new Error('Should never call private service');};
-  try{const route=load('app/api/admin/ai-comparison/route.ts');const response=await route.GET(new Request('http://test/api/admin/ai-comparison'));assert.equal(response.status,401);assert.equal(response.headers.get('cache-control'),'no-store');}finally{global.fetch=prior;if(old!==undefined)process.env.COMPARISON_ADMIN_TOKEN=old;}
+  try{const route=load('frontend/app/api/admin/ai-comparison/route.ts');const response=await route.GET(new Request('http://test/api/admin/ai-comparison'));assert.equal(response.status,401);assert.equal(response.headers.get('cache-control'),'no-store');}finally{global.fetch=prior;if(old!==undefined)process.env.COMPARISON_ADMIN_TOKEN=old;}
 });
 
 test('local lab opens on upload controls without a password',()=>{
   const React=require('react');const {renderToStaticMarkup}=require('react-dom/server');
-  const Dashboard=load('app/components/ComparisonDashboard.tsx',{'next/link':props=>React.createElement('a',props)}).default;
+  const Dashboard=load('frontend/app/components/ComparisonDashboard.tsx',{'next/link':props=>React.createElement('a',props)}).default;
   const html=renderToStaticMarkup(React.createElement(Dashboard,{localMode:true,initialLab:true}));
   assert.ok(html.includes('Upload photos'));
   assert.ok(html.includes('Run both models'));
@@ -94,7 +94,7 @@ test('local lab opens on upload controls without a password',()=>{
 
 test('unconfigured public page offers local link instead of an impossible key form',()=>{
   const React=require('react');const {renderToStaticMarkup}=require('react-dom/server');
-  const Dashboard=load('app/components/ComparisonDashboard.tsx',{'next/link':props=>React.createElement('a',props)}).default;
+  const Dashboard=load('frontend/app/components/ComparisonDashboard.tsx',{'next/link':props=>React.createElement('a',props)}).default;
   const html=renderToStaticMarkup(React.createElement(Dashboard,{configured:false}));
   assert.ok(html.includes('http://127.0.0.1:8001/'));
   assert.ok(!html.includes('type="password"'));
@@ -109,7 +109,7 @@ test('private S3 inspection archive uses IAM SDK defaults and non-PII UUID keys'
   Object.assign(process.env,{AWS_REGION:'us-east-1',S3_BUCKET_NAME:'crop-life-ai-data',S3_INSPECTIONS_PREFIX:'inspections'});
   try{
     const sdk={S3Client,PutObjectCommand,DeleteObjectCommand};
-    const storage=load('app/lib/s3-storage.ts',{
+    const storage=load('frontend/app/lib/s3-storage.ts',{
       '@aws-sdk/client-s3':sdk,
       'node:module':{createRequire:()=>name=>name==='@aws-sdk/client-s3'?sdk:require(name)},
     });
@@ -127,7 +127,7 @@ test('inspection persistence is skipped safely until its private server token is
   const payload={inspectionId:'550e8400-e29b-41d4-a716-446655440000',imageCount:1,input,storage:{status:'not_configured',images:[],failures:[]},provider:{provider:'gemini',model:'test',success:false,latencyMs:3,timestamp:'now',error:'offline'},recommendations:[]};
   delete process.env.INSPECTION_PERSISTENCE_URL;delete process.env.INSPECTION_PERSISTENCE_TOKEN;global.fetch=async()=>{throw new Error('must not call');};
   try{
-    const persistence=load('app/lib/inspection-persistence.ts');
+    const persistence=load('frontend/app/lib/inspection-persistence.ts');
     assert.equal((await persistence.persistInspection(payload)).status,'skipped');
   }finally{global.fetch=prior;for(const name of names){if(old[name]===undefined)delete process.env[name];else process.env[name]=old[name];}}
 });
@@ -139,7 +139,7 @@ test('inspection persistence returns the durable shadow queue state',async()=>{
   let sentBody;
   global.fetch=async(_url,options)=>{sentBody=JSON.parse(options.body);return Response.json({status:'saved',shadow_status:'pending'},{status:201});};
   try{
-    const persistence=load('app/lib/inspection-persistence.ts');
+    const persistence=load('frontend/app/lib/inspection-persistence.ts');
     payload.additionalProviders=[{provider:'gemma',model:'gemma',success:true,latencyMs:9,timestamp:'now',diagnosis:data}];
     const result=await persistence.persistInspection(payload);
     assert.equal(result.status,'saved');assert.equal(result.shadowStatus,'pending');

@@ -53,6 +53,10 @@ export async function GET(request: Request) {
   let longitude = finite(url.searchParams.get('lon'));
   let resolvedLocation = '';
 
+  if (latitude !== null && longitude !== null) {
+    resolvedLocation = String(url.searchParams.get('display') || '').trim().slice(0, 180) || 'Current field location';
+  }
+
   if (latitude === null || longitude === null) {
     const location = String(url.searchParams.get('location') || '').trim().slice(0, 120);
     if (!location) return NextResponse.json({ error: 'Enter a village, district or city, or use your current location.' }, { status: 400 });
@@ -100,7 +104,7 @@ export async function GET(request: Request) {
   };
 
   return NextResponse.json({
-    location: resolvedLocation || `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`,
+    location: resolvedLocation || 'Current field location',
     latitude,
     longitude,
     timezone: forecast.timezone,

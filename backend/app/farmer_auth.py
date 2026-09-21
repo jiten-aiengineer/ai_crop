@@ -39,6 +39,10 @@ class ReferralLookupPayload(BaseModel):
     referral_code: str = Field(min_length=2, max_length=128)
 
 
+class DealerSearchPayload(BaseModel):
+    query: str = Field(min_length=2, max_length=120)
+
+
 class ProfilePayload(BaseModel):
     role: PublicRole
     first_name: str = Field(min_length=2, max_length=180)
@@ -55,6 +59,11 @@ class ProfilePayload(BaseModel):
     location_latitude: Optional[float] = Field(default=None, ge=-90, le=90)
     location_longitude: Optional[float] = Field(default=None, ge=-180, le=180)
     location_consent: bool = False
+    location_label: str = Field(min_length=3, max_length=300)
+    location_postcode: Optional[str] = Field(default=None, max_length=24)
+    location_country: Optional[str] = Field(default="India", max_length=100)
+    location_accuracy_meters: Optional[float] = Field(default=None, ge=0, le=100000)
+    location_metadata: dict = Field(default_factory=dict)
 
     @field_validator("email")
     @classmethod
@@ -113,9 +122,12 @@ def _public_user(row) -> dict:
         "district": row.get("district"), "village": row.get("village"),
         "state": row.get("state"), "social_media_used": row.get("social_media_used") or [],
         "acquisition_source": row.get("acquisition_source"),
+        "location_label": row.get("location_label"),
+        "location_postcode": row.get("location_postcode"),
+        "location_country": row.get("location_country"),
         "location_latitude": float(row["location_latitude"]) if row.get("location_latitude") is not None else None,
         "location_longitude": float(row["location_longitude"]) if row.get("location_longitude") is not None else None,
-        "requires_onboarding": not bool(row.get("role") and row.get("name")),
+        "requires_onboarding": not bool(row.get("role") and row.get("name") and row.get("location_consent_at")),
     }
 
 
@@ -131,6 +143,22 @@ def dealer_lookup(payload: DealerLookupPayload):
     if not row or row["status"] != "active":
         raise HTTPException(404, "Active dealer code not found. Check the code with CLSL.")
     return {"status": "success", "dealer": row}
+
+
+@router.post("/dealer-search")
+def dealer_search(payload: DealerSearchPayload):
+    term = f"%{payload.query.strip()}%"
+    with connection() as conn:
+        rows = conn.execute(
+            """SELECT dealer_code,name,location,sales_area,sales_region,sales_territory,state,
+                      (portal_mobile_number IS NOT NULL) AS already_bound
+               FROM dealers
+               WHERE status='active' AND (
+                 name ILIKE %s OR dealer_code ILIKE %s OR sales_territory ILIKE %s OR state ILIKE %s
+               ) ORDER BY CASE WHEN name ILIKE %s THEN 0 ELSE 1 END,name LIMIT 20""",
+            (term, term, term, term, term),
+        ).fetchall()
+    return {"status": "success", "items": rows}
 
 
 @router.post("/referral-lookup")
@@ -199,8 +227,12 @@ def verify_otp(payload: VerifyOtpPayload, request: Request):
 
 @router.post("/profile")
 def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
-    if payload.role in {"farmer", "general_user", "other"} and not payload.district:
-        raise HTTPException(400, "Add your district to continue.")
+    if not payload.location_consent or payload.location_latitude is None or payload.location_longitude is None:
+        raise HTTPException(400, "Current device location is required to continue.")
+    if not payload.district or not payload.state or not payload.location_label:
+        raise HTTPException(400, "District and state could not be verified from the current location.")
+    if payload.dealer_code and payload.referral_code:
+        raise HTTPException(400, "Use either your own dealer code or a dealer referral code, not both.")
     if payload.role == "dealer" and not payload.dealer_code:
         raise HTTPException(400, "Dealer code is required.")
     with connection() as conn:
@@ -228,18 +260,50 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
         updated = conn.execute(
             """UPDATE farmers SET role=%s,name=%s,preferred_language=%s,email=%s,city=%s,district=%s,
                  village=%s,state=%s,social_media_used=%s::jsonb,acquisition_source=%s,
-                 location_latitude=%s,location_longitude=%s,
+                 location_latitude=%s,location_longitude=%s,location_label=%s,
+                 location_postcode=%s,location_country=%s,location_accuracy_meters=%s,location_metadata=%s::jsonb,
                  location_consent_at=CASE WHEN %s THEN COALESCE(location_consent_at,now()) ELSE location_consent_at END,
                  acquisition_dealer_id=COALESCE(acquisition_dealer_id,%s),preferred_dealer_id=COALESCE(%s,preferred_dealer_id),
                  verified_dealer_id=%s,profile_metadata=profile_metadata || %s::jsonb,updated_at=now()
                WHERE id=%s RETURNING *""",
             (payload.role,payload.first_name.strip(),payload.preferred_language,payload.email,payload.city,payload.district,
              payload.village,payload.state,json.dumps(payload.social_media_used),payload.acquisition_source,
-             payload.location_latitude,payload.location_longitude,payload.location_consent,
+             payload.location_latitude,payload.location_longitude,payload.location_label,
+             payload.location_postcode,payload.location_country,payload.location_accuracy_meters,
+             json.dumps(payload.location_metadata),payload.location_consent,
              referral_dealer_id,referral_dealer_id,verified_dealer_id,json.dumps(metadata),user["id"]),
         ).fetchone()
         conn.commit()
     return {"status": "success", "user": _public_user(updated)}
+
+
+@router.post("/dealer-referral")
+def dealer_referral(authorization: str = Header(...)):
+    with connection() as conn:
+        user = _session_user(conn, authorization)
+        if user.get("role") != "dealer" or not user.get("verified_dealer_id"):
+            raise HTTPException(403, "A verified dealer login is required.")
+        dealer = conn.execute(
+            "SELECT id,name,status FROM dealers WHERE id=%s",
+            (user["verified_dealer_id"],),
+        ).fetchone()
+        if not dealer or dealer["status"] != "active":
+            raise HTTPException(403, "This dealership is not active.")
+        existing = conn.execute(
+            """SELECT referral_token FROM dealer_referrals
+               WHERE dealer_id=%s AND (expires_at IS NULL OR expires_at>now())
+               ORDER BY created_at DESC LIMIT 1""",
+            (dealer["id"],),
+        ).fetchone()
+        token = existing["referral_token"] if existing else secrets.token_hex(8)
+        if not existing:
+            conn.execute(
+                "INSERT INTO dealer_referrals(dealer_id,referral_token) VALUES(%s,%s)",
+                (dealer["id"], token),
+            )
+            conn.commit()
+    return {"status": "success", "dealer_name": dealer["name"], "token": token,
+            "download_url": f"https://ai.croplifescience.com/?ref={token}"}
 
 
 @router.post("/me")

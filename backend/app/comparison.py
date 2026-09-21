@@ -21,7 +21,7 @@ from fastapi import FastAPI, HTTPException, Request as WebRequest
 from fastapi.responses import FileResponse, JSONResponse
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = json.loads((ROOT / "app/data/inspection-contract.json").read_text(encoding="utf-8"))
+CONTRACT = json.loads((ROOT / "frontend/app/data/inspection-contract.json").read_text(encoding="utf-8"))
 SCHEMA = CONTRACT["schema"]
 MAX_BYTES = 4 * 1024 * 1024
 LIST_FIELDS = [key for key, value in SCHEMA["properties"].items() if value["type"] == "array"]

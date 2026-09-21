@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { LanguageCode } from '../lib/i18n';
+import { locateDevice } from '../lib/device-location';
 
 type WeatherData = {
   location: string;
@@ -19,7 +20,7 @@ const weatherCopy: Record<LanguageCode, Record<string, string>> = {
   bho: { eyebrow:'लाइव खेत के मौसम',title:'आज के खेत काम के योजना',intro:'अपना जगह पर छिड़काव, सिंचाई आ खेत काम के हालत देखीं।',placeholder:'गाँव, जिला चाहे शहर',check:'मौसम देखीं',locate:'हमार जगह इस्तेमाल करीं',loading:'खेत के हालत देखल जाता…',spraying:'छिड़काव',irrigation:'सिंचाई',fertilizer:'खाद डालल',fieldwork:'खेत के काम',good:'ठीक बा',caution:'सावधानी',avoid:'अभी मत करीं',updated:'अभी के हालत',next:'अगिला 6 घंटा',rain:'बरखा के आसार',wind:'हवा',humidity:'नमी',source:'पूर्वानुमान स्रोत',disclaimer:'ई मौसम आधारित सलाह बा। काम से पहिले लेबल आ खेत के हालत देखीं।',enter:'खेत के काम के सलाह खातिर जगह लिखीं।',rainRisk:'बरखा दवाई चाहे खाद बहा सकेला।',windRisk:'हवा से स्प्रे उड़ सकेला।',heatRisk:'बहुत गर्मी में स्प्रे मत करीं।',dryRisk:'सूखल हवा में दवाई जल्दी उड़ सकेला।',irrigateRain:'जल्दी बरखा हो सकेला; सिंचाई रोक के फेर देखीं।',irrigateDry:'गर्मी चाहे सूखा में माटी के नमी देखीं।',fertRain:'बरखा से पहिले खाद मत डालीं।',fieldStorm:'बरखा चाहे तेज हवा में काम रोक दीं।',fieldGood:'सामान्य खेत काम खातिर हालत ठीक बा।',sprayGood:'स्प्रे के हालत ठीक लागत बा; लेबल मानीं।' },
 };
 
-export function WeatherAdvisory({ language, initialLocation = '' }: { language: LanguageCode; initialLocation?: string }) {
+export function WeatherAdvisory({ language, initialLocation = '', initialCoordinates = null }: { language: LanguageCode; initialLocation?: string; initialCoordinates?: {latitude:number;longitude:number}|null }) {
   const c = weatherCopy[language] || weatherCopy.en;
   const [location, setLocation] = useState(initialLocation);
   const [data, setData] = useState<WeatherData | null>(null);
@@ -39,19 +40,16 @@ export function WeatherAdvisory({ language, initialLocation = '' }: { language: 
     const city = initialLocation.trim();
     const timer = window.setTimeout(() => {
       setLocation(city);
-      if (city) void load(`location=${encodeURIComponent(city)}`);
+      if (initialCoordinates) void load(`lat=${initialCoordinates.latitude}&lon=${initialCoordinates.longitude}&display=${encodeURIComponent(city || 'Current field location')}`);
+      else if (city) void load(`location=${encodeURIComponent(city)}`);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [initialLocation, load]);
+  }, [initialLocation, initialCoordinates, load]);
   const submit = (event: FormEvent) => { event.preventDefault(); if (location.trim()) void load(`location=${encodeURIComponent(location.trim())}`); };
   const useLocation = () => {
-    if (!navigator.geolocation) { setError('Location is not supported on this device.'); return; }
     setLoading(true); setError('');
-    navigator.geolocation.getCurrentPosition(
-      (position) => void load(`lat=${position.coords.latitude}&lon=${position.coords.longitude}`),
-      () => { setLoading(false); setError('Location permission was not available. Enter your village or district instead.'); },
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 10 * 60 * 1000 },
-    );
+    void locateDevice('en').then((place) => { setLocation(place.label); return load(`lat=${place.latitude}&lon=${place.longitude}&display=${encodeURIComponent(place.label)}`); })
+      .catch(() => { setLoading(false); setError('Location permission was not available. Search for your village or district instead.'); });
   };
 
   const advice = useMemo(() => {

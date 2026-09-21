@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/app ./app
 COPY backend/database ./database
-COPY app/data/products.json /seed/products.json
+COPY frontend/app/data/products.json /seed/products.json
 COPY backend/app/data/sales_officers.json /seed/sales_officers.json
 
 EXPOSE 8000
