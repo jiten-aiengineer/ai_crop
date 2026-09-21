@@ -1,0 +1,167 @@
+/* ============================================================
+   DEALER PORTAL  (dp-* namespace)
+   Deep professional green + dark surface design system
+   ============================================================ */
+
+:root {
+  --dp-bg: #0d1f17;
+  --dp-surface: #162a1e;
+  --dp-card: #1e3829;
+  --dp-border: rgba(255,255,255,.09);
+  --dp-green: #22c55e;
+  --dp-lime: #a3e635;
+  --dp-amber: #f59e0b;
+  --dp-ink: #e8f0eb;
+  --dp-muted: rgba(232,240,235,.55);
+  --dp-radius: 16px;
+  --dp-radius-sm: 10px;
+}
+
+/* ── Shell ── */
+.dp-shell{min-height:100dvh;background:var(--dp-bg);color:var(--dp-ink);font-family:var(--font-geist-sans,system-ui,sans-serif);display:flex;flex-direction:column}
+
+/* ── Top bar ── */
+.dp-topbar{height:68px;padding:0 clamp(16px,5vw,48px);display:flex;align-items:center;justify-content:space-between;background:var(--dp-surface);border-bottom:1px solid var(--dp-border);position:sticky;top:0;z-index:100}
+.dp-topbar-brand{display:flex;align-items:center;gap:12px}
+.dp-topbar-brand img{width:42px;height:42px;object-fit:contain;background:white;border-radius:12px;padding:5px}
+.dp-topbar-brand strong{font-size:17px;color:#fff;display:block;line-height:1.1}
+.dp-topbar-brand small{font-size:10px;color:var(--dp-green);font-weight:700;letter-spacing:.1em;display:block}
+.dp-topbar-right{display:flex;align-items:center;gap:12px}
+.dp-user-chip{font-size:12px;font-weight:700;color:var(--dp-ink);background:var(--dp-card);border:1px solid var(--dp-border);border-radius:20px;padding:5px 13px}
+.dp-logout-btn{border:1px solid var(--dp-border);background:transparent;color:var(--dp-muted);border-radius:var(--dp-radius-sm);padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;transition:.18s}
+.dp-logout-btn:hover{color:#fff;border-color:rgba(255,255,255,.22)}
+
+/* ── Tabs ── */
+.dp-tabs{display:flex;background:var(--dp-surface);border-bottom:1px solid var(--dp-border);padding:0 clamp(16px,5vw,48px);gap:4px}
+.dp-tabs button{border:0;background:transparent;color:var(--dp-muted);padding:14px 18px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;transition:.2s;display:flex;align-items:center;gap:7px}
+.dp-tabs button span{font-size:15px}
+.dp-tabs button:hover{color:var(--dp-ink)}
+.dp-tabs button.active{color:var(--dp-green);border-bottom-color:var(--dp-green)}
+
+/* ── Content ── */
+.dp-content{flex:1;padding:clamp(20px,4vw,48px) clamp(16px,5vw,48px);max-width:860px;width:100%;margin:0 auto}
+.dp-dashboard,.dp-redeem,.dp-referral{display:flex;flex-direction:column;gap:0}
+
+/* ── Section card ── */
+.dp-section{background:var(--dp-surface);border:1px solid var(--dp-border);border-radius:var(--dp-radius);padding:26px;margin-bottom:20px}
+.dp-section>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.dp-section>header small{font-size:10px;font-weight:800;letter-spacing:.15em;color:var(--dp-green);display:block;margin-bottom:4px}
+.dp-section>header h2{font-size:20px;font-weight:800;color:#fff;margin:0;letter-spacing:-.025em}
+
+/* ── Identity card ── */
+.dp-identity-card{display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#1e3829,#0d2a1a);border:1px solid var(--dp-border);border-radius:var(--dp-radius);padding:22px 26px;margin-bottom:20px}
+.dp-identity-avatar{width:56px;height:56px;border-radius:16px;background:var(--dp-green);color:#0d1f17;font-weight:900;font-size:20px;display:grid;place-items:center;flex-shrink:0}
+.dp-identity-card small{font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--dp-green);display:block}
+.dp-identity-card b{font-size:18px;font-weight:800;display:block;margin:4px 0}
+.dp-identity-card p{font-size:12px;color:var(--dp-muted);margin:0}
+
+/* ── Target ring & grid ── */
+.dp-target-ring{width:80px;height:80px;flex-shrink:0}
+.dp-target-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.dp-target-card{background:var(--dp-card);border:1px solid var(--dp-border);border-radius:var(--dp-radius-sm);padding:18px;display:flex;align-items:center;gap:16px;transition:border-color .3s}
+.dp-target-card.achieved{border-color:var(--dp-green)}
+.dp-target-card.dp-target-2.achieved{border-color:var(--dp-lime)}
+.dp-target-card b{font-size:14px;font-weight:800;display:block}
+.dp-target-card p{font-size:11px;color:var(--dp-muted);margin:5px 0 7px;line-height:1.4}
+.dp-target-card small{font-size:10px;color:var(--dp-green);font-weight:700}
+
+/* ── Tier badge ── */
+.dp-tier-badge{font-size:11px;font-weight:800;padding:5px 12px;border-radius:20px;flex-shrink:0}
+.dp-tier-none{background:rgba(255,255,255,.07);color:var(--dp-muted)}
+.dp-tier-1{background:rgba(245,158,11,.15);color:var(--dp-amber);border:1px solid rgba(245,158,11,.3)}
+.dp-tier-2{background:rgba(34,197,94,.15);color:var(--dp-green);border:1px solid rgba(34,197,94,.3)}
+
+/* ── Stats ── */
+.dp-stats-row{display:flex;gap:14px;flex-wrap:wrap}
+.dp-stat{flex:1;min-width:120px;background:var(--dp-card);border:1px solid var(--dp-border);border-radius:var(--dp-radius-sm);padding:14px 16px}
+.dp-stat b{font-size:22px;font-weight:900;display:block;color:#fff}
+.dp-stat small{font-size:10px;color:var(--dp-muted);display:block;margin-top:4px}
+.dp-stat-highlight{border-color:rgba(34,197,94,.3)}
+.dp-stat-highlight b{color:var(--dp-green)}
+.dp-credit-note-hint{font-size:11px;color:var(--dp-muted);margin:18px 0 0;padding:12px;background:rgba(34,197,94,.06);border-radius:var(--dp-radius-sm);border-left:2px solid var(--dp-green)}
+
+/* ── Loading / error / empty ── */
+.dp-loading{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--dp-muted);padding:28px 0}
+.dp-spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--dp-border);border-top-color:var(--dp-green);border-radius:50%;animation:dp-spin .7s linear infinite;flex-shrink:0}
+@keyframes dp-spin{to{transform:rotate(360deg)}}
+.dp-error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:var(--dp-radius-sm);padding:16px;font-size:13px;color:#fca5a5;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.dp-error button{border:1px solid rgba(239,68,68,.3);background:transparent;color:#fca5a5;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0}
+.dp-empty{font-size:13px;color:var(--dp-muted);padding:24px 0;text-align:center}
+.dp-error-msg{font-size:12px;color:#fca5a5;background:rgba(239,68,68,.1);border-radius:8px;padding:10px 14px;margin:0}
+
+/* ── Redeem form ── */
+.dp-help-text{font-size:13px;color:var(--dp-muted);line-height:1.6;margin:-4px 0 20px}
+.dp-redeem-form{display:flex;flex-direction:column;gap:14px}
+.dp-code-input-row{display:flex;gap:10px}
+.dp-code-input{flex:1;height:50px;background:var(--dp-card);border:1px solid var(--dp-border);border-radius:var(--dp-radius-sm);color:#fff;font-size:15px;font-weight:700;padding:0 16px;letter-spacing:.08em;outline:none;transition:border-color .2s}
+.dp-code-input:focus{border-color:var(--dp-green);box-shadow:0 0 0 3px rgba(34,197,94,.15)}
+.dp-code-input::placeholder{color:var(--dp-muted);font-weight:400;letter-spacing:0}
+.dp-scan-btn{height:50px;padding:0 16px;background:var(--dp-card);border:1px solid var(--dp-border);border-radius:var(--dp-radius-sm);color:var(--dp-ink);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:.18s}
+.dp-scan-btn span{font-size:16px}
+.dp-scan-btn:hover{border-color:var(--dp-green);color:var(--dp-green)}
+.dp-success-card{display:flex;align-items:center;gap:14px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:var(--dp-radius-sm);padding:14px 18px;animation:dp-fade-in .3s ease}
+.dp-success-icon{width:38px;height:38px;border-radius:50%;background:var(--dp-green);color:#0d1f17;font-weight:900;font-size:18px;display:grid;place-items:center;flex-shrink:0}
+.dp-success-card b{font-size:14px;font-weight:800;display:block;color:var(--dp-green)}
+.dp-success-card p{font-size:12px;color:var(--dp-ink);margin:4px 0}
+.dp-success-card small{font-size:11px;color:var(--dp-muted)}
+@keyframes dp-fade-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ── Buttons ── */
+.dp-primary-btn{height:50px;border:0;border-radius:var(--dp-radius-sm);background:var(--dp-green);color:#0d1f17;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:.18s;width:100%}
+.dp-primary-btn:hover:not(:disabled){background:#16a34a}
+.dp-primary-btn:disabled{opacity:.45;cursor:not-allowed}
+.dp-secondary-btn{border:1px solid var(--dp-border);background:transparent;color:var(--dp-muted);border-radius:var(--dp-radius-sm);padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;transition:.18s;margin-top:6px;align-self:flex-start}
+.dp-secondary-btn:hover{color:var(--dp-ink);border-color:rgba(255,255,255,.22)}
+
+/* ── Redemption list ── */
+.dp-redemption-list{display:flex;flex-direction:column;gap:10px}
+.dp-redemption-row{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:12px;background:var(--dp-card);border:1px solid var(--dp-border);border-radius:var(--dp-radius-sm);padding:12px 14px}
+.dp-redemption-icon{width:28px;height:28px;border-radius:50%;background:rgba(34,197,94,.15);color:var(--dp-green);font-size:13px;font-weight:800;display:grid;place-items:center}
+.dp-redemption-row b{font-size:13px;font-weight:800;display:block}
+.dp-redemption-row small{font-size:10px;color:var(--dp-muted)}
+.dp-redemption-amount{text-align:right}
+.dp-redemption-amount b{font-size:13px;font-weight:800;color:var(--dp-green);display:block}
+
+/* ── Referral ── */
+.dp-referral{display:flex;flex-direction:column}
+.dp-qr-card{text-align:center;padding:24px;background:var(--dp-card);border:1px solid var(--dp-border);border-radius:var(--dp-radius-sm);margin-bottom:18px}
+.dp-qr-image{width:200px;height:200px;image-rendering:pixelated;background:white;padding:10px;border-radius:12px;display:block;margin:0 auto 10px}
+.dp-qr-card p{font-size:11px;color:var(--dp-muted);margin:0}
+.dp-qr-unavailable{display:flex;flex-direction:column;align-items:center;padding:36px 24px}
+.dp-qr-unavailable span{font-size:48px;opacity:.3}
+.dp-referral-link-box{background:var(--dp-card);border:1px solid var(--dp-border);border-radius:var(--dp-radius-sm);padding:16px;margin-bottom:12px}
+.dp-referral-link{display:block;font-size:12px;color:var(--dp-green);word-break:break-all;margin-bottom:12px;font-family:monospace;line-height:1.5}
+.dp-referral-actions{display:flex;gap:10px;flex-wrap:wrap}
+.dp-copy-btn,.dp-whatsapp-btn{height:40px;border-radius:var(--dp-radius-sm);font-size:12px;font-weight:700;cursor:pointer;padding:0 16px;transition:.18s}
+.dp-copy-btn{background:var(--dp-card);border:1px solid var(--dp-border);color:var(--dp-ink)}
+.dp-copy-btn:hover{border-color:var(--dp-green);color:var(--dp-green)}
+.dp-whatsapp-btn{background:#16a34a;border:0;color:white}
+.dp-whatsapp-btn:hover{background:#15803d}
+.dp-referral-info{margin-top:0}
+.dp-referral-info h3{font-size:16px;font-weight:800;margin:0 0 14px;color:#fff}
+.dp-how-list{padding-left:20px;margin:0;display:flex;flex-direction:column;gap:10px}
+.dp-how-list li{font-size:13px;color:var(--dp-muted);line-height:1.5}
+.dp-how-list li b{color:var(--dp-ink)}
+
+/* ── Footer ── */
+.dp-footer{display:flex;align-items:center;gap:14px;padding:20px clamp(16px,5vw,48px);border-top:1px solid var(--dp-border);background:var(--dp-surface)}
+.dp-footer img{width:36px;height:36px;object-fit:contain;background:white;border-radius:9px;padding:4px}
+.dp-footer b{display:block;font-size:12px;color:#fff}
+.dp-footer small{font-size:10px;color:var(--dp-muted)}
+
+/* ── Login: dealer code box (security fix) ── */
+.dealer-code-box{display:flex;flex-direction:column;gap:14px;margin-top:8px}
+.dealer-code-help{font-size:12px;color:#537083;background:rgba(6,72,120,.06);border-radius:10px;padding:11px 14px;margin:0;line-height:1.55;border-left:2px solid #064878}
+.dealer-bound-note{display:block;font-size:11px;color:#c27808;background:rgba(194,120,8,.08);border-radius:7px;padding:7px 10px;margin-top:6px}
+
+/* ── Responsive ── */
+@media(max-width:640px){
+  .dp-target-grid{grid-template-columns:1fr}
+  .dp-stats-row{flex-direction:column}
+  .dp-code-input-row{flex-direction:column}
+  .dp-scan-btn{width:100%;justify-content:center}
+  .dp-tabs button{padding:12px 12px;font-size:12px}
+  .dp-tabs button span{display:none}
+  .dp-referral-actions{flex-direction:column}
+  .dp-copy-btn,.dp-whatsapp-btn{width:100%}
+}

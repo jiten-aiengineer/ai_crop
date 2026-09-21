@@ -9,6 +9,7 @@ import { WeatherAdvisory } from './components/WeatherAdvisory';
 import { PwaInstall } from './components/PwaInstall';
 import { PublicUser, SprayerScene } from './components/AuthFlow';
 import { CommonAuthFlow } from './components/CommonAuthFlow';
+import { DealerPortal } from './components/DealerPortal';
 import salesContactData from './data/sales-contacts.json';
 import type { FieldIdentity } from './lib/field-access';
 import { reverseGeocode } from './lib/device-location';
@@ -359,11 +360,14 @@ export default function Home() {
   if (!fieldSession.loaded || !publicSession.checked) return <main className="auth-loading"><img src="/clsl-logo.png" alt="CLSL" /><b>CLSL AI</b><span>Preparing your crop companion…</span></main>;
   if (!fieldSession.employee && !publicSession.user) return <CommonAuthFlow onComplete={completePublicLogin} />;
 
+  // Dealer users see a dedicated portal — completely separate from the farmer UI.
+  if (publicSession.user?.role === 'dealer') {
+    return <DealerPortal token={publicSession.token} user={publicSession.user} onLogout={logoutPublicSession} />;
+  }
 
   return <main className="app-shell">
     <Header view={view} nav={nav} profile={profile} onProfile={() => setProfileOpen(true)} language={language} changeLanguage={changeLanguage} theme={theme} toggleTheme={toggleTheme} t={t} />
     <FieldIdentityBanner employee={fieldSession.employee} error={fieldSession.error} t={t} />
-    {publicSession.user?.role === 'dealer' && <DealerReferralBanner token={publicSession.token} />}
     <TopWeatherBar location={livePlaceName || profile.location || profile.city} coordinates={liveCoordinates} openProfile={() => setProfileOpen(true)} t={t} />
     <div className="mascot-file-inputs" aria-hidden="true"><input ref={mascotCameraRef} tabIndex={-1} type="file" accept="image/*" capture="environment" onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /><input ref={mascotUploadRef} tabIndex={-1} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={(event) => { const selected = Array.from(event.currentTarget.files || []); event.currentTarget.value = ''; void chooseMascotPhotos(selected); }} /></div>
     {view === 'home' && <HomeView nav={nav} t={t} language={language} location={livePlaceName || profile.location || profile.city} coordinates={liveCoordinates} mascotPreparing={mascotPreparing} takePhoto={() => mascotCameraRef.current?.click()} uploadPhotos={() => mascotUploadRef.current?.click()} />}

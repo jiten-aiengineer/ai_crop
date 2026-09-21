@@ -1429,3 +1429,92 @@ def generate_dealer_referral(dealer_id: UUID, identity: AdminIdentity = Depends(
             
     download_url = f"https://ai.croplifescience.com/?ref={token}"
     return {"token": token, "download_url": download_url}
+
+
+# ---------------------------------------------------------------------------
+# Dealer redemption summary (for credit note generation)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/dealers/redemption-summary")
+def dealer_redemption_summary(
+    month: str = Query(default="", description="YYYY-MM, defaults to current month"),
+    identity: AdminIdentity = Depends(_identity),
+):
+    """Return per-dealer coupon redemption totals for a given month.
+
+    The CLSL team uses this report to generate credit notes at month end.
+    Provide ?month=2026-09 to query a past month; omit for current month.
+    """
+    _require(identity, ADMIN_READ_ROLES)
+
+    from datetime import timezone
+
+    try:
+        if month:
+            year, mon = map(int, month.split("-"))
+            month_start = datetime(year, mon, 1, tzinfo=timezone.utc)
+        else:
+            now = datetime.now(timezone.utc)
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        year_m, mon_m = month_start.year, month_start.month
+        if mon_m == 12:
+            month_end = month_start.replace(year=year_m + 1, month=1)
+        else:
+            month_end = month_start.replace(month=mon_m + 1)
+    except (ValueError, AttributeError):
+        raise HTTPException(400, "Invalid month format. Use YYYY-MM.")
+
+    month_label = month_start.strftime("%B %Y")
+
+    with connection() as conn:
+        rows = conn.execute(
+            """SELECT d.id, d.dealer_code, d.name, d.state, d.sales_territory,
+                      d.portal_mobile_number,
+                      COUNT(cr.id)                            AS redemption_count,
+                      COALESCE(SUM(cr.amount_redeemed), 0)   AS total_amount,
+                      COUNT(f.id)                             AS farmers_referred
+               FROM dealers d
+               LEFT JOIN coupon_redemptions cr
+                      ON cr.dealer_id = d.id
+                     AND cr.created_at >= %s
+                     AND cr.created_at < %s
+               LEFT JOIN farmers f
+                      ON f.verified_dealer_id = d.id
+                     AND f.location_consent_at >= %s
+                     AND f.location_consent_at < %s
+               WHERE d.status = 'active'
+               GROUP BY d.id
+               ORDER BY total_amount DESC, redemption_count DESC, d.name""",
+            (
+                month_start.isoformat(), month_end.isoformat(),
+                month_start.isoformat(), month_end.isoformat(),
+            ),
+        ).fetchall()
+
+    items = [
+        {
+            "dealer_id": str(r["id"]),
+            "dealer_code": r["dealer_code"],
+            "name": r["name"],
+            "state": r["state"],
+            "sales_territory": r["sales_territory"],
+            "portal_mobile_number": r["portal_mobile_number"],
+            "redemption_count": int(r["redemption_count"]),
+            "total_amount": float(r["total_amount"]),
+            "farmers_referred": int(r["farmers_referred"]),
+        }
+        for r in rows
+    ]
+
+    return {
+        "month": month_label,
+        "month_start": month_start.date().isoformat(),
+        "month_end": month_end.date().isoformat(),
+        "total_dealers": len(items),
+        "grand_total_amount": sum(i["total_amount"] for i in items),
+        "grand_total_redemptions": sum(i["redemption_count"] for i in items),
+        "items": items,
+    }
+
