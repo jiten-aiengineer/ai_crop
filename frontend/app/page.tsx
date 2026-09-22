@@ -358,13 +358,13 @@ export default function Home() {
 
 
   if (!fieldSession.loaded || !publicSession.checked) return <main className="auth-loading"><img src="/clsl-logo.png" alt="CLSL" /><b>CLSL AI</b><span>Preparing your crop companion…</span></main>;
-  if (!fieldSession.employee && !publicSession.user) return <CommonAuthFlow onComplete={completePublicLogin} />;
+  if (!fieldSession.employee && !publicSession.user) return <><CommonAuthFlow onComplete={completePublicLogin} /><PwaInstall label={t.installApp} iosHelp={t.iosInstallHelp} /></>;
 
   const isDealer = publicSession.user?.role === 'dealer';
   const forceMainApp = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('open') === 'inspect';
   
   if (publicSession.user && isDealer && !forceMainApp) {
-    return <DealerPortal token={publicSession.token} user={publicSession.user} onLogout={logoutPublicSession} />;
+    return <><DealerPortal token={publicSession.token} user={publicSession.user} onLogout={logoutPublicSession} /><PwaInstall label={t.installApp} iosHelp={t.iosInstallHelp} /></>;
   }
 
   return <main className="app-shell">

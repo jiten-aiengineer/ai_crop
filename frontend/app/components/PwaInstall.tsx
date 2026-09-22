@@ -11,6 +11,7 @@ export function PwaInstall({ label, iosHelp }: { label: string; iosHelp: string 
   const [promptEvent, setPromptEvent] = useState<InstallPromptEvent | null>(null);
   const [ios, setIos] = useState(false);
   const [installed, setInstalled] = useState(true);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
@@ -18,6 +19,7 @@ export function PwaInstall({ label, iosHelp }: { label: string; iosHelp: string 
     const readyTimer = window.setTimeout(() => {
       setInstalled(standalone);
       setIos(/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone);
+      setReady(true);
     }, 0);
     const beforeInstall = (event: Event) => {
       event.preventDefault();
@@ -34,9 +36,12 @@ export function PwaInstall({ label, iosHelp }: { label: string; iosHelp: string 
     };
   }, []);
 
-  if (installed || (!promptEvent && !ios)) return null;
+  if (!ready || installed) return null;
   const install = async () => {
-    if (!promptEvent) { window.alert(iosHelp); return; }
+    if (!promptEvent) {
+      window.alert(ios ? iosHelp : 'Open your browser menu and choose “Install app” or “Add to Home screen”.');
+      return;
+    }
     await promptEvent.prompt();
     const choice = await promptEvent.userChoice;
     if (choice.outcome === 'accepted') setInstalled(true);
