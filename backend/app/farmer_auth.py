@@ -309,7 +309,7 @@ def dealer_referral(authorization: str = Header(...)):
                ORDER BY created_at DESC LIMIT 1""",
             (dealer["id"],),
         ).fetchone()
-        token = existing["referral_token"] if existing else secrets.token_hex(8)
+        token = existing["referral_token"] if existing else "REF-" + secrets.token_hex(12).upper()
         if not existing:
             conn.execute(
                 "INSERT INTO dealer_referrals(dealer_id,referral_token) VALUES(%s,%s)",

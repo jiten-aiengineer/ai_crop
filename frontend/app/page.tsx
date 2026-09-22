@@ -133,7 +133,7 @@ export default function Home() {
   const mascotCameraRef = useRef<HTMLInputElement>(null);
   const mascotUploadRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
-  const [view, setView] = useState<View>('home');
+  const [view, setView] = useState<View>(typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('open') === 'inspect' ? 'inspect' : 'home');
   const [result, setResult] = useState<Diagnosis | null>(null);
   const [loading, setLoading] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState(0);
@@ -360,8 +360,10 @@ export default function Home() {
   if (!fieldSession.loaded || !publicSession.checked) return <main className="auth-loading"><img src="/clsl-logo.png" alt="CLSL" /><b>CLSL AI</b><span>Preparing your crop companion…</span></main>;
   if (!fieldSession.employee && !publicSession.user) return <CommonAuthFlow onComplete={completePublicLogin} />;
 
-  // Dealer users see a dedicated portal — completely separate from the farmer UI.
-  if (publicSession.user?.role === 'dealer') {
+  const isDealer = publicSession.user?.role === 'dealer';
+  const forceMainApp = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('open') === 'inspect';
+  
+  if (publicSession.user && isDealer && !forceMainApp) {
     return <DealerPortal token={publicSession.token} user={publicSession.user} onLogout={logoutPublicSession} />;
   }
 
