@@ -43,6 +43,7 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
   const [isDealerUI,setIsDealerUI] = useState(false);
   const [referral,setReferral] = useState(''); const [referralName,setReferralName] = useState('');
   const [otp,setOtp] = useState(''); const [loading,setLoading] = useState(false); const [error,setError] = useState('');
+  const [dealerError,setDealerError] = useState(''); const [referralError,setReferralError] = useState('');
   const [submitAttempted,setSubmitAttempted] = useState(false);
   const qrInput = useRef<HTMLInputElement>(null);
   const qrVideo = useRef<HTMLVideoElement>(null);
@@ -65,6 +66,7 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
   const previous: Record<Step,Step> = { language:'language', account:'language', details:'account', otp:'details' };
   const stepNumber = order.indexOf(step) + 1;
   const fail = (problem: unknown) => setError(problem instanceof Error ? problem.message : c.required);
+  const problemMessage = (problem: unknown) => problem instanceof Error ? problem.message : c.required;
 
   function referralFromQr(rawValue: string) {
     let value = rawValue;
@@ -111,18 +113,18 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
     finally { setLoading(false); }
   }
   async function lookupDealer(code = dealerCode) {
-    setLoading(true); setError(''); setDealer(null); setDealerConfirmed(false);
+    setLoading(true); setError(''); setDealerError(''); setDealer(null); setDealerConfirmed(false);
     try { 
       const data=await api<{dealer:Dealer}>('dealer-lookup',{dealer_code:code,mobile_number:`+91${normalizedMobile}`});
       
       setDealerCode(code); setDealer(data.dealer); setRelationship('dealer'); setReferral(''); setReferralName(''); 
     }
-    catch(problem){ fail(problem); }
+    catch(problem){ setDealerError(problemMessage(problem)); }
     finally { setLoading(false); }
   }
   async function verifyReferral(code = referral) {
-    if (isFarmer !== 'yes') return setError('You must select Yes for "Are you a farmer?" to add a referral code.');
-    setLoading(true); setError(''); setReferralName('');
+    if (isFarmer !== 'yes') return setReferralError('Select Farmer before adding a referral code.');
+    setLoading(true); setError(''); setReferralError(''); setReferralName('');
     try { 
       const data=await api<{dealer:{name:string}}>('referral-lookup',{referral_code:code.trim()});
       setReferralName(data.dealer.name); 
@@ -130,7 +132,7 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
       setDealerCode(''); 
       setDealer(null);
     }
-    catch(problem){ fail(problem); }
+    catch(problem){ setReferralError(problemMessage(problem)); }
     finally { setLoading(false); }
   }
   async function scanQr(event: ChangeEvent<HTMLInputElement>) {
@@ -182,7 +184,7 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
     }
   }
   function chooseAccountType(type: 'general' | 'farmer' | 'dealer') {
-    setError('');
+    setError(''); setDealerError(''); setReferralError('');
     if (type === 'farmer') {
       setIsFarmer('yes'); setIsDealerUI(false); setDealerCode(''); setDealer(null); setDealerConfirmed(false);
       setRelationship(referral ? 'referral' : 'none');
@@ -199,9 +201,9 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
   async function startOtp(event: FormEvent) {
     event.preventDefault(); setSubmitAttempted(true); setError('');
     if (!place) return setError(c.locationError);
-    if (isDealerUI && (!dealer || !dealerConfirmed)) return setError('Verify and confirm your dealership.');
-    if (relationship==='dealer' && (!dealer || !dealerConfirmed)) return setError('Verify and confirm your dealership.');
-    if (relationship==='referral' && !referralName) return setError('Verify the referral code first.');
+    if (isDealerUI && (!dealer || !dealerConfirmed)) { setDealerError(dealer ? 'Confirm the dealership details to continue.' : 'Enter and verify your dealer code.'); return; }
+    if (relationship==='dealer' && (!dealer || !dealerConfirmed)) { setDealerError(dealer ? 'Confirm the dealership details to continue.' : 'Enter and verify your dealer code.'); return; }
+    if (relationship==='referral' && !referralName) { setReferralError('Enter a valid farmer referral code to continue.'); return; }
     if (isFarmer === null && relationship !== 'dealer') return setError('Please specify if you are a farmer.');
     if (!social.length) return setError('Select at least one social media platform.');
     if (!source) return setError('Select where you heard about CLSL AI.');
@@ -236,11 +238,11 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
       
       {isFarmer === 'yes' && !isDealerUI && (
         <section className="relationship-card">
-          <div className="referral-card"><button className="scan-referral" type="button" onClick={()=>void openQrCamera()}>Scan referral QR code</button><div className="referral-divider"><span>or enter the 7-character code</span></div><label>Dealer referral code<input maxLength={7} value={referral} onChange={event=>{setError('');setReferral(event.target.value.replace(/[^a-z0-9]/gi,'').toUpperCase());setReferralName('');setRelationship('referral');}} placeholder="A7Q2K9M" autoCapitalize="characters"/></label><input ref={qrInput} hidden type="file" accept="image/*" capture="environment" onChange={scanQr}/>{qrCameraOpen&&<div className="referral-qr-camera"><video ref={qrVideo} muted playsInline aria-label="Camera scanning a dealer referral QR code"/><p>Point the back camera at the dealer QR code.</p><button type="button" onClick={stopQrCamera}>Cancel camera</button></div>}{referral.length===7&&!referralName&&loading&&<span className="referral-status">Checking code…</span>}{referralName&&<b className="verified-dealer">✓ {c.verified}: {referralName}</b>}</div>
+          <div className="referral-card"><button className="scan-referral" type="button" onClick={()=>void openQrCamera()}>Scan referral QR code</button><div className="referral-divider"><span>or enter the 7-character code</span></div><label>Dealer referral code<input className={referralError?'field-invalid':''} maxLength={7} value={referral} onChange={event=>{setError('');setReferralError('');setReferral(event.target.value.replace(/[^a-z0-9]/gi,'').toUpperCase());setReferralName('');setRelationship('referral');}} placeholder="A7Q2K9M" autoCapitalize="characters"/></label>{referralError&&<p className="code-field-error" role="alert">{referralError}</p>}<input ref={qrInput} hidden type="file" accept="image/*" capture="environment" onChange={scanQr}/>{qrCameraOpen&&<div className="referral-qr-camera"><video ref={qrVideo} muted playsInline aria-label="Camera scanning a dealer referral QR code"/><p>Point the back camera at the dealer QR code.</p><button type="button" onClick={stopQrCamera}>Cancel camera</button></div>}{referral.length===7&&!referralName&&loading&&<span className="referral-status">Checking code…</span>}{referralName&&<b className="verified-dealer">✓ {c.verified}: {referralName}</b>}</div>
         </section>
       )}
 
-      {isDealerUI && isFarmer !== 'yes' && <section className="relationship-card"><div className="dealer-code-box"><label>{c.dealerCode}<div className="dealer-code-row"><input value={dealerCode} onChange={event=>{setError('');setDealerCode(event.target.value.trim().toUpperCase());setDealer(null);setDealerConfirmed(false);}} placeholder="DLR-…" autoCapitalize="characters" disabled={relationship==='referral'||referral.length>0}/><button type="button" onClick={()=>void lookupDealer()} disabled={!dealerCode.trim()||loading||relationship==='referral'}>{loading?c.wait:c.verify}</button></div></label>{dealer&&<article className="verified-dealer-card"><b>{dealer.name}</b><dl><div><dt>City / territory</dt><dd>{dealer.location||dealer.sales_territory||'Not recorded'}</dd></div><div><dt>State</dt><dd>{dealer.state||'Not recorded'}</dd></div><div><dt>Owner</dt><dd>{dealer.owner_name||'Not recorded'}</dd></div><div><dt>Registered mobile</dt><dd>{dealer.registered_mobile||'Not recorded'}</dd></div></dl>{dealer.mobile_matches===false?<p className="dealer-mobile-warning">This dealership is registered with {dealer.registered_mobile}. Go back and log in using that mobile number to verify it.</p>:<button className="confirm-dealer" type="button" onClick={()=>setDealerConfirmed(true)}>{dealerConfirmed?'✓ Details confirmed':'Confirm dealership details'}</button>}</article>}</div></section>}
+      {isDealerUI && isFarmer !== 'yes' && <section className="relationship-card"><div className="dealer-code-box"><label>{c.dealerCode}<div className="dealer-code-row"><input className={dealerError?'field-invalid':''} value={dealerCode} onChange={event=>{setError('');setDealerError('');setDealerCode(event.target.value.trim().toUpperCase());setDealer(null);setDealerConfirmed(false);}} placeholder="DLR-…" autoCapitalize="characters" disabled={relationship==='referral'||referral.length>0}/><button type="button" onClick={()=>void lookupDealer()} disabled={!dealerCode.trim()||loading||relationship==='referral'}>{loading?c.wait:c.verify}</button></div></label>{dealerError&&<p className="code-field-error" role="alert">{dealerError}</p>}{dealer&&<article className="verified-dealer-card"><b>{dealer.name}</b><dl><div><dt>City / territory</dt><dd>{dealer.location||dealer.sales_territory||'Not recorded'}</dd></div><div><dt>State</dt><dd>{dealer.state||'Not recorded'}</dd></div><div><dt>Owner</dt><dd>{dealer.owner_name||'Not recorded'}</dd></div><div><dt>Registered mobile</dt><dd>{dealer.registered_mobile||'Not recorded'}</dd></div></dl>{dealer.mobile_matches===false?<p className="dealer-mobile-warning">This dealership is registered with {dealer.registered_mobile}. Go back and log in using that mobile number to verify it.</p>:<button className="confirm-dealer" type="button" onClick={()=>{setDealerError('');setDealerConfirmed(true)}}>{dealerConfirmed?'✓ Details confirmed':'Confirm dealership details'}</button>}</article>}</div></section>}
       <div className="auth-submit-bar"><p className="test-login-note">{c.test}</p><button className="auth-primary" disabled={loading}>{loading?c.wait:c.otpButton} →</button></div></form>}
     {step==='otp'&&<form className="auth-step otp-step" onSubmit={finish}><span className="auth-step-icon">•••</span><h2>{c.otpTitle}</h2><p>{c.otpHelp}</p><b className="otp-number">+91 {normalizedMobile}</b><label>{c.otp}<input value={otp} onChange={event=>setOtp(event.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="1 2 3 4 5 6" autoFocus/></label><button className="auth-primary" disabled={loading||otp.length!==6}>{loading?c.wait:c.enter} →</button></form>}</section></main>;
 }
