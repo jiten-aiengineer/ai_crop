@@ -8,6 +8,8 @@ import { authCopy, SprayerScene } from './AuthFlow';
 
 type Step = 'language' | 'account' | 'details' | 'otp';
 type Dealer = { dealer_code: string; name: string; location?: string; sales_territory?: string; state?: string; already_bound?: boolean };
+type BarcodeDetectorLike = { detect: (source: ImageBitmap | HTMLVideoElement) => Promise<Array<{ rawValue: string }>> };
+type BarcodeDetectorConstructor = new (options: { formats: string[] }) => BarcodeDetectorLike;
 
 const text: Record<LanguageCode, Record<string, string>> = {
   en: { welcome:'Welcome to CLSL AI', choose:'Choose your language', account:'Create your CLSL AI account', intro:'One simple login for crop care, weather, products and CLSL support.', name:'First name', lastName:'Last name', mobile:'Mobile number', details:'Complete your login', detailsHelp:'Current location is required for local weather and crop support.', location:'Use my current location', locationReady:'Location verified', locationError:'Location is required. Allow location permission and try again.', city:'City / Town', district:'District', state:'State', email:'Email (optional)', social:'Social media you use (optional)', source:'How did you hear about CLSL AI? (optional)', relationship:'Dealer connection (optional)', relationshipHelp:'Dealers enter their CLSL-issued dealer code. Farmers may enter a referral code received from their dealer.', ownDealer:'I am a CLSL dealer', referred:'I have a dealer referral', dealerCode:'Dealer code', referralCode:'Referral code', searchDealer:'Search dealer name or code', search:'Search', verify:'Verify', verified:'Verified', confirm:'This is my dealership', scan:'Scan QR', otpButton:'Continue with OTP', otpTitle:'Verify your mobile', otpHelp:'Testing mode: enter 123456.', otp:'6-digit OTP', enter:'Enter CLSL AI', back:'Back', continue:'Continue', wait:'Please wait…', required:'Complete the required information.', test:'TEST LOGIN · Airtel DLT will be connected after testing' },
@@ -42,6 +44,10 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
   const [referral,setReferral] = useState(''); const [referralName,setReferralName] = useState('');
   const [otp,setOtp] = useState(''); const [loading,setLoading] = useState(false); const [error,setError] = useState('');
   const qrInput = useRef<HTMLInputElement>(null);
+  const qrVideo = useRef<HTMLVideoElement>(null);
+  const qrStream = useRef<MediaStream | null>(null);
+  const qrScanTimer = useRef<number | null>(null);
+  const [qrCameraOpen,setQrCameraOpen] = useState(false);
   const legacy = authCopy[language];
   const c: Record<string,string> = { ...text.en, ...text[language], welcome:legacy.welcome, choose:legacy.chooseLanguage,
     account:legacy.basics, intro:legacy.basicsHelp, name:legacy.firstName, mobile:legacy.mobile,
@@ -58,10 +64,32 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
   const stepNumber = order.indexOf(step) + 1;
   const fail = (problem: unknown) => setError(problem instanceof Error ? problem.message : c.required);
 
+  function referralFromQr(rawValue: string) {
+    let value = rawValue;
+    try {
+      const url = new URL(value);
+      value = url.searchParams.get('ref') || url.pathname.split('/').filter(Boolean).pop() || value;
+    } catch { /* a QR can also contain the code itself */ }
+    return value.trim().toUpperCase();
+  }
+
+  function stopQrCamera() {
+    if (qrScanTimer.current !== null) {
+      window.clearInterval(qrScanTimer.current);
+      qrScanTimer.current = null;
+    }
+    qrStream.current?.getTracks().forEach((track) => track.stop());
+    qrStream.current = null;
+    if (qrVideo.current) qrVideo.current.srcObject = null;
+    setQrCameraOpen(false);
+  }
+
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get('ref')?.trim();
     if (code) { setReferral(code); setRelationship('referral'); setIsFarmer('yes'); }
   }, []);
+
+  useEffect(() => () => stopQrCamera(), []);
 
   async function captureLocation() {
     setLoading(true); setError('');
@@ -94,8 +122,48 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
   }
   async function scanQr(event: ChangeEvent<HTMLInputElement>) {
     const file=event.target.files?.[0]; event.target.value=''; if(!file)return;
-    try { const Detector=(window as unknown as {BarcodeDetector?:new(o:{formats:string[]})=>{detect:(source:ImageBitmap)=>Promise<Array<{rawValue:string}>>}}).BarcodeDetector; if(!Detector) throw new Error('QR scanning is not supported on this phone. Enter the code manually.'); const bitmap=await createImageBitmap(file); const codes=await new Detector({formats:['qr_code']}).detect(bitmap); bitmap.close(); if(!codes[0]?.rawValue) throw new Error('No QR code was found.'); let value=codes[0].rawValue; try{const url=new URL(value);value=url.searchParams.get('ref')||url.pathname.split('/').filter(Boolean).pop()||value;}catch{/* plain token */} setReferral(value.trim().toUpperCase()); setReferralName(''); }
+    try { const Detector=(window as unknown as {BarcodeDetector?:BarcodeDetectorConstructor}).BarcodeDetector; if(!Detector) throw new Error('This phone cannot read a QR image. Use Scan referral QR to open the camera or enter the code manually.'); const bitmap=await createImageBitmap(file); const codes=await new Detector({formats:['qr_code']}).detect(bitmap); bitmap.close(); if(!codes[0]?.rawValue) throw new Error('No QR code was found.'); setReferral(referralFromQr(codes[0].rawValue)); setReferralName(''); setRelationship('referral'); }
     catch(problem){fail(problem);}
+  }
+  async function openQrCamera() {
+    setError('');
+    const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector;
+    if (!Detector || !navigator.mediaDevices?.getUserMedia) {
+      setError('Live QR scanning is not supported by this browser. Choose a saved QR image instead.');
+      qrInput.current?.click();
+      return;
+    }
+    setQrCameraOpen(true);
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      if (!qrVideo.current) { stream.getTracks().forEach((track) => track.stop()); return; }
+      qrStream.current = stream;
+      qrVideo.current.srcObject = stream;
+      await qrVideo.current.play();
+      const detector = new Detector({ formats: ['qr_code'] });
+      let scanning = false;
+      qrScanTimer.current = window.setInterval(() => {
+        void (async () => {
+          if (scanning || !qrVideo.current || qrVideo.current.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+          scanning = true;
+          try {
+            const codes = await detector.detect(qrVideo.current);
+            if (codes[0]?.rawValue) {
+              setReferral(referralFromQr(codes[0].rawValue));
+              setReferralName('');
+              setRelationship('referral');
+              setIsFarmer('yes');
+              stopQrCamera();
+            }
+          } catch { /* keep the camera open and try the next frame */ }
+          finally { scanning = false; }
+        })();
+      }, 300);
+    } catch {
+      stopQrCamera();
+      setError('Camera permission was not granted. Allow camera access and try again, or choose a saved QR image.');
+    }
   }
   async function startOtp(event: FormEvent) {
     event.preventDefault(); setError('');
@@ -134,7 +202,7 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
       
       {isFarmer === 'yes' && !isDealerUI && (
         <section className="relationship-card">
-          <div className="referral-card"><p className="dealer-code-help">Optional: ask your dealer for their seven-character CLSL referral code or scan its QR to receive eligible offers and coupons.</p><label>Dealer referral code<div className="dealer-code-row"><input maxLength={7} value={referral} onChange={event=>{setReferral(event.target.value.trim().toUpperCase());setReferralName('');}} placeholder="A7Q2K9M"/><button type="button" onClick={()=>void verifyReferral()} disabled={!referral.trim()||loading}>Verify referral code</button></div></label><button type="button" onClick={()=>qrInput.current?.click()}>▣ Scan referral QR</button><input ref={qrInput} hidden type="file" accept="image/*" capture="environment" onChange={scanQr}/>{referralName&&<b className="verified-dealer">✓ {c.verified}: {referralName}</b>}</div>
+          <div className="referral-card"><p className="dealer-code-help">Optional: ask your dealer for their seven-character CLSL referral code or scan its QR to receive eligible offers and coupons.</p><label>Dealer referral code<div className="dealer-code-row"><input maxLength={7} value={referral} onChange={event=>{setReferral(event.target.value.trim().toUpperCase());setReferralName('');}} placeholder="A7Q2K9M"/><button type="button" onClick={()=>void verifyReferral()} disabled={!referral.trim()||loading}>Verify referral code</button></div></label><button type="button" onClick={()=>void openQrCamera()}>⌾ Scan referral QR</button><button type="button" onClick={()=>qrInput.current?.click()}>Choose saved QR image</button><input ref={qrInput} hidden type="file" accept="image/*" capture="environment" onChange={scanQr}/>{qrCameraOpen&&<div className="referral-qr-camera"><video ref={qrVideo} muted playsInline aria-label="Camera scanning a dealer referral QR code"/><p>Point the back camera at the dealer QR code.</p><button type="button" onClick={stopQrCamera}>Cancel camera</button></div>}{referralName&&<b className="verified-dealer">✓ {c.verified}: {referralName}</b>}</div>
         </section>
       )}
 
