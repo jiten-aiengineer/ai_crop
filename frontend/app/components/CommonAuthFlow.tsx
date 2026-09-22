@@ -34,7 +34,7 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
   const [step,setStep] = useState<Step>('language');
   const [language,setLanguage] = useState<LanguageCode>('en');
   const [firstName,setFirstName] = useState(''); const [lastName,setLastName] = useState(''); const [mobile,setMobile] = useState('');
-  const [email,setEmail] = useState(''); const [social,setSocial] = useState<string[]>([]); const [source,setSource] = useState('');
+  const [social,setSocial] = useState<string[]>([]); const [source,setSource] = useState('');
   const [place,setPlace] = useState<DevicePlace | null>(null);
   const [relationship,setRelationship] = useState<'none'|'dealer'|'referral'>('none');
   const [isFarmer,setIsFarmer] = useState<'yes'|'no'|null>(null);
@@ -95,6 +95,13 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [step]);
 
+  useEffect(() => {
+    const code = referral.trim().toUpperCase();
+    if (isFarmer !== 'yes' || code.length !== 7) return;
+    const timer = window.setTimeout(() => { void verifyReferral(code); }, 450);
+    return () => window.clearTimeout(timer);
+  }, [referral, isFarmer]);
+
   async function captureLocation() {
     setLoading(true); setError('');
     try { setPlace(await locateDevice('en')); }
@@ -111,11 +118,11 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
     catch(problem){ fail(problem); }
     finally { setLoading(false); }
   }
-  async function verifyReferral() {
+  async function verifyReferral(code = referral) {
     if (isFarmer !== 'yes') return setError('You must select Yes for "Are you a farmer?" to add a referral code.');
     setLoading(true); setError(''); setReferralName('');
     try { 
-      const data=await api<{dealer:{name:string}}>('referral-lookup',{referral_code:referral.trim()}); 
+      const data=await api<{dealer:{name:string}}>('referral-lookup',{referral_code:code.trim()});
       setReferralName(data.dealer.name); 
       setRelationship('referral'); 
       setDealerCode(''); 
@@ -191,6 +198,8 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
     if (relationship==='dealer' && (!dealer || !dealerConfirmed)) return setError('Verify and confirm your dealership.');
     if (relationship==='referral' && !referralName) return setError('Verify the referral code first.');
     if (isFarmer === null && relationship !== 'dealer') return setError('Please specify if you are a farmer.');
+    if (!social.length) return setError('Select at least one social media platform.');
+    if (!source) return setError('Select where you heard about CLSL AI.');
     setLoading(true);
     try {
       await api('send-otp', {
@@ -208,7 +217,7 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
       const verified=await api<{session_token:string;user:PublicUser}>('verify-otp',{mobile_number:`+91${normalizedMobile}`,otp});
       const session=verified.session_token;
       const role = relationship==='dealer' ? 'dealer' : (isFarmer==='yes' ? 'farmer' : 'general_user');
-      const data=await api<{user:PublicUser}>('profile',{role,first_name:firstName,last_name:lastName,preferred_language:language,email:email||null,city:place.city||null,district:place.district,village:place.village||null,state:place.state,social_media_used:social,acquisition_source:source||null,referral_code:relationship==='referral'?referral:null,dealer_code:relationship==='dealer'?dealerCode:null,location_latitude:place.latitude,location_longitude:place.longitude,location_consent:true,location_label:place.label,location_postcode:place.postcode||null,location_country:place.country||'India',location_accuracy_meters:place.accuracy,location_metadata:place.metadata},session);
+      const data=await api<{user:PublicUser}>('profile',{role,first_name:firstName,last_name:lastName,preferred_language:language,email:null,city:place.city||null,district:place.district,village:place.village||null,state:place.state,social_media_used:social,acquisition_source:source,referral_code:relationship==='referral'?referral:null,dealer_code:relationship==='dealer'?dealerCode:null,location_latitude:place.latitude,location_longitude:place.longitude,location_consent:true,location_label:place.label,location_postcode:place.postcode||null,location_country:place.country||'India',location_accuracy_meters:place.accuracy,location_metadata:place.metadata},session);
       localStorage.setItem('clsl_auth_token',session); onComplete(session,data.user);
     } catch(problem){fail(problem);} finally{setLoading(false);}
   }
@@ -216,12 +225,13 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
   return <main className={`auth-shell common-auth auth-screen-${step}`}><section className="auth-visual"><div className="auth-brand"><img src="/clsl-logo.png" alt="Crop Life Science Limited"/><span><b>CLSL AI</b><small>Crop care, made smarter.</small></span></div><div className="auth-welcome"><small>CROP LIFE SCIENCE LIMITED</small><h1>{c.welcome}</h1><p>{c.intro}</p></div><figure className="auth-mascot"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="Crop Life Mitra"/><figcaption><b>Crop Life Mitra</b><small>Your smart crop companion</small></figcaption></figure><div className="auth-field-art"><SprayerScene /></div></section><section className="auth-panel"><header className="auth-panel-head"><span>STEP {stepNumber} OF 4</span><b>{Math.round(stepNumber/4*100)}% complete</b></header><div className="auth-progress">{order.map((item,index)=><i key={item} className={index<stepNumber?'active':''}/>)}</div>{step!=='language'&&<button type="button" className="auth-back" onClick={()=>{setError('');setStep(previous[step]);}}>← {c.back}</button>}{error&&<p className="auth-error" role="alert">{error}</p>}
     {step==='language'&&<div className="auth-step"><span className="auth-step-icon">文</span><h2>{c.choose}</h2><div className="language-grid">{languages.map(item=><button type="button" key={item.code} className={language===item.code?'selected':''} onClick={()=>setLanguage(item.code)}><b>{item.name}</b><small>{item.code.toUpperCase()}</small></button>)}</div><button className="auth-primary" onClick={()=>setStep('account')}>{c.continue} →</button></div>}
     {step==='account'&&<form className="auth-step" onSubmit={event=>{event.preventDefault();if(firstName.trim().length<2||lastName.trim().length<1||normalizedMobile.length!==10)return setError(c.required);setError('');setStep('details');}}><h2>{c.account}</h2><p>{c.intro}</p><label>{c.name}<input value={firstName} onChange={event=>setFirstName(event.target.value)} required autoComplete="given-name"/></label><label>{c.lastName || 'Last name'}<input value={lastName} onChange={event=>setLastName(event.target.value)} required autoComplete="family-name"/></label><label>{c.mobile}<div className="phone-field"><span>+91</span><input inputMode="numeric" value={mobile} onChange={event=>setMobile(event.target.value.replace(/\D/g,'').slice(0,10))} required placeholder="98765 43210" autoComplete="tel"/></div></label><button className="auth-primary">{c.continue} →</button></form>}
-    {step==='details'&&<form className="auth-step auth-details common-login-details" onSubmit={startOtp}><h2>{c.details}</h2><p>{c.detailsHelp}</p><section className={`login-location-card ${place?'ready':''}`}><button type="button" className="location-consent" onClick={()=>void captureLocation()} disabled={loading}><span>{place?'✓':'⌖'}</span><b>{loading?c.wait:place?c.locationReady:c.location}</b></button>{place&&<dl><div><dt>{c.city}</dt><dd>{place.village||place.city}</dd></div><div><dt>{c.district}</dt><dd>{place.district}</dd></div><div><dt>{c.state}</dt><dd>{place.state}</dd></div></dl>}</section><details className="optional-profile"><summary>Optional contact &amp; marketing details</summary><div><label>{c.email}<input type="email" value={email} onChange={event=>setEmail(event.target.value)} autoComplete="email"/></label><fieldset><legend>{c.social}</legend><div className="social-grid">{socialOptions.map(item=><label key={item}><input type="checkbox" checked={social.includes(item)} onChange={()=>setSocial(current=>current.includes(item)?current.filter(value=>value!==item):[...current,item])}/><span>{item}</span></label>)}</div></fieldset><label>{c.source}<select value={source} onChange={event=>setSource(event.target.value)}><option value="">—</option>{sourceOptions.map(item=><option key={item}>{item}</option>)}</select></label></div></details>
-      <section className="account-type-card"><div><b>How will you use CLSL AI?</b><small>Select one option. Farmers can connect with a dealer for eligible offers.</small></div><div className="account-type-grid"><button type="button" className={isFarmer==='no'&&!isDealerUI?'selected':''} onClick={()=>chooseAccountType('general')}><span>●</span><b>General user</b></button><button type="button" className={isFarmer==='yes'?'selected':''} onClick={()=>chooseAccountType('farmer')}><span>♟</span><b>Farmer</b></button><button type="button" className={isDealerUI?'selected':''} onClick={()=>chooseAccountType('dealer')}><span>▣</span><b>Dealer</b></button></div></section>
+    {step==='details'&&<form className="auth-step auth-details common-login-details" onSubmit={startOtp}><h2>{c.details}</h2><p>{c.detailsHelp}</p><section className={`login-location-card ${place?'ready':''}`}><button type="button" className="location-consent" onClick={()=>void captureLocation()} disabled={loading}><span>{place?'✓':'⌖'}</span><b>{loading?c.wait:place?c.locationReady:c.location}</b></button>{place&&<dl><div><dt>{c.city}</dt><dd>{place.village||place.city}</dd></div><div><dt>{c.district}</dt><dd>{place.district}</dd></div><div><dt>{c.state}</dt><dd>{place.state}</dd></div></dl>}</section><section className="marketing-profile"><fieldset><legend>{c.social} <em>Required</em></legend><div className="social-grid">{socialOptions.map(item=><label key={item}><input type="checkbox" checked={social.includes(item)} onChange={()=>setSocial(current=>current.includes(item)?current.filter(value=>value!==item):[...current,item])}/><span>{item}</span></label>)}</div></fieldset><label>{c.source} <em>Required</em><select required value={source} onChange={event=>setSource(event.target.value)}><option value="" disabled>Select one</option>{sourceOptions.map(item=><option key={item}>{item}</option>)}</select></label></section>
+      <section className="account-type-card"><div><b>Account type</b></div><div className="account-type-grid"><button type="button" className={isFarmer==='no'&&!isDealerUI?'selected':''} onClick={()=>chooseAccountType('general')}><b>General user</b></button><button type="button" className={isFarmer==='yes'?'selected':''} onClick={()=>chooseAccountType('farmer')}><b>Farmer</b></button><button type="button" className={isDealerUI?'selected':''} onClick={()=>chooseAccountType('dealer')}><b>Dealer</b></button></div></section>
+      {isFarmer==='yes'&&<aside className="farmer-benefit"><b>CLSL farmer benefits</b><p>Farmers can receive offers and coupons on CLSL products. Get a referral code from your nearest CLSL dealer.</p></aside>}
       
       {isFarmer === 'yes' && !isDealerUI && (
         <section className="relationship-card">
-          <div className="referral-card"><p className="dealer-code-help">Optional: ask your dealer for their seven-character CLSL referral code or scan its QR to receive eligible offers and coupons.</p><label>Dealer referral code<div className="dealer-code-row"><input maxLength={7} value={referral} onChange={event=>{setReferral(event.target.value.trim().toUpperCase());setReferralName('');}} placeholder="A7Q2K9M"/><button type="button" onClick={()=>void verifyReferral()} disabled={!referral.trim()||loading}>Verify referral code</button></div></label><button type="button" onClick={()=>void openQrCamera()}>⌾ Scan referral QR</button><button type="button" onClick={()=>qrInput.current?.click()}>Choose saved QR image</button><input ref={qrInput} hidden type="file" accept="image/*" capture="environment" onChange={scanQr}/>{qrCameraOpen&&<div className="referral-qr-camera"><video ref={qrVideo} muted playsInline aria-label="Camera scanning a dealer referral QR code"/><p>Point the back camera at the dealer QR code.</p><button type="button" onClick={stopQrCamera}>Cancel camera</button></div>}{referralName&&<b className="verified-dealer">✓ {c.verified}: {referralName}</b>}</div>
+          <div className="referral-card"><button className="scan-referral" type="button" onClick={()=>void openQrCamera()}>Scan referral QR code</button><div className="referral-divider"><span>or enter the 7-character code</span></div><label>Dealer referral code<input maxLength={7} value={referral} onChange={event=>{setReferral(event.target.value.replace(/[^a-z0-9]/gi,'').toUpperCase());setReferralName('');setRelationship('referral');}} placeholder="A7Q2K9M" autoCapitalize="characters"/></label><input ref={qrInput} hidden type="file" accept="image/*" capture="environment" onChange={scanQr}/>{qrCameraOpen&&<div className="referral-qr-camera"><video ref={qrVideo} muted playsInline aria-label="Camera scanning a dealer referral QR code"/><p>Point the back camera at the dealer QR code.</p><button type="button" onClick={stopQrCamera}>Cancel camera</button></div>}{referral.length===7&&!referralName&&loading&&<span className="referral-status">Checking code…</span>}{referralName&&<b className="verified-dealer">✓ {c.verified}: {referralName}</b>}</div>
         </section>
       )}
 
