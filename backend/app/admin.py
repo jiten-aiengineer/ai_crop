@@ -1665,8 +1665,8 @@ def dealer_redemption_summary(
                FROM dealers d
                LEFT JOIN coupon_redemptions cr
                       ON cr.dealer_id = d.id
-                     AND cr.created_at >= %s
-                     AND cr.created_at < %s
+                     AND cr.redeemed_at >= %s
+                     AND cr.redeemed_at < %s
                LEFT JOIN farmers f
                       ON f.verified_dealer_id = d.id
                      AND f.location_consent_at >= %s

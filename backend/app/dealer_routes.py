@@ -107,8 +107,8 @@ def dealer_dashboard(authorization: str = Header(...)):
                       COALESCE(SUM(cr.amount_redeemed), 0) AS total_amount
                FROM coupon_redemptions cr
                WHERE cr.dealer_id = %s
-                 AND cr.created_at >= %s
-                 AND cr.created_at < %s""",
+                 AND cr.redeemed_at >= %s
+                 AND cr.redeemed_at < %s""",
             (dealer_id, month_start, month_end),
         ).fetchone()
 
@@ -178,14 +178,14 @@ def dealer_redemptions(
         dealer_id = dealer["id"]
 
         rows = conn.execute(
-            """SELECT cr.id, cr.created_at, cr.amount_redeemed, cr.purchase_reference,
+            """SELECT cr.id, cr.redeemed_at, cr.amount_redeemed, cr.purchase_reference,
                       c.code AS coupon_code,
                       cp.name AS campaign_name, cp.discount_type, cp.discount_value
                FROM coupon_redemptions cr
                JOIN coupons c ON c.id = cr.coupon_id
                JOIN campaigns cp ON cp.id = c.campaign_id
                WHERE cr.dealer_id = %s
-               ORDER BY cr.created_at DESC
+               ORDER BY cr.redeemed_at DESC
                LIMIT %s OFFSET %s""",
             (dealer_id, per_page, offset),
         ).fetchall()
@@ -198,7 +198,7 @@ def dealer_redemptions(
     items = [
         {
             "id": str(r["id"]),
-            "redeemed_at": r["created_at"].isoformat() if r["created_at"] else None,
+            "redeemed_at": r["redeemed_at"].isoformat() if r["redeemed_at"] else None,
             "coupon_code": r["coupon_code"],
             "campaign_name": r["campaign_name"],
             "discount_type": r["discount_type"],
