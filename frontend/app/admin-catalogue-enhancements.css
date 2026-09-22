@@ -539,6 +539,31 @@
 .model-lab-v2 > .admin-list-toolbar h2,.model-lab-v2 > .admin-list-toolbar p { position:relative; z-index:1; color:#fff; }
 .model-lab-v2 > .admin-list-toolbar .admin-overline { color:#b9dcf3; }
 .model-lab-v2 > .admin-list-toolbar .admin-badge { position:relative; z-index:1; border-color:rgba(255,255,255,.35); color:#fff; background:rgba(255,255,255,.14); }
+
+/* Stable full-height administration frame. Keep navigation and account details
+   inside the blue rail while the workspace scrolls independently. */
+@media (min-width: 781px) {
+  .admin-shell { height:100dvh; min-height:0; overflow:hidden; }
+  .admin-sidebar { position:sticky; top:0; height:100dvh; min-height:0; overflow:hidden; padding:16px 14px 12px; }
+  .admin-brand { flex:0 0 auto; padding-bottom:14px; }
+  .admin-side-label { flex:0 0 auto; }
+  .admin-sidebar nav { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-right:3px; scrollbar-width:thin; scrollbar-color:rgba(255,255,255,.35) transparent; }
+  .admin-sidebar-bottom { flex:0 0 auto; margin-top:10px; padding:10px 7px 0; background:#064878; }
+  .admin-sidebar-bottom .admin-role-list { max-height:62px; overflow-y:auto; align-content:flex-start; padding-right:3px; scrollbar-width:thin; scrollbar-color:rgba(255,255,255,.35) transparent; }
+  .admin-signout { padding-top:9px; }
+  .admin-workspace { height:100dvh; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+  .admin-topbar { position:sticky; top:0; z-index:40; background:rgba(247,251,255,.96); backdrop-filter:blur(14px); }
+}
+
+/* Farmer directory filters use a deliberate grid instead of inheriting the
+   catalogue layout, preventing labels and controls from overlapping. */
+.farmer-filters { display:grid !important; grid-template-columns:minmax(280px,2fr) minmax(180px,.8fr) minmax(250px,1.2fr); gap:12px; margin:0 0 20px; padding:16px; border:1px solid #d7e5ef; border-radius:15px; background:#fff; box-shadow:0 10px 28px rgba(6,72,120,.06); }
+.farmer-filters .admin-search { height:auto; min-width:0; margin:0; padding:0; border:0; background:transparent; align-content:start; }
+.farmer-filters .admin-search > span { color:#064878; }
+.farmer-filters input,.farmer-filters select { height:44px; background:#fbfdff; }
+.farmer-details .admin-table-wrap { border-radius:15px; box-shadow:0 10px 28px rgba(6,72,120,.06); }
+@media (max-width: 980px) { .farmer-filters { grid-template-columns:1fr 1fr; } .farmer-filters .admin-search:first-child { grid-column:1/-1; } }
+@media (max-width: 600px) { .farmer-filters { grid-template-columns:1fr; padding:12px; } .farmer-filters .admin-search:first-child { grid-column:auto; } }
 .model-governance-banner {
   display: grid;
   grid-template-columns: max-content 1fr;

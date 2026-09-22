@@ -61,7 +61,7 @@ export default function FarmerDetails() {
   }, [fetchFarmers]);
 
   return (
-    <div className="admin-content">
+    <div className="admin-content farmer-details">
       <div className="admin-list-toolbar">
         <div>
           <p className="admin-overline">Analytics</p>
@@ -70,7 +70,7 @@ export default function FarmerDetails() {
         </div>
       </div>
       
-      <div className="admin-catalogue-filters" style={{ marginBottom: '20px' }}>
+      <div className="admin-catalogue-filters farmer-filters">
         <label className="admin-search">
           <span>Search</span>
           <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Name or mobile" />
