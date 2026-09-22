@@ -43,6 +43,7 @@ class VerifyOtpPayload(BaseModel):
 
 class DealerLookupPayload(BaseModel):
     dealer_code: str = Field(min_length=2, max_length=64)
+    mobile_number: Optional[str] = Field(default=None, pattern=r"^\+?[1-9]\d{9,14}$")
 
 
 class ReferralLookupPayload(BaseModel):
@@ -59,8 +60,8 @@ class ProfilePayload(BaseModel):
     district: Optional[str] = Field(default=None, max_length=120)
     village: Optional[str] = Field(default=None, max_length=120)
     state: Optional[str] = Field(default=None, max_length=120)
-    social_media_used: list[str] = Field(default_factory=list, max_length=12)
-    acquisition_source: Optional[str] = Field(default=None, max_length=120)
+    social_media_used: list[str] = Field(min_length=1, max_length=12)
+    acquisition_source: str = Field(min_length=1, max_length=120)
     referral_code: Optional[str] = Field(default=None, max_length=128)
     dealer_code: Optional[str] = Field(default=None, max_length=64)
     location_latitude: Optional[float] = Field(default=None, ge=-90, le=90)
@@ -142,14 +143,25 @@ def _public_user(row) -> dict:
 def dealer_lookup(payload: DealerLookupPayload):
     with connection() as conn:
         row = conn.execute(
-            """SELECT dealer_code,name,location,sales_area,sales_region,sales_territory,state,status,
+            """SELECT dealer_code,name,owner_name,location,sales_area,sales_region,sales_territory,state,status,
+                      portal_mobile_number,contact_number,
                       (portal_mobile_number IS NOT NULL) AS already_bound
                FROM dealers WHERE lower(dealer_code)=lower(%s) LIMIT 1""",
             (payload.dealer_code.strip(),),
         ).fetchone()
     if not row or row["status"] != "active":
-        raise HTTPException(404, "Active dealer code not found. Check the code with CLSL.")
-    return {"status": "success", "dealer": row}
+        raise HTTPException(404, "This dealer code is not valid. Check the code and try again.")
+    registered = row.get("portal_mobile_number") or row.get("contact_number") or ""
+    digits = "".join(character for character in registered if character.isdigit())
+    submitted = "".join(character for character in (payload.mobile_number or "") if character.isdigit())
+    mobile_matches = not digits or not submitted or digits[-10:] == submitted[-10:]
+    registered_mobile = ("+91 " + digits[-10:]) if len(digits) >= 10 else (registered or "Not recorded")
+    dealer = dict(row)
+    dealer.pop("portal_mobile_number", None)
+    dealer.pop("contact_number", None)
+    dealer["registered_mobile"] = registered_mobile
+    dealer["mobile_matches"] = mobile_matches
+    return {"status": "success", "dealer": dealer}
 
 
 @router.post("/referral-lookup")
@@ -164,7 +176,7 @@ def referral_lookup(payload: ReferralLookupPayload):
             (payload.referral_code.strip(),),
         ).fetchone()
     if not row:
-        raise HTTPException(404, "Referral code not found or expired.")
+        raise HTTPException(404, "This referral code is not valid. Check the code and try again.")
     return {"status": "success", "dealer": row}
 
 
