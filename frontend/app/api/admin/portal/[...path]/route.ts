@@ -28,7 +28,13 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
       signal: AbortSignal.timeout(12_000),
     });
     const responseText = await backend.text();
-    return new Response(responseText, { status: backend.status, headers: { 'Content-Type': backend.headers.get('content-type') || 'application/json', 'Cache-Control': 'no-store' } });
+    const responseHeaders = new Headers({
+      'Content-Type': backend.headers.get('content-type') || 'application/json',
+      'Cache-Control': 'no-store',
+    });
+    const contentDisposition = backend.headers.get('content-disposition');
+    if (contentDisposition) responseHeaders.set('Content-Disposition', contentDisposition);
+    return new Response(responseText, { status: backend.status, headers: responseHeaders });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Administration request failed.';
     const status = message.includes('hostname') ? 404 : 502;

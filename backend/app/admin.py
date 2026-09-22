@@ -23,8 +23,9 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 import csv
 import io
+import html
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, File, Response
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field, field_validator
 from psycopg.types.json import Jsonb
@@ -1385,6 +1386,8 @@ def list_dealers(
     territory: str = Query(default="", max_length=100),
     status: str = Query(default="", max_length=32),
     phone: str = Query(default="", max_length=20),
+    account: str = Query(default="", max_length=24),
+    test_data: str = Query(default="", max_length=10),
     limit: int = Query(default=500, ge=1),
     offset: int = Query(default=0, ge=0),
     identity: AdminIdentity = Depends(_identity)
@@ -1417,9 +1420,25 @@ def list_dealers(
     if phone.strip():
         filters.append("COALESCE(portal_mobile_number, '') ILIKE %s")
         params.append(f"%{phone.strip()}%")
+    if account == "generated":
+        filters.append("dealer_code IS NOT NULL AND owner_name IS NOT NULL AND portal_mobile_number IS NOT NULL")
+    elif account == "not_generated":
+        filters.append("(dealer_code IS NULL OR owner_name IS NULL OR portal_mobile_number IS NULL)")
+    elif account == "verified":
+        filters.append("dealer_code IS NOT NULL AND owner_name IS NOT NULL AND portal_mobile_number IS NOT NULL AND EXISTS (SELECT 1 FROM dealer_referrals x WHERE x.dealer_id=dealers.id)")
+    if test_data == "yes": filters.append("is_test=true")
+    elif test_data == "no": filters.append("is_test=false")
         
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
-    sql = f"SELECT id, dealer_code, name, owner_name, sales_executive, sales_area, sales_region, sales_territory, state, status, portal_mobile_number FROM dealers {where_clause} ORDER BY name LIMIT %s OFFSET %s"
+    sql = f"""SELECT dealers.id, dealer_code, name, owner_name, sales_executive, sales_area, sales_region,
+        sales_territory, state, status, portal_mobile_number, is_test, account_generated_at,
+        (SELECT referral_token FROM dealer_referrals dr WHERE dr.dealer_id=dealers.id ORDER BY created_at DESC LIMIT 1) referral_token,
+        (SELECT COUNT(*) FROM farmers f WHERE COALESCE(f.acquisition_dealer_id,f.preferred_dealer_id,f.verified_dealer_id)=dealers.id) farmer_count,
+        (SELECT COUNT(*) FROM coupon_redemptions cr WHERE cr.dealer_id=dealers.id) redemption_count,
+        COALESCE((SELECT SUM(cr.amount_redeemed) FROM coupon_redemptions cr WHERE cr.dealer_id=dealers.id),0) redeemed_amount,
+        COALESCE((SELECT SUM(cr.amount_redeemed) FROM coupon_redemptions cr WHERE cr.dealer_id=dealers.id AND cr.credit_note_id IS NULL),0) outstanding_amount,
+        COALESCE((SELECT SUM(total_amount) FROM dealer_credit_notes cn WHERE cn.dealer_id=dealers.id AND cn.status='settled'),0) settled_amount
+        FROM dealers {where_clause} ORDER BY is_test DESC, name LIMIT %s OFFSET %s"""
     count_sql = f"SELECT COUNT(*) as c FROM dealers {where_clause}"
     
     with connection() as conn:
@@ -1490,15 +1509,14 @@ def create_dealer(payload: DealerPayload, identity: AdminIdentity = Depends(_ide
     with connection() as conn:
         _assert_portal_mobile_available(conn, payload.portal_mobile_number)
         for _ in range(3):
-            code = _new_dealer_code()
             row = conn.execute(
                 """INSERT INTO dealers (dealer_code, master_code, name, owner_name, sales_executive, sales_area, sales_region, sales_territory, state, status, portal_mobile_number)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    ON CONFLICT (dealer_code) DO NOTHING RETURNING *""",
-                (code, code, payload.name.strip(), payload.owner_name, payload.sales_executive, payload.sales_area, payload.sales_region, payload.sales_territory, payload.state, payload.status, payload.portal_mobile_number),
+                (None, "MANUAL-" + uuid4().hex.upper(), payload.name.strip(), payload.owner_name, payload.sales_executive, payload.sales_area, payload.sales_region, payload.sales_territory, payload.state, payload.status, payload.portal_mobile_number),
             ).fetchone()
             if row:
-                _audit(conn, identity, "create", "dealer", str(row["id"]), None, {"dealer_code": code, "name": row["name"]})
+                _audit(conn, identity, "create", "dealer", str(row["id"]), None, {"name": row["name"]})
                 conn.commit()
                 return row
         raise HTTPException(503, "Could not allocate a secure dealer code. Please try again.")
@@ -1594,7 +1612,7 @@ def import_dealers(file: UploadFile = File(...), identity: AdminIdentity = Depen
                     """INSERT INTO dealers (dealer_code, master_code, name, owner_name, sales_executive, sales_area,
                        sales_region, sales_territory, state)
                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (_new_dealer_code(), dealer_code, name, owner_name, sales_executive, sales_area,
+                    (None, dealer_code, name, owner_name, sales_executive, sales_area,
                      sales_region, sales_territory, state)
                 )
                 imported_count += 1
@@ -1608,6 +1626,9 @@ def import_dealers(file: UploadFile = File(...), identity: AdminIdentity = Depen
 def generate_dealer_referral(dealer_id: UUID, identity: AdminIdentity = Depends(_identity)):
     _require(identity, DEALER_WRITE_ROLES)
     with connection() as conn:
+        dealer = conn.execute("SELECT dealer_code,owner_name,portal_mobile_number FROM dealers WHERE id=%s", (dealer_id,)).fetchone()
+        if not dealer or not dealer["dealer_code"] or not dealer["owner_name"] or not dealer["portal_mobile_number"]:
+            raise HTTPException(400, "Generate the dealer account with owner name and mobile number first.")
         existing = conn.execute("SELECT referral_token FROM dealer_referrals WHERE dealer_id = %s LIMIT 1", (dealer_id,)).fetchone()
         if existing:
             token = existing["referral_token"]
@@ -1621,6 +1642,87 @@ def generate_dealer_referral(dealer_id: UUID, identity: AdminIdentity = Depends(
             
     download_url = f"https://ai.croplifescience.com/?ref={token}"
     return {"token": token, "download_url": download_url}
+
+
+class DealerAccountPayload(BaseModel):
+    owner_name: str = Field(min_length=2, max_length=180)
+    portal_mobile_number: str = Field(min_length=10, max_length=20)
+
+
+@router.post("/dealers/{dealer_id}/generate-account")
+def generate_dealer_account(dealer_id: UUID, payload: DealerAccountPayload, identity: AdminIdentity = Depends(_identity)):
+    _require(identity, DEALER_WRITE_ROLES)
+    digits = "".join(character for character in payload.portal_mobile_number if character.isdigit())
+    if len(digits) == 10:
+        mobile = "+91" + digits
+    elif 10 <= len(digits) <= 15 and payload.portal_mobile_number.strip().startswith("+"):
+        mobile = "+" + digits
+    else:
+        raise HTTPException(400, "Use a valid mobile number including the country code when it is not Indian.")
+    with connection() as conn:
+        dealer = conn.execute("SELECT * FROM dealers WHERE id=%s FOR UPDATE", (dealer_id,)).fetchone()
+        if not dealer: raise HTTPException(404, "Dealer not found.")
+        _assert_portal_mobile_available(conn, mobile, dealer_id)
+        code = dealer["dealer_code"] or _new_dealer_code()
+        conn.execute("UPDATE dealers SET dealer_code=%s,owner_name=%s,portal_mobile_number=%s,account_generated_at=COALESCE(account_generated_at,now()),updated_at=now() WHERE id=%s", (code,payload.owner_name.strip(),mobile,dealer_id))
+        referral = conn.execute("SELECT referral_token FROM dealer_referrals WHERE dealer_id=%s LIMIT 1", (dealer_id,)).fetchone()
+        token = referral["referral_token"] if referral else _new_short_referral_code()
+        if not referral: conn.execute("INSERT INTO dealer_referrals(dealer_id,referral_token) VALUES(%s,%s)", (dealer_id,token))
+        _audit(conn, identity, "generate_account", "dealer", str(dealer_id), None, {"dealer_code":code,"referral_token":token})
+        conn.commit()
+    return {"status":"success","dealer_code":code,"referral_token":token,"download_url":f"https://ai.croplifescience.com/?ref={token}"}
+
+
+class CreditNotePayload(BaseModel):
+    dealer_id: UUID
+    period_start: date
+    period_end: date
+
+class SettleCreditNotePayload(BaseModel):
+    settlement_reference: str = Field(min_length=2,max_length=120)
+    note: Optional[str] = Field(default=None,max_length=1000)
+
+@router.get("/dealer-credit-notes")
+def list_credit_notes(identity: AdminIdentity = Depends(_identity)):
+    _require(identity, ADMIN_READ_ROLES)
+    with connection() as conn:
+        rows=conn.execute("""SELECT cn.*,d.name dealer_name,d.dealer_code FROM dealer_credit_notes cn JOIN dealers d ON d.id=cn.dealer_id ORDER BY cn.generated_at DESC LIMIT 500""").fetchall()
+    return {"items":rows}
+
+@router.post("/dealer-credit-notes")
+def generate_credit_note(payload: CreditNotePayload, identity: AdminIdentity = Depends(_identity)):
+    _require(identity, DEALER_WRITE_ROLES)
+    if payload.period_end < payload.period_start: raise HTTPException(400,"End date must be after start date.")
+    with connection() as conn:
+        dealer=conn.execute("SELECT name FROM dealers WHERE id=%s",(payload.dealer_id,)).fetchone()
+        if not dealer: raise HTTPException(404,"Dealer not found.")
+        totals=conn.execute("""SELECT COUNT(*) c,COALESCE(SUM(amount_redeemed),0) amount FROM coupon_redemptions WHERE dealer_id=%s AND redeemed_at::date BETWEEN %s AND %s AND credit_note_id IS NULL""",(payload.dealer_id,payload.period_start,payload.period_end)).fetchone()
+        if not totals["c"]: raise HTTPException(400,"No unsettled coupon redemptions in this period.")
+        number=f"CLSL-CN-{datetime.now().strftime('%Y%m%d')}-{secrets.randbelow(100000):05d}"
+        note=conn.execute("""INSERT INTO dealer_credit_notes(dealer_id,note_number,period_start,period_end,redemption_count,total_amount,generated_by) VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING *""",(payload.dealer_id,number,payload.period_start,payload.period_end,totals["c"],totals["amount"],identity.email)).fetchone()
+        conn.execute("UPDATE coupon_redemptions SET credit_note_id=%s WHERE dealer_id=%s AND redeemed_at::date BETWEEN %s AND %s AND credit_note_id IS NULL",(note["id"],payload.dealer_id,payload.period_start,payload.period_end))
+        conn.commit()
+    return note
+
+@router.post("/dealer-credit-notes/{note_id}/settle")
+def settle_credit_note(note_id: UUID,payload:SettleCreditNotePayload,identity:AdminIdentity=Depends(_identity)):
+    _require(identity, DEALER_WRITE_ROLES)
+    with connection() as conn:
+        row=conn.execute("UPDATE dealer_credit_notes SET status='settled',settled_at=now(),settlement_reference=%s,settlement_note=%s WHERE id=%s AND status<>'settled' RETURNING *",(payload.settlement_reference,payload.note,note_id)).fetchone()
+        if not row: raise HTTPException(404,"Open credit note not found.")
+        conn.commit()
+    return row
+
+@router.get("/dealer-credit-notes/{note_id}/download")
+def download_credit_note(note_id: UUID,identity:AdminIdentity=Depends(_identity)):
+    _require(identity, ADMIN_READ_ROLES)
+    with connection() as conn:
+        note=conn.execute("SELECT cn.*,d.name dealer_name,d.owner_name,d.dealer_code,d.state,d.sales_territory FROM dealer_credit_notes cn JOIN dealers d ON d.id=cn.dealer_id WHERE cn.id=%s",(note_id,)).fetchone()
+        if not note: raise HTTPException(404,"Credit note not found.")
+        items=conn.execute("""SELECT c.code,cp.name campaign,cr.redeemed_at,cr.purchase_reference,cr.amount_redeemed FROM coupon_redemptions cr JOIN coupons c ON c.id=cr.coupon_id JOIN campaigns cp ON cp.id=c.campaign_id WHERE cr.credit_note_id=%s ORDER BY cr.redeemed_at""",(note_id,)).fetchall()
+    rows=''.join(f"<tr><td>{html.escape(str(i['code']))}</td><td>{html.escape(str(i['campaign']))}</td><td>{i['redeemed_at'].date()}</td><td>{html.escape(str(i['purchase_reference'] or ''))}</td><td>₹{float(i['amount_redeemed'] or 0):,.2f}</td></tr>" for i in items)
+    body=f"""<!doctype html><meta charset='utf-8'><title>{note['note_number']}</title><style>body{{font-family:Arial;padding:40px;color:#123}}h1{{color:#064878}}table{{width:100%;border-collapse:collapse}}th,td{{padding:10px;border:1px solid #ccd}}th{{background:#064878;color:white}}.total{{text-align:right;font-size:20px}}</style><h1>Crop Life Science Limited</h1><h2>Dealer Credit Note · {note['note_number']}</h2><p><b>Dealer:</b> {html.escape(note['dealer_name'])} · {html.escape(str(note['dealer_code'] or ''))}<br><b>Period:</b> {note['period_start']} to {note['period_end']}<br><b>Status:</b> {note['status'].upper()}</p><table><thead><tr><th>Coupon</th><th>Campaign</th><th>Redeemed</th><th>Reference</th><th>Amount</th></tr></thead><tbody>{rows}</tbody></table><p class='total'><b>Total credit: ₹{float(note['total_amount']):,.2f}</b></p><p>Generated for internal accounts verification. Print or save this page as PDF.</p>"""
+    return Response(body,media_type="text/html",headers={"Content-Disposition":f"attachment; filename={note['note_number']}.html"})
 
 
 # ---------------------------------------------------------------------------
