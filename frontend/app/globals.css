@@ -127,6 +127,27 @@
 }
 @media(max-width:370px){.auth-welcome h1{font-size:19px}.auth-mascot{width:84px;height:100px}.auth-panel{padding-left:12px;padding-right:12px}.language-grid{gap:7px}.language-grid button{padding:8px}}
 .auth-loading{min-height:100dvh;display:grid;place-content:center;justify-items:center;gap:10px;background:#f5f8fb;color:#064878}.auth-loading img{width:84px;height:84px;object-fit:contain}.auth-loading b{font-size:25px}.auth-loading span{font-size:12px;color:#657e8e}
+
+/* Compact, application-like account selection for the shared public login. */
+.account-type-card{display:grid;gap:11px;padding:14px;border:1px solid #d7e4cf;border-radius:16px;background:linear-gradient(145deg,#fbfdf8,#f2f8e9)}
+.account-type-card>div:first-child b,.account-type-card>div:first-child small{display:block}.account-type-card>div:first-child b{color:#244526;font-size:13px}.account-type-card>div:first-child small{margin-top:3px;color:#71806d;font-size:10px;line-height:1.45}
+.account-type-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.account-type-grid button{min-width:0;min-height:58px;display:grid;place-items:center;align-content:center;gap:4px;border:1px solid #cfddd0;border-radius:12px;background:#fff;color:#446047;cursor:pointer}.account-type-grid button span{font-size:17px;color:#6a8d4b}.account-type-grid button b{font-size:11px}.account-type-grid button.selected{border-color:var(--auth-blue);background:var(--auth-blue);color:#fff;box-shadow:0 8px 18px rgba(75,127,33,.2)}.account-type-grid button.selected span{color:#fff}
+.auth-submit-bar{display:grid;gap:10px}.relationship-card:empty{display:none}
+
+@media(max-width:520px){
+  .auth-screen-details .auth-visual{position:sticky;top:0;z-index:5;height:104px;min-height:104px;padding:12px 15px;border-radius:0;background:linear-gradient(110deg,#1f4e20,#4d8128)}
+  .auth-screen-details .auth-brand img{width:36px;height:36px;border-radius:10px}.auth-screen-details .auth-brand b{font-size:16px}.auth-screen-details .auth-brand small{font-size:8px}
+  .auth-screen-details .auth-welcome{display:none}.auth-screen-details .auth-mascot{width:68px;height:78px;right:14px;bottom:8px;border-width:3px;border-radius:14px}.auth-screen-details .auth-mascot figcaption{display:none}
+  .auth-screen-details .auth-panel{min-height:calc(100dvh - 92px);margin:-12px auto 0;padding:22px 14px 20px;border-radius:20px 20px 0 0;z-index:6}
+  .auth-screen-details .auth-panel-head{margin-bottom:6px}.auth-screen-details .auth-progress{margin-bottom:15px}.auth-screen-details .auth-back{margin-bottom:8px}
+  .auth-screen-details .auth-step{gap:11px}.auth-screen-details .auth-step h2{font-size:25px}.auth-screen-details .auth-step>p{margin:-5px 0 2px;line-height:1.4}
+  .auth-screen-details .login-location-card{padding:10px;border-radius:14px}.auth-screen-details .login-location-card .location-consent{min-height:44px}.auth-screen-details .login-location-card dl{gap:6px;margin-top:8px}.auth-screen-details .login-location-card dl div{padding:8px}
+  .auth-screen-details .social-grid{gap:6px}.auth-screen-details .social-grid span{padding:7px 10px}
+  .auth-screen-details .account-type-card{padding:11px;border-radius:14px}.auth-screen-details .account-type-grid{gap:6px}.auth-screen-details .account-type-grid button{min-height:54px;padding:5px}.auth-screen-details .account-type-grid button b{font-size:10px}
+  .auth-screen-details .referral-card,.auth-screen-details .dealer-verify{padding:11px;border-radius:13px}.auth-screen-details .dealer-code-row{grid-template-columns:1fr}.auth-screen-details .dealer-code-row button{min-height:40px}
+  .auth-screen-details .auth-submit-bar{position:sticky;bottom:0;z-index:8;margin:4px -14px -20px;padding:10px 14px 72px;background:rgba(255,255,255,.96);box-shadow:0 -12px 28px rgba(33,65,29,.09);backdrop-filter:blur(12px)}
+  .auth-screen-details+.pwa-install{right:12px;bottom:12px;z-index:30;min-height:44px}
+}
 .inspection-location-gate{display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:12px;margin-bottom:22px;padding:14px;border:1px solid #f0cf8a;border-radius:14px;background:#fff9e9}.inspection-location-gate>span{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:#fff1c8;color:#8b5c00;font-size:20px}.inspection-location-gate b,.inspection-location-gate p{display:block;margin:0}.inspection-location-gate b{font-size:13px}.inspection-location-gate p{font-size:10px;line-height:1.45;color:#7e745f;margin-top:3px}.inspection-location-gate button{height:38px;border:0;border-radius:10px;background:#064878;color:white;padding:0 13px;font-size:11px;font-weight:800;cursor:pointer}.inspection-location-gate.ready{border-color:#9bc9aa;background:#eef9f1}.inspection-location-gate.ready>span{background:#d8f0df;color:#18713a}
 .app-sprayer-footer{position:relative;height:145px;max-width:1204px;margin:20px auto -10px;overflow:hidden;border-radius:24px;background:linear-gradient(180deg,transparent,#eff8fd)}.app-sprayer-footer .sprayer-scene{height:145px}.app-sprayer-footer .sprayer-track{width:560px;left:calc(50% - 280px);bottom:-32px}
 @media(max-width:600px){.inspection-location-gate{grid-template-columns:38px 1fr}.inspection-location-gate button{grid-column:1/-1;width:100%}.app-sprayer-footer{height:105px;margin-bottom:68px}.app-sprayer-footer .sprayer-scene{height:105px}.app-sprayer-footer .sprayer-track{width:390px;left:calc(50% - 195px);bottom:-25px}}

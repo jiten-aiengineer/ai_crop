@@ -165,6 +165,21 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
       setError('Camera permission was not granted. Allow camera access and try again, or choose a saved QR image.');
     }
   }
+  function chooseAccountType(type: 'general' | 'farmer' | 'dealer') {
+    setError('');
+    if (type === 'farmer') {
+      setIsFarmer('yes'); setIsDealerUI(false); setDealerCode(''); setDealer(null); setDealerConfirmed(false);
+      setRelationship(referral ? 'referral' : 'none');
+      return;
+    }
+    if (type === 'dealer') {
+      setIsFarmer('no'); setIsDealerUI(true); setReferral(''); setReferralName('');
+      setRelationship(dealer ? 'dealer' : 'none');
+      return;
+    }
+    setIsFarmer('no'); setIsDealerUI(false); setRelationship('none');
+    setDealerCode(''); setDealer(null); setDealerConfirmed(false); setReferral(''); setReferralName('');
+  }
   async function startOtp(event: FormEvent) {
     event.preventDefault(); setError('');
     if (!place) return setError(c.locationError);
@@ -194,11 +209,11 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
     } catch(problem){fail(problem);} finally{setLoading(false);}
   }
 
-  return <main className="auth-shell common-auth"><section className="auth-visual"><div className="auth-brand"><img src="/clsl-logo.png" alt="Crop Life Science Limited"/><span><b>CLSL AI</b><small>Crop care, made smarter.</small></span></div><div className="auth-welcome"><small>CROP LIFE SCIENCE LIMITED</small><h1>{c.welcome}</h1><p>{c.intro}</p></div><figure className="auth-mascot"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="Crop Life Mitra"/><figcaption><b>Crop Life Mitra</b><small>Your smart crop companion</small></figcaption></figure><div className="auth-field-art"><SprayerScene /></div></section><section className="auth-panel"><header className="auth-panel-head"><span>STEP {stepNumber} OF 4</span><b>{Math.round(stepNumber/4*100)}% complete</b></header><div className="auth-progress">{order.map((item,index)=><i key={item} className={index<stepNumber?'active':''}/>)}</div>{step!=='language'&&<button type="button" className="auth-back" onClick={()=>{setError('');setStep(previous[step]);}}>← {c.back}</button>}{error&&<p className="auth-error" role="alert">{error}</p>}
+  return <main className={`auth-shell common-auth auth-screen-${step}`}><section className="auth-visual"><div className="auth-brand"><img src="/clsl-logo.png" alt="Crop Life Science Limited"/><span><b>CLSL AI</b><small>Crop care, made smarter.</small></span></div><div className="auth-welcome"><small>CROP LIFE SCIENCE LIMITED</small><h1>{c.welcome}</h1><p>{c.intro}</p></div><figure className="auth-mascot"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="Crop Life Mitra"/><figcaption><b>Crop Life Mitra</b><small>Your smart crop companion</small></figcaption></figure><div className="auth-field-art"><SprayerScene /></div></section><section className="auth-panel"><header className="auth-panel-head"><span>STEP {stepNumber} OF 4</span><b>{Math.round(stepNumber/4*100)}% complete</b></header><div className="auth-progress">{order.map((item,index)=><i key={item} className={index<stepNumber?'active':''}/>)}</div>{step!=='language'&&<button type="button" className="auth-back" onClick={()=>{setError('');setStep(previous[step]);}}>← {c.back}</button>}{error&&<p className="auth-error" role="alert">{error}</p>}
     {step==='language'&&<div className="auth-step"><span className="auth-step-icon">文</span><h2>{c.choose}</h2><div className="language-grid">{languages.map(item=><button type="button" key={item.code} className={language===item.code?'selected':''} onClick={()=>setLanguage(item.code)}><b>{item.name}</b><small>{item.code.toUpperCase()}</small></button>)}</div><button className="auth-primary" onClick={()=>setStep('account')}>{c.continue} →</button></div>}
     {step==='account'&&<form className="auth-step" onSubmit={event=>{event.preventDefault();if(firstName.trim().length<2||lastName.trim().length<1||normalizedMobile.length!==10)return setError(c.required);setError('');setStep('details');}}><h2>{c.account}</h2><p>{c.intro}</p><label>{c.name}<input value={firstName} onChange={event=>setFirstName(event.target.value)} required autoComplete="given-name"/></label><label>{c.lastName || 'Last name'}<input value={lastName} onChange={event=>setLastName(event.target.value)} required autoComplete="family-name"/></label><label>{c.mobile}<div className="phone-field"><span>+91</span><input inputMode="numeric" value={mobile} onChange={event=>setMobile(event.target.value.replace(/\D/g,'').slice(0,10))} required placeholder="98765 43210" autoComplete="tel"/></div></label><button className="auth-primary">{c.continue} →</button></form>}
     {step==='details'&&<form className="auth-step auth-details common-login-details" onSubmit={startOtp}><h2>{c.details}</h2><p>{c.detailsHelp}</p><section className={`login-location-card ${place?'ready':''}`}><button type="button" className="location-consent" onClick={()=>void captureLocation()} disabled={loading}><span>{place?'✓':'⌖'}</span><b>{loading?c.wait:place?c.locationReady:c.location}</b></button>{place&&<dl><div><dt>{c.city}</dt><dd>{place.village||place.city}</dd></div><div><dt>{c.district}</dt><dd>{place.district}</dd></div><div><dt>{c.state}</dt><dd>{place.state}</dd></div></dl>}</section><label>{c.email}<input type="email" value={email} onChange={event=>setEmail(event.target.value)} autoComplete="email"/></label><fieldset><legend>{c.social}</legend><div className="social-grid">{socialOptions.map(item=><label key={item}><input type="checkbox" checked={social.includes(item)} onChange={()=>setSocial(current=>current.includes(item)?current.filter(value=>value!==item):[...current,item])}/><span>{item}</span></label>)}</div></fieldset><label>{c.source}<select value={source} onChange={event=>setSource(event.target.value)}><option value="">—</option>{sourceOptions.map(item=><option key={item}>{item}</option>)}</select></label>
-      <div className="farmer-check"><b>Are you a farmer? <small>(for farmers to receive offers and discount coupons on CLSL products)</small></b><div className="farmer-check-radios"><label><input type="radio" name="isFarmer" checked={isFarmer==='yes'} onChange={()=>setIsFarmer('yes')}/> Yes</label><label><input type="radio" name="isFarmer" checked={isFarmer==='no'} onChange={()=>setIsFarmer('no')}/> No</label></div></div>
+      <section className="account-type-card"><div><b>How will you use CLSL AI?</b><small>Select one option. Farmers can connect with a dealer for eligible offers.</small></div><div className="account-type-grid"><button type="button" className={isFarmer==='no'&&!isDealerUI?'selected':''} onClick={()=>chooseAccountType('general')}><span>●</span><b>General user</b></button><button type="button" className={isFarmer==='yes'?'selected':''} onClick={()=>chooseAccountType('farmer')}><span>♟</span><b>Farmer</b></button><button type="button" className={isDealerUI?'selected':''} onClick={()=>chooseAccountType('dealer')}><span>▣</span><b>Dealer</b></button></div></section>
       
       {isFarmer === 'yes' && !isDealerUI && (
         <section className="relationship-card">
@@ -206,16 +221,7 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
         </section>
       )}
 
-      <div className="farmer-check" style={{ marginTop: '20px', fontSize: '12px', display: isFarmer === 'yes' ? 'none' : 'flex' }}>
-        <b style={{ fontWeight: 'normal', color: '#6b7280' }}>Are you a dealer?</b>
-        <div className="farmer-check-radios">
-          <label style={{ color: '#6b7280' }}>
-            <input type="checkbox" checked={isDealerUI} onChange={(e)=>{setIsDealerUI(e.target.checked); if(!e.target.checked) { setDealerCode(''); setDealer(null); setDealerConfirmed(false); setRelationship('none'); }}}/> Yes
-          </label>
-        </div>
-      </div>
-      <section className="relationship-card">
-      {isDealerUI && isFarmer !== 'yes' && <div className="dealer-code-box"><label>{c.dealerCode}<div className="dealer-code-row"><input value={dealerCode} onChange={event=>{setDealerCode(event.target.value.trim().toUpperCase());setDealer(null);setDealerConfirmed(false);}} placeholder="DLR-…" autoCapitalize="characters" disabled={relationship==='referral'||referral.length>0}/><button type="button" onClick={()=>void lookupDealer()} disabled={!dealerCode.trim()||loading||relationship==='referral'}>{loading?c.wait:c.verify}</button></div></label>{dealer&&<article className="verified-dealer-card"><b>✓ {dealer.name}</b><small>{[dealer.sales_territory,dealer.state].filter(Boolean).join(' · ')}</small>{dealer.already_bound&&<span className="dealer-bound-note">📱 Code already linked — use the registered mobile number.</span>}<label><input type="checkbox" checked={dealerConfirmed} onChange={event=>setDealerConfirmed(event.target.checked)}/>{c.confirm}</label></article>}</div>}
-      </section><p className="test-login-note">{c.test}</p><button className="auth-primary" disabled={loading||!place}>{loading?c.wait:c.otpButton} →</button></form>}
+      {isDealerUI && isFarmer !== 'yes' && <section className="relationship-card"><div className="dealer-code-box"><label>{c.dealerCode}<div className="dealer-code-row"><input value={dealerCode} onChange={event=>{setDealerCode(event.target.value.trim().toUpperCase());setDealer(null);setDealerConfirmed(false);}} placeholder="DLR-…" autoCapitalize="characters" disabled={relationship==='referral'||referral.length>0}/><button type="button" onClick={()=>void lookupDealer()} disabled={!dealerCode.trim()||loading||relationship==='referral'}>{loading?c.wait:c.verify}</button></div></label>{dealer&&<article className="verified-dealer-card"><b>✓ {dealer.name}</b><small>{[dealer.sales_territory,dealer.state].filter(Boolean).join(' · ')}</small>{dealer.already_bound&&<span className="dealer-bound-note">📱 Code already linked — use the registered mobile number.</span>}<label><input type="checkbox" checked={dealerConfirmed} onChange={event=>setDealerConfirmed(event.target.checked)}/>{c.confirm}</label></article>}</div></section>}
+      <div className="auth-submit-bar"><p className="test-login-note">{c.test}</p><button className="auth-primary" disabled={loading||!place}>{loading?c.wait:c.otpButton} →</button></div></form>}
     {step==='otp'&&<form className="auth-step otp-step" onSubmit={finish}><span className="auth-step-icon">•••</span><h2>{c.otpTitle}</h2><p>{c.otpHelp}</p><b className="otp-number">+91 {normalizedMobile}</b><label>{c.otp}<input value={otp} onChange={event=>setOtp(event.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="1 2 3 4 5 6" autoFocus/></label><button className="auth-primary" disabled={loading||otp.length!==6}>{loading?c.wait:c.enter} →</button></form>}</section></main>;
 }
