@@ -4,7 +4,7 @@ import { ChangeEvent, FormEvent, useMemo, useRef, useState } from 'react';
 import { LanguageCode, languages } from '../lib/i18n';
 
 export type PublicUser = {
-  id: string; mobile_number: string; first_name: string; role: 'general_user' | 'farmer' | 'dealer' | 'other' | null;
+  id: string; mobile_number: string; first_name: string; last_name?: string; role: 'general_user' | 'farmer' | 'dealer' | 'other' | null;
   preferred_language: LanguageCode; email?: string; city?: string; district?: string; village?: string; state?: string;
   social_media_used?: string[]; acquisition_source?: string; location_latitude?: number; location_longitude?: number;
   location_label?: string; location_postcode?: string; location_country?: string;

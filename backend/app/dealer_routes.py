@@ -18,6 +18,11 @@ from pydantic import BaseModel
 from .db import connection
 
 router = APIRouter(prefix="/api/v1/dealers", tags=["dealers"])
+_REFERRAL_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _new_short_referral_code() -> str:
+    return "".join(secrets.choice(_REFERRAL_ALPHABET) for _ in range(7))
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +246,7 @@ def dealer_referral(authorization: str = Header(...)):
         if existing:
             token = existing["referral_token"]
         else:
-            token = "REF-" + secrets.token_hex(12).upper()
+            token = _new_short_referral_code()
             conn.execute(
                 "INSERT INTO dealer_referrals(dealer_id, referral_token) VALUES (%s, %s)",
                 (dealer_id, token),

@@ -47,6 +47,7 @@ from .db import connection
 
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+_REFERRAL_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 CATALOGUE_MANAGER_ROLES = {"catalog_editor", "manager", "catalogue_manager", "senior_catalogue_manager", "managing_director", "product_approver"}
 SENIOR_CATALOGUE_MANAGER_ROLES = {"senior_catalogue_manager"}
@@ -1464,6 +1465,10 @@ def _new_dealer_code() -> str:
     return "DLR-" + secrets.token_hex(10).upper()
 
 
+def _new_short_referral_code() -> str:
+    return "".join(secrets.choice(_REFERRAL_ALPHABET) for _ in range(7))
+
+
 def _assert_portal_mobile_available(conn, mobile_number: Optional[str], dealer_id: UUID | None = None) -> None:
     if not mobile_number:
         return
@@ -1607,7 +1612,7 @@ def generate_dealer_referral(dealer_id: UUID, identity: AdminIdentity = Depends(
         if existing:
             token = existing["referral_token"]
         else:
-            token = "REF-" + secrets.token_hex(12).upper()
+            token = _new_short_referral_code()
             conn.execute(
                 "INSERT INTO dealer_referrals(dealer_id, referral_token) VALUES (%s, %s)",
                 (dealer_id, token)
@@ -1718,8 +1723,8 @@ def list_farmers(
     params = []
     
     if search.strip():
-        filters.append("(f.name ILIKE %s OR f.mobile_number ILIKE %s)")
-        params.extend([f"%{search.strip()}%"] * 2)
+        filters.append("(f.name ILIKE %s OR f.last_name ILIKE %s OR f.mobile_number ILIKE %s)")
+        params.extend([f"%{search.strip()}%"] * 3)
         
     if state:
         filters.append("LOWER(BTRIM(COALESCE(f.state, ''))) = LOWER(BTRIM(%s))")
@@ -1731,7 +1736,7 @@ def list_farmers(
 
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
     sql = f"""
-        SELECT f.id, f.mobile_number, f.name AS first_name, NULL::VARCHAR AS last_name, f.role, f.city, f.state,
+        SELECT f.id, f.mobile_number, f.name AS first_name, f.last_name, f.role, f.city, f.state,
                f.district, f.village, f.created_at, f.last_login_at, f.is_verified, 
                d.dealer_code, d.name AS dealer_name
         FROM farmers f
@@ -1773,7 +1778,7 @@ def login_audit(
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
     sql = f"""
         SELECT ps.id, ps.created_at, ps.ip_address, ps.user_agent, ps.revoked_at,
-               f.name AS first_name, NULL::VARCHAR AS last_name, f.mobile_number, f.role,
+               f.name AS first_name, f.last_name, f.mobile_number, f.role,
                d.dealer_code, d.name AS dealer_name
         FROM public_sessions ps
         JOIN farmers f ON ps.farmer_id = f.id

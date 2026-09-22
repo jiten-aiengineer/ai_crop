@@ -20,6 +20,12 @@ from .db import connection
 
 router = APIRouter(prefix="/api/v1/public/auth", tags=["public_auth"])
 PublicRole = Literal["general_user", "farmer", "dealer", "other"]
+_REFERRAL_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _new_short_referral_code() -> str:
+    """Return the seven-character dealer referral format chosen for CLSL AI."""
+    return "".join(secrets.choice(_REFERRAL_ALPHABET) for _ in range(7))
 
 
 class SendOtpPayload(BaseModel):
@@ -46,6 +52,7 @@ class ReferralLookupPayload(BaseModel):
 class ProfilePayload(BaseModel):
     role: PublicRole
     first_name: str = Field(min_length=2, max_length=180)
+    last_name: str = Field(min_length=1, max_length=180)
     preferred_language: str = Field(default="en", pattern=r"^(en|hi|gu|mr|bn|bho)$")
     email: Optional[str] = Field(default=None, max_length=255)
     city: Optional[str] = Field(default=None, max_length=120)
@@ -116,7 +123,7 @@ def _session_user(conn, authorization: str):
 def _public_user(row) -> dict:
     return {
         "id": str(row["id"]), "mobile_number": row["mobile_number"],
-        "first_name": row.get("name") or "", "role": row.get("role"),
+        "first_name": row.get("name") or "", "last_name": row.get("last_name") or "", "role": row.get("role"),
         "preferred_language": row.get("preferred_language") or "en",
         "email": row.get("email"), "city": row.get("city"),
         "district": row.get("district"), "village": row.get("village"),
@@ -272,7 +279,7 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
             verified_dealer_id = dealer["id"]
         metadata = {"dealer_code": payload.dealer_code, "referral_code": payload.referral_code, "profile_completed_at": datetime.now(timezone.utc).isoformat()}
         updated = conn.execute(
-            """UPDATE farmers SET role=%s,name=%s,preferred_language=%s,email=%s,city=%s,district=%s,
+            """UPDATE farmers SET role=%s,name=%s,last_name=%s,preferred_language=%s,email=%s,city=%s,district=%s,
                  village=%s,state=%s,social_media_used=%s::jsonb,acquisition_source=%s,
                  location_latitude=%s,location_longitude=%s,location_label=%s,
                  location_postcode=%s,location_country=%s,location_accuracy_meters=%s,location_metadata=%s::jsonb,
@@ -280,7 +287,7 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
                  acquisition_dealer_id=COALESCE(acquisition_dealer_id,%s),preferred_dealer_id=COALESCE(%s,preferred_dealer_id),
                  verified_dealer_id=%s,profile_metadata=profile_metadata || %s::jsonb,updated_at=now()
                WHERE id=%s RETURNING *""",
-            (payload.role,payload.first_name.strip(),payload.preferred_language,payload.email,payload.city,payload.district,
+            (payload.role,payload.first_name.strip(),payload.last_name.strip(),payload.preferred_language,payload.email,payload.city,payload.district,
              payload.village,payload.state,json.dumps(payload.social_media_used),payload.acquisition_source,
              payload.location_latitude,payload.location_longitude,payload.location_label,
              payload.location_postcode,payload.location_country,payload.location_accuracy_meters,
@@ -309,7 +316,7 @@ def dealer_referral(authorization: str = Header(...)):
                ORDER BY created_at DESC LIMIT 1""",
             (dealer["id"],),
         ).fetchone()
-        token = existing["referral_token"] if existing else "REF-" + secrets.token_hex(12).upper()
+        token = existing["referral_token"] if existing else _new_short_referral_code()
         if not existing:
             conn.execute(
                 "INSERT INTO dealer_referrals(dealer_id,referral_token) VALUES(%s,%s)",
