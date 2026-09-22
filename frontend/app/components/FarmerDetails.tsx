@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { AdminPager, AdminPageSize } from './AdminPagination';
 
 type Farmer = {
   id: string;
@@ -28,6 +29,9 @@ export default function FarmerDetails() {
   const [facets, setFacets] = useState<{states:string[]}>({states:[]});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<AdminPageSize>(25);
+  const [total, setTotal] = useState(0);
   
   // Filters
   const [search, setSearch] = useState('');
@@ -41,12 +45,15 @@ export default function FarmerDetails() {
       if (search.trim()) params.append('search', search.trim());
       if (stateFilter) params.append('state', stateFilter);
       if (dealerCodeFilter) params.append('dealer_code', dealerCodeFilter);
+      params.set('limit', String(pageSize));
+      params.set('offset', String(pageSize === 0 ? 0 : (page - 1) * pageSize));
       
       const response = await fetch(`/api/admin/portal/farmers?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch farmers');
       const data: unknown = await response.json();
       const items = isObject(data) && Array.isArray(data.items) ? data.items : [];
       setFarmers(items as Farmer[]);
+      setTotal(isObject(data) && typeof data.total === 'number' ? data.total : items.length);
       const facets = isObject(data) && isObject(data.facets) ? data.facets : null;
       if (facets && Array.isArray(facets.states)) setFacets({ states: facets.states.filter((value): value is string => typeof value === 'string') });
     } catch (err) {
@@ -54,11 +61,12 @@ export default function FarmerDetails() {
     } finally {
       setLoading(false);
     }
-  }, [search, stateFilter, dealerCodeFilter]);
+  }, [search, stateFilter, dealerCodeFilter, page, pageSize]);
 
   useEffect(() => {
     fetchFarmers();
   }, [fetchFarmers]);
+  useEffect(() => setPage(1), [search, stateFilter, dealerCodeFilter, pageSize]);
 
   return (
     <div className="admin-content farmer-details">
@@ -121,6 +129,7 @@ export default function FarmerDetails() {
             </tbody>
           </table>
           {!farmers.length && <p className="admin-empty">No farmers found.</p>}
+          <AdminPager page={page} pageSize={pageSize} total={total} shown={farmers.length} onPage={setPage} onPageSize={setPageSize} />
         </div>
       )}
     </div>

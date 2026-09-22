@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { AdminPager, AdminPageSize } from './AdminPagination';
 
 type AuditLog = {
   id: string;
@@ -24,6 +25,9 @@ export default function LoginAudit() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<AdminPageSize>(25);
+  const [total, setTotal] = useState(0);
   
   // Filters
   const [dateFilter, setDateFilter] = useState('');
@@ -37,21 +41,26 @@ export default function LoginAudit() {
       if (dateFilter) params.append('date', dateFilter);
       if (dealerCodeFilter) params.append('dealer_code', dealerCodeFilter);
       if (roleFilter) params.append('role', roleFilter);
+      params.set('limit', String(pageSize));
+      params.set('offset', String(pageSize === 0 ? 0 : (page - 1) * pageSize));
       
       const response = await fetch(`/api/admin/portal/login-audit?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch login audit logs');
       const data: unknown = await response.json();
-      setLogs(isObject(data) && Array.isArray(data.items) ? data.items as AuditLog[] : []);
+      const items = isObject(data) && Array.isArray(data.items) ? data.items as AuditLog[] : [];
+      setLogs(items);
+      setTotal(isObject(data) && typeof data.total === 'number' ? data.total : items.length);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
-  }, [dateFilter, dealerCodeFilter, roleFilter]);
+  }, [dateFilter, dealerCodeFilter, roleFilter, page, pageSize]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+  useEffect(() => setPage(1), [dateFilter, dealerCodeFilter, roleFilter, pageSize]);
 
   return (
     <div className="admin-content">
@@ -122,6 +131,7 @@ export default function LoginAudit() {
             </tbody>
           </table>
           {!logs.length && <p className="admin-empty">No login records found for these filters.</p>}
+          <AdminPager page={page} pageSize={pageSize} total={total} shown={logs.length} onPage={setPage} onPageSize={setPageSize} />
         </div>
       )}
     </div>

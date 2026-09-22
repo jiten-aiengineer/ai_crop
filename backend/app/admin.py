@@ -700,7 +700,7 @@ def inspection_activity(identity: AdminIdentity = Depends(_identity)):
             GROUP BY i.id, employee.id, prediction.crop_text, prediction.issue_name, prediction.issue_type,
                      prediction.severity, prediction.confidence, prediction.summary, prediction.recommended_next_action,
                      consensus.inspection_id, predictions.model_predictions
-            ORDER BY i.created_at DESC LIMIT 200
+            ORDER BY i.created_at DESC
             """
         ).fetchall()
     return {"items": rows}
@@ -728,15 +728,16 @@ def inspection_image_metadata(inspection_id: UUID, image_order: int, identity: A
 
 
 @router.get('/images')
-def inspection_image_gallery(offset: int = Query(default=0, ge=0), limit: int = Query(default=48, ge=1, le=100), identity: AdminIdentity = Depends(_identity)):
+def inspection_image_gallery(offset: int = Query(default=0, ge=0), limit: int = Query(default=25, ge=0, le=5000), identity: AdminIdentity = Depends(_identity)):
     _require(identity, INSPECTION_REVIEW_ROLES)
     with connection() as conn:
         total = conn.execute("SELECT count(*) AS total FROM inspection_images WHERE storage_provider='s3' AND retention_status='retained'").fetchone()['total']
-        rows = conn.execute("""SELECT ii.inspection_id, ii.image_order, ii.byte_size, ii.capture_role,
+        query = """SELECT ii.inspection_id, ii.image_order, ii.byte_size, ii.capture_role,
             i.created_at, i.farmer_crop_text, i.location_text, i.collection_mode, i.photo_requirements_met,
             e.full_name AS employee_name FROM inspection_images ii JOIN inspections i ON i.id=ii.inspection_id
             LEFT JOIN employees e ON e.id=i.employee_id WHERE ii.storage_provider='s3' AND ii.retention_status='retained'
-            ORDER BY i.created_at DESC, ii.inspection_id, ii.image_order LIMIT %s OFFSET %s""", (limit, offset)).fetchall()
+            ORDER BY i.created_at DESC, ii.inspection_id, ii.image_order"""
+        rows = conn.execute(query if limit == 0 else query + " LIMIT %s OFFSET %s", () if limit == 0 else (limit, offset)).fetchall()
     return {'items': rows, 'total': total, 'offset': offset, 'limit': limit}
 
 
@@ -1388,7 +1389,7 @@ def list_dealers(
     phone: str = Query(default="", max_length=20),
     account: str = Query(default="", max_length=24),
     test_data: str = Query(default="", max_length=10),
-    limit: int = Query(default=500, ge=1),
+    limit: int = Query(default=500, ge=0, le=5000),
     offset: int = Query(default=0, ge=0),
     identity: AdminIdentity = Depends(_identity)
 ):
@@ -1438,11 +1439,11 @@ def list_dealers(
         COALESCE((SELECT SUM(cr.amount_redeemed) FROM coupon_redemptions cr WHERE cr.dealer_id=dealers.id),0) redeemed_amount,
         COALESCE((SELECT SUM(cr.amount_redeemed) FROM coupon_redemptions cr WHERE cr.dealer_id=dealers.id AND cr.credit_note_id IS NULL),0) outstanding_amount,
         COALESCE((SELECT SUM(total_amount) FROM dealer_credit_notes cn WHERE cn.dealer_id=dealers.id AND cn.status='settled'),0) settled_amount
-        FROM dealers {where_clause} ORDER BY is_test DESC, name LIMIT %s OFFSET %s"""
+        FROM dealers {where_clause} ORDER BY is_test DESC, name"""
     count_sql = f"SELECT COUNT(*) as c FROM dealers {where_clause}"
     
     with connection() as conn:
-        rows = conn.execute(sql, params + [limit, offset]).fetchall()
+        rows = conn.execute(sql if limit == 0 else sql + " LIMIT %s OFFSET %s", params if limit == 0 else params + [limit, offset]).fetchall()
         total = conn.execute(count_sql, params).fetchone()["c"]
         facets = conn.execute(
             """SELECT ARRAY(SELECT DISTINCT BTRIM(state) FROM dealers WHERE BTRIM(COALESCE(state, ''))<>'' ORDER BY BTRIM(state)) AS states,
@@ -1830,6 +1831,8 @@ def list_farmers(
     search: str = Query(default="", max_length=120),
     state: str = Query(default="", max_length=100),
     dealer_code: str = Query(default="", max_length=100),
+    limit: int = Query(default=500, ge=0, le=5000),
+    offset: int = Query(default=0, ge=0),
     identity: AdminIdentity = Depends(_identity)
 ):
     _require(identity, SALES_ACTIVITY_ROLES)
@@ -1857,15 +1860,20 @@ def list_farmers(
         LEFT JOIN dealers d ON COALESCE(f.acquisition_dealer_id, f.preferred_dealer_id, f.verified_dealer_id) = d.id
         {where_clause}
         ORDER BY f.created_at DESC
-        LIMIT 500
     """
     with connection() as conn:
-        rows = conn.execute(sql, params).fetchall()
+        rows = conn.execute(sql if limit == 0 else sql + " LIMIT %s OFFSET %s", params if limit == 0 else params + [limit, offset]).fetchall()
+        total = conn.execute(
+            f"""SELECT COUNT(*) AS total FROM farmers f
+                LEFT JOIN dealers d ON COALESCE(f.acquisition_dealer_id, f.preferred_dealer_id, f.verified_dealer_id) = d.id
+                {where_clause}""",
+            params,
+        ).fetchone()["total"]
         facets = conn.execute(
             """SELECT ARRAY(SELECT DISTINCT BTRIM(state) FROM farmers WHERE BTRIM(COALESCE(state, ''))<>'' ORDER BY BTRIM(state)) AS states"""
         ).fetchone()
         
-    return {"items": rows, "facets": facets}
+    return {"items": rows, "facets": facets, "total": total, "offset": offset, "limit": limit}
 
 
 @router.get("/login-audit")
@@ -1873,6 +1881,8 @@ def login_audit(
     date: str = Query(default=""),
     dealer_code: str = Query(default=""),
     role: str = Query(default=""),
+    limit: int = Query(default=500, ge=0, le=5000),
+    offset: int = Query(default=0, ge=0),
     identity: AdminIdentity = Depends(_identity)
 ):
     _require(identity, SALES_ACTIVITY_ROLES)
@@ -1899,10 +1909,16 @@ def login_audit(
         LEFT JOIN dealers d ON COALESCE(f.acquisition_dealer_id, f.preferred_dealer_id, f.verified_dealer_id) = d.id
         {where_clause}
         ORDER BY ps.created_at DESC
-        LIMIT 500
     """
     
     with connection() as conn:
-        rows = conn.execute(sql, params).fetchall()
+        rows = conn.execute(sql if limit == 0 else sql + " LIMIT %s OFFSET %s", params if limit == 0 else params + [limit, offset]).fetchall()
+        total = conn.execute(
+            f"""SELECT COUNT(*) AS total FROM public_sessions ps
+                JOIN farmers f ON ps.farmer_id = f.id
+                LEFT JOIN dealers d ON COALESCE(f.acquisition_dealer_id, f.preferred_dealer_id, f.verified_dealer_id) = d.id
+                {where_clause}""",
+            params,
+        ).fetchone()["total"]
         
-    return {"items": rows}
+    return {"items": rows, "total": total, "offset": offset, "limit": limit}
