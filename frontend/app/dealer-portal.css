@@ -4,25 +4,25 @@
    ============================================================ */
 
 :root {
-  --dp-green:       #16a34a;
-  --dp-green-light: #22c55e;
-  --dp-green-pale:  #dcfce7;
-  --dp-green-dark:  #14532d;
-  --dp-bg:          #f0fdf4;
+  --dp-green:       #1f6b43;
+  --dp-green-light: #4b7f21;
+  --dp-green-pale:  #eff5df;
+  --dp-green-dark:  #183326;
+  --dp-bg:          #f5f3ea;
   --dp-surface:     #ffffff;
-  --dp-card:        #f7fef9;
-  --dp-border:      #bbf7d0;
-  --dp-border-dark: #86efac;
-  --dp-ink:         #14532d;
-  --dp-muted:       #4b7a5a;
+  --dp-card:        #f8fbf1;
+  --dp-border:      #dfe4d8;
+  --dp-border-dark: #abc19c;
+  --dp-ink:         #183326;
+  --dp-muted:       #617067;
   --dp-amber:       #d97706;
   --dp-amber-pale:  #fef3c7;
   --dp-red:         #dc2626;
   --dp-radius:      20px;
   --dp-radius-sm:   12px;
   --dp-radius-xs:   8px;
-  --dp-shadow:      0 2px 16px rgba(22, 163, 74, .10);
-  --dp-shadow-lg:   0 8px 40px rgba(22, 163, 74, .15);
+  --dp-shadow:      0 10px 28px rgba(28, 64, 43, .08);
+  --dp-shadow-lg:   0 24px 60px rgba(28, 64, 43, .14);
 }
 
 * { box-sizing: border-box; }
@@ -57,7 +57,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
-  background: linear-gradient(160deg, #f0fdf4 0%, #dcfce7 60%, #bbf7d0 100%);
+  background: radial-gradient(circle at 85% 12%, rgba(203,233,104,.42), transparent 28%), linear-gradient(160deg, #fffefa 0%, #f5f3ea 58%, #edf4df 100%);
 }
 
 /* Splash header */
@@ -624,13 +624,26 @@
 
 /* ── Referral ── */
 .dp-qr-card {
-  background: var(--dp-card);
+  background: #fff;
   border: 1.5px solid var(--dp-border);
   border-radius: var(--dp-radius);
   padding: 20px;
   text-align: center;
   margin-bottom: 16px;
 }
+.dp-qr-frame {
+  width: min(100%, 254px);
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 1px solid var(--dp-border);
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgba(28,64,43,.08);
+}
+.dp-qr-frame svg { width: 100%; height: auto; display: block; }
+.dp-qr-card p { margin: 14px 0 0; color: var(--dp-muted); font-size: 12px; line-height: 1.5; }
 .dp-qr-image {
   width: 200px;
   height: 200px;
@@ -649,6 +662,20 @@
   padding: 14px;
   margin-bottom: 12px;
 }
+.dp-referral-code-box {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  padding: 18px;
+  margin-bottom: 14px;
+  border: 1px solid var(--dp-border);
+  border-radius: var(--dp-radius-sm);
+  background: var(--dp-card);
+  text-align: center;
+}
+.dp-referral-code-box p { margin: 0; color: var(--dp-muted); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.dp-referral-code-box code { padding: 9px 18px; border: 1.5px dashed var(--dp-border-dark); border-radius: 10px; background: #fff; color: var(--dp-ink); font-size: 25px; font-weight: 900; letter-spacing: .16em; }
+.dp-referral-code-box small { color: var(--dp-muted); font-size: 11px; }
 .dp-referral-link {
   display: block;
   font-size: 11px;
@@ -687,6 +714,7 @@
   transition: .15s;
 }
 .dp-whatsapp-btn:active { opacity: .85; }
+.dp-whatsapp-share { width: 100%; min-height: 48px; font-size: 13px; box-shadow: 0 10px 22px rgba(31,107,67,.18); }
 
 .dp-how-section { }
 .dp-how-list { margin: 0; padding: 0 0 0 20px; display: flex; flex-direction: column; gap: 10px; }

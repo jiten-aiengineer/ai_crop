@@ -2,6 +2,7 @@
 import '../dealer-portal.css';
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import QRCode from 'react-qr-code';
 import type { PublicUser } from './AuthFlow';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -205,7 +206,7 @@ function InspectMode({ onBack }: { onBack: () => void }) {
         <div className="dp-inspect-hero">
           <img src="/crop-life-mitra-tomato-doctor.jpg" alt="Crop Life Mitra" className="dp-inspect-mascot" />
           <div>
-            <p className="dp-inspect-eyebrow">CLSL AI · Powered by Gemini</p>
+            <p className="dp-inspect-eyebrow">CLSL AI · Crop care support</p>
             <h3>AI Crop Doctor</h3>
             <p className="dp-inspect-desc">Use the CLSL AI crop inspection tool to help farmers identify crop diseases and get product recommendations.</p>
           </div>
@@ -214,7 +215,7 @@ function InspectMode({ onBack }: { onBack: () => void }) {
           ⌾ Open Crop Inspection Tool
         </a>
         <p className="dp-inspect-note">
-          The full CLSL AI crop inspection with Gemini AI analysis, product recommendations, and inspection history is available in the main app.
+          The full CLSL AI crop inspection, CLSL product guidance and inspection history are available in the main app.
         </p>
       </div>
     </div>
@@ -380,7 +381,6 @@ function ReferralMode({ token, onBack }: { token: string; onBack: () => void }) 
   const [data, setData] = useState<DealerReferral | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -391,15 +391,9 @@ function ReferralMode({ token, onBack }: { token: string; onBack: () => void }) 
 
   useEffect(() => { void load(); }, [load]);
 
-  const copyLink = async () => {
-    if (!data?.referral_url) return;
-    try { await navigator.clipboard.writeText(data.referral_url); setCopied(true); setTimeout(() => setCopied(false), 2000); }
-    catch { /* clipboard may be unavailable */ }
-  };
-
   const shareWhatsApp = () => {
-    if (!data?.referral_url) return;
-    const text = `Namaste! I am your CLSL Dealer. Register on CLSL AI for free crop care guidance: ${data.referral_url}`;
+    if (!data?.token) return;
+    const text = `Hi, use this ${data.token} referral code in the CLSL AI application to get rewards on CLSL products. Ask your nearest CLSL dealer if you need help.`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   };
 
@@ -422,58 +416,31 @@ function ReferralMode({ token, onBack }: { token: string; onBack: () => void }) 
             <div className="dp-section">
               <div className="dp-section-label">YOUR REFERRAL TOOL</div>
               <h3 className="dp-section-title">Invite Farmers</h3>
-              <p className="dp-help-text">Share your referral link or let farmers scan your QR code. Each registration counts toward your monthly target.</p>
+              <p className="dp-help-text">Let farmers scan this QR code or share the same seven-character code shown in the CLSL dashboard.</p>
 
-              {data.qr_data_url ? (
-                <div className="dp-qr-card" style={{ padding: '24px', background: '#fff', borderRadius: '12px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
-                  <img src={data.qr_data_url} alt={`Referral QR code for ${data.dealer_name}`} className="dp-qr-image" style={{ width: '220px', height: '220px', margin: '0 auto' }} />
-                  <p style={{ marginTop: '16px', color: '#4b5563', fontSize: '14px' }}>Let the farmer scan this QR directly from your phone</p>
+              <div className="dp-qr-card">
+                <div className="dp-qr-frame" aria-label={`Referral QR code for ${data.dealer_name}`}>
+                  <QRCode value={data.token} size={220} level="M" bgColor="#ffffff" fgColor="#183326" />
                 </div>
-              ) : (
-                <div className="dp-qr-card dp-qr-unavailable">
-                  <span>▣</span>
-                  <p><small>QR generation unavailable on this server. Use the link below.</small></p>
-                </div>
-              )}
-
-              <div className="dp-referral-link-box" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '20px', borderRadius: '12px', textAlign: 'center', marginBottom: '20px' }}>
-                <p style={{ margin: '0 0 10px', fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Farmer Referral Code</p>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                  <code style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', background: '#fff', padding: '8px 20px', border: '2px dashed #cbd5e1', borderRadius: '8px', letterSpacing: '2px' }}>
-                    {data.token}
-                  </code>
-                  <button type="button" onClick={() => {
-                    void navigator.clipboard.writeText(data.token);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }} style={{ background: '#334155', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s' }}>
-                    {copied ? '✓ Copied!' : 'Copy Code'}
-                  </button>
-                </div>
-                
-                <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '20px 0' }} />
-                
-                <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#475569' }}>Or share the direct registration link with the farmer:</p>
-                <div className="dp-referral-actions" style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <button type="button" className="dp-copy-btn" onClick={() => void copyLink()} style={{ background: '#fff', border: '1px solid #cbd5e1', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
-                    ⎘ Copy Link
-                  </button>
-                  <button type="button" className="dp-whatsapp-btn" onClick={shareWhatsApp} style={{ background: '#25D366', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, color: '#fff', cursor: 'pointer' }}>
-                    ◉ WhatsApp
-                  </button>
-                </div>
+                <p>Farmers can scan this QR directly from your phone.</p>
               </div>
 
-              <button type="button" className="dp-secondary-btn" onClick={() => void load()} disabled={loading}>
-                ↻ Refresh code
+              <div className="dp-referral-code-box">
+                <p>Farmer referral code</p>
+                <code>{data.token}</code>
+                <small>This is the same referral code stored in the CLSL dashboard.</small>
+              </div>
+
+              <button type="button" className="dp-whatsapp-btn dp-whatsapp-share" onClick={shareWhatsApp}>
+                Send referral code on WhatsApp
               </button>
             </div>
 
             <div className="dp-section dp-how-section">
               <h3 className="dp-section-title">How it works</h3>
               <ol className="dp-how-list">
-                <li><b>Share your link or QR</b> with farmers in your area.</li>
-                <li><b>Farmer registers</b> on CLSL AI using your link — they get free crop care.</li>
+                <li><b>Show the QR or send the code</b> to farmers in your area.</li>
+                <li><b>Farmer registers</b> on CLSL AI using your seven-character referral code.</li>
                 <li><b>You get credit</b> — the farmer counts toward your monthly referral target.</li>
                 <li><b>Earn rewards</b> — reach your target to unlock CLSL gifts!</li>
               </ol>
