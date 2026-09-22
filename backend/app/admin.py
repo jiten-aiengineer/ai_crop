@@ -1430,7 +1430,7 @@ def list_dealers(
     elif test_data == "no": filters.append("is_test=false")
         
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
-    sql = f"""SELECT dealers.id, dealer_code, name, owner_name, sales_executive, sales_area, sales_region,
+    sql = f"""SELECT dealers.id, dealer_code, name, owner_name, location, sales_executive, sales_area, sales_region,
         sales_territory, state, status, portal_mobile_number, is_test, account_generated_at,
         (SELECT referral_token FROM dealer_referrals dr WHERE dr.dealer_id=dealers.id ORDER BY created_at DESC LIMIT 1) referral_token,
         (SELECT COUNT(*) FROM farmers f WHERE COALESCE(f.acquisition_dealer_id,f.preferred_dealer_id,f.verified_dealer_id)=dealers.id) farmer_count,
@@ -1664,13 +1664,25 @@ def generate_dealer_account(dealer_id: UUID, payload: DealerAccountPayload, iden
         if not dealer: raise HTTPException(404, "Dealer not found.")
         _assert_portal_mobile_available(conn, mobile, dealer_id)
         code = dealer["dealer_code"] or _new_dealer_code()
-        conn.execute("UPDATE dealers SET dealer_code=%s,owner_name=%s,portal_mobile_number=%s,account_generated_at=COALESCE(account_generated_at,now()),updated_at=now() WHERE id=%s", (code,payload.owner_name.strip(),mobile,dealer_id))
+        updated = conn.execute(
+            """UPDATE dealers SET dealer_code=%s,owner_name=%s,portal_mobile_number=%s,
+                      account_generated_at=COALESCE(account_generated_at,now()),updated_at=now()
+               WHERE id=%s
+               RETURNING id,dealer_code,name,owner_name,portal_mobile_number,location,sales_area,sales_territory,state,status""",
+            (code,payload.owner_name.strip(),mobile,dealer_id),
+        ).fetchone()
         referral = conn.execute("SELECT referral_token FROM dealer_referrals WHERE dealer_id=%s LIMIT 1", (dealer_id,)).fetchone()
         token = referral["referral_token"] if referral else _new_short_referral_code()
         if not referral: conn.execute("INSERT INTO dealer_referrals(dealer_id,referral_token) VALUES(%s,%s)", (dealer_id,token))
         _audit(conn, identity, "generate_account", "dealer", str(dealer_id), None, {"dealer_code":code,"referral_token":token})
         conn.commit()
-    return {"status":"success","dealer_code":code,"referral_token":token,"download_url":f"https://ai.croplifescience.com/?ref={token}"}
+    return {
+        "status":"success",
+        "dealer_code":code,
+        "referral_token":token,
+        "download_url":f"https://ai.croplifescience.com/?ref={token}",
+        "dealer":updated,
+    }
 
 
 class CreditNotePayload(BaseModel):
