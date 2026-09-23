@@ -478,7 +478,7 @@ def get_my_coupons(authorization: str = Header(...)):
         coupons = conn.execute("""
             SELECT 
                 c.id, c.code, c.status, c.issued_at, COALESCE(c.expires_at,cp.end_date) AS expires_at,
-                cp.name as campaign_name, cp.discount_type, cp.discount_value, cp.end_date
+                cp.name as campaign_name, cp.discount_type, cp.discount_value, cp.end_date, cp.rules
             FROM coupons c
             JOIN campaigns cp ON cp.id = c.campaign_id
             WHERE c.farmer_id = %s AND c.status IN ('issued','available')

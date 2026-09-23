@@ -618,7 +618,7 @@ function DealerReferralBanner({ token }: { token:string }) {
 }
 
 function CouponsView({ sessionToken, t }: { sessionToken: string; t: Copy }) {
-  type Coupon = { id:string; code:string; status:string; issued_at?:string; expires_at?:string; campaign_name:string; discount_type:'percentage'|'fixed_amount'; discount_value:number };
+  type Coupon = { id:string; code:string; status:string; issued_at?:string; expires_at?:string; campaign_name:string; discount_type:'percentage'|'fixed_amount'; discount_value:number; rules?:{description?:string;products?:string[];campaign_type?:string} };
   type Redemption = { id:string; redeemed_at:string; amount_redeemed:number; code:string; campaign_name:string; dealer_name:string };
   const [data, setData] = useState<{coupons: Coupon[], redemptions: Redemption[]} | null>(null);
   const [loading, setLoading] = useState(true);
@@ -658,8 +658,10 @@ function CouponsView({ sessionToken, t }: { sessionToken: string; t: Copy }) {
            {data.coupons.map(c => (
              <article key={c.id} className={`coupon-card ${c.status}`}>
                <header><small>CLSL FARMER REWARD</small><h4>{c.campaign_name}</h4><strong>{c.discount_type === 'percentage' ? `${c.discount_value}% OFF` : `₹${c.discount_value} OFF`}</strong></header>
+               {c.rules?.description&&<p className="coupon-description">{c.rules.description}</p>}
                <div className="coupon-qr"><QRCode value={c.code} size={116} aria-label={`QR code for coupon ${c.code}`}/></div>
                <code>{c.code}</code>
+               {!!c.rules?.products?.length&&<p>Valid on: {c.rules.products.join(', ')}</p>}
                {c.expires_at && <p>Valid until {new Date(c.expires_at).toLocaleDateString()}</p>}
              </article>
            ))}
