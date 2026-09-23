@@ -21,9 +21,12 @@ async function proxy(request: Request, path: string[]) {
       body: body || undefined,
       cache: 'no-store',
     });
-    return new Response(await response.text(), {
+    const headers = new Headers({ 'content-type': response.headers.get('content-type') || 'application/json', 'cache-control': 'no-store' });
+    const disposition = response.headers.get('content-disposition');
+    if (disposition) headers.set('content-disposition', disposition);
+    return new Response(await response.arrayBuffer(), {
       status: response.status,
-      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+      headers,
     });
   } catch {
     return NextResponse.json({ detail: 'The dealer service is temporarily unavailable.' }, { status: 502 });

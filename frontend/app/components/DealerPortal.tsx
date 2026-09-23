@@ -1,7 +1,7 @@
 'use client';
 import '../dealer-portal.css';
 
-import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'react-qr-code';
 import type { PublicUser } from './AuthFlow';
 
@@ -30,6 +30,15 @@ type Redemption = {
   campaign_name: string; discount_type: string;
   discount_value: number; amount_redeemed: number;
   purchase_reference: string | null;
+  settled?: boolean;
+  rules?: { products?: string[]; packings?: string[] };
+};
+
+type RedemptionSummary = {
+  summary: { today_count:number; today_amount:number; month_count:number; month_amount:number; all_count:number; all_amount:number; outstanding_count:number; outstanding_amount:number };
+  daily: {day:string;count:number;amount:number}[];
+  monthly: {month:string;count:number;amount:number}[];
+  credit_notes: {id:string;note_number:string;period_start:string;period_end:string;redemption_count:number;total_amount:number;status:string;generated_at:string;settled_at?:string|null;settlement_reference?:string|null}[];
 };
 
 type DealerReferral = {
@@ -230,23 +239,32 @@ function RedeemMode({ token, onBack }: { token: string; onBack: () => void }) {
   const [success, setSuccess] = useState<{ coupon_code: string; campaign_name: string; discount_value: number; discount_type: string } | null>(null);
   const [error, setError] = useState('');
   const [redemptions, setRedemptions] = useState<Redemption[]>([]);
+  const [summary, setSummary] = useState<RedemptionSummary | null>(null);
+  const [period, setPeriod] = useState<'today'|'month'|'all'>('month');
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerMessage, setScannerMessage] = useState('Point the camera at the farmer coupon QR code.');
   const [listLoading, setListLoading] = useState(true);
-  const qrInput = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanTimer = useRef<number | null>(null);
 
   const loadRedemptions = useCallback(async () => {
     setListLoading(true);
     try {
-      const data = await dealerApi<{ items: Redemption[] }>('me/redemptions?per_page=10', token);
+      const [data, totals] = await Promise.all([
+        dealerApi<{ items: Redemption[] }>(`me/redemptions?per_page=50&period=${period}`, token),
+        dealerApi<RedemptionSummary>('me/redemption-summary', token),
+      ]);
       setRedemptions(data.items || []);
+      setSummary(totals);
     } catch { /* non-critical */ }
     finally { setListLoading(false); }
-  }, [token]);
+  }, [token, period]);
 
   useEffect(() => { void loadRedemptions(); }, [loadRedemptions]);
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    const code = couponCode.trim().toUpperCase();
+  const redeemCode = useCallback(async (rawCode: string) => {
+    const code = rawCode.trim().toUpperCase();
     if (!code) return;
     setLoading(true); setError(''); setSuccess(null);
     try {
@@ -258,29 +276,32 @@ function RedeemMode({ token, onBack }: { token: string; onBack: () => void }) {
       void loadRedemptions();
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not redeem coupon.'); }
     finally { setLoading(false); }
-  };
+  }, [loadRedemptions, token]);
 
-  const scanQr = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    setError('');
+  const submit = async (event: FormEvent) => { event.preventDefault(); await redeemCode(couponCode); };
+  const stopScanner = useCallback(() => {
+    if (scanTimer.current) window.clearTimeout(scanTimer.current);
+    scanTimer.current = null; streamRef.current?.getTracks().forEach(track => track.stop()); streamRef.current = null; setScannerOpen(false);
+  }, []);
+  useEffect(() => () => stopScanner(), [stopScanner]);
+  const openScanner = async () => {
+    setError(''); setScannerMessage('Point the camera at the farmer coupon QR code.'); setScannerOpen(true);
     try {
-      type BarcodeResult = { rawValue: string };
-      type BarcodeDetectorCtor = new (options: { formats: string[] }) => { detect(source: ImageBitmap): Promise<BarcodeResult[]> };
-      const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
-      if (!Detector) throw new Error('QR scanning is not supported on this device. Please enter the code manually.');
-      const bitmap = await createImageBitmap(file);
-      const codes = await new Detector({ formats: ['qr_code'] }).detect(bitmap);
-      bitmap.close();
-      if (!codes[0]?.rawValue) throw new Error('No QR code found in this image. Please try again.');
-      let value = codes[0].rawValue;
-      try {
-        const url = new URL(value);
-        value = url.searchParams.get('code') || url.searchParams.get('coupon') || url.pathname.split('/').filter(Boolean).pop() || value;
-      } catch { /* plain code token */ }
-      setCouponCode(value.toUpperCase());
-    } catch (e) { setError(e instanceof Error ? e.message : 'QR scan failed.'); }
+      type BarcodeResult={rawValue:string}; type Source=HTMLVideoElement;
+      type DetectorCtor=new(options:{formats:string[]})=>{detect(source:Source):Promise<BarcodeResult[]>};
+      const Detector=(window as unknown as {BarcodeDetector?:DetectorCtor}).BarcodeDetector;
+      if(!Detector) throw new Error('Live QR scanning is not supported by this browser. Use Chrome on Android or enter the coupon code manually.');
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false}); streamRef.current=stream;
+      await new Promise<void>(resolve=>window.requestAnimationFrame(()=>resolve()));
+      const video=videoRef.current; if(!video) throw new Error('Camera preview could not start.'); video.srcObject=stream; await video.play();
+      const detector=new Detector({formats:['qr_code']}); let finished=false;
+      const scan=async()=>{if(finished||!videoRef.current)return;try{const results=await detector.detect(videoRef.current);if(results[0]?.rawValue){finished=true;let value=results[0].rawValue;try{const url=new URL(value);value=url.searchParams.get('code')||url.searchParams.get('coupon')||url.pathname.split('/').filter(Boolean).pop()||value;}catch{} stopScanner();setCouponCode(value.toUpperCase());await redeemCode(value);return;}}catch{} scanTimer.current=window.setTimeout(scan,300)}; void scan();
+    } catch(e){stopScanner();setError(e instanceof Error?e.message:'Camera could not start.');}
+  };
+  const downloadReport = async () => {
+    setError('');
+    try { const response=await fetch(`/api/v1/dealers/me/redemptions/report.pdf?period=${period}`,{headers:{authorization:`Bearer ${token}`}});if(!response.ok)throw new Error('The PDF statement could not be created.');const blob=await response.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`CLSL-${period}-redemptions.pdf`;a.click();URL.revokeObjectURL(url); }
+    catch(e){setError(e instanceof Error?e.message:'The PDF statement could not be downloaded.');}
   };
 
   return (
@@ -310,13 +331,13 @@ function RedeemMode({ token, onBack }: { token: string; onBack: () => void }) {
               <button
                 type="button"
                 className="dp-scan-btn"
-                onClick={() => qrInput.current?.click()}
+                onClick={() => void openScanner()}
                 title="Scan QR code from farmer's phone"
               >
                 <span aria-hidden="true">▣</span> Scan QR
               </button>
             </div>
-            <input ref={qrInput} hidden type="file" accept="image/*" capture="environment" onChange={(e) => void scanQr(e)} />
+            {scannerOpen && <div className="dp-scanner-overlay" role="dialog" aria-modal="true"><div className="dp-scanner-sheet"><header><div><small>LIVE QR SCANNER</small><h3>Scan farmer coupon</h3></div><button type="button" onClick={stopScanner}>×</button></header><div className="dp-scanner-viewport"><video ref={videoRef} muted playsInline/><span/><i/><b/></div><p>{scannerMessage}</p><button type="button" className="dp-secondary-btn" onClick={stopScanner}>Cancel scanning</button></div></div>}
 
             {error && <p className="dp-error-msg" role="alert">⚠ {error}</p>}
 
@@ -346,12 +367,14 @@ function RedeemMode({ token, onBack }: { token: string; onBack: () => void }) {
         </div>
 
         <div className="dp-section">
-          <div className="dp-section-label">HISTORY</div>
-          <h3 className="dp-section-title">Recent Redemptions</h3>
+          <div className="dp-section-label">RECONCILIATION LEDGER</div>
+          <h3 className="dp-section-title">Coupon activity & credit</h3>
+          {summary&&<><div className="dp-ledger-kpis"><article><small>Today</small><b>₹{Number(summary.summary.today_amount||0).toLocaleString('en-IN')}</b><span>{summary.summary.today_count||0} scans</span></article><article><small>This month</small><b>₹{Number(summary.summary.month_amount||0).toLocaleString('en-IN')}</b><span>{summary.summary.month_count||0} scans</span></article><article><small>Outstanding</small><b>₹{Number(summary.summary.outstanding_amount||0).toLocaleString('en-IN')}</b><span>{summary.summary.outstanding_count||0} coupons</span></article></div><div className="dp-ledger-trend">{summary.daily.slice(-14).map(item=>{const max=Math.max(...summary.daily.slice(-14).map(x=>Number(x.amount)),1);return <div key={item.day} title={`${item.day}: ₹${item.amount}`}><span style={{height:`${Math.max(8,Number(item.amount)/max*100)}%`}}/><small>{new Date(item.day).getDate()}</small></div>})}</div></>}
+          <div className="dp-ledger-toolbar"><div>{(['today','month','all'] as const).map(item=><button type="button" className={period===item?'active':''} onClick={()=>setPeriod(item)} key={item}>{item==='today'?'Today':item==='month'?'This month':'All time'}</button>)}</div><button type="button" onClick={()=>void downloadReport()}>↓ Download PDF</button></div>
           {listLoading ? (
             <div className="dp-loading"><span className="dp-spinner" />Loading…</div>
           ) : redemptions.length === 0 ? (
-            <p className="dp-empty">No coupons redeemed yet. Redeem your first coupon above.</p>
+            <p className="dp-empty">No coupons redeemed in this period.</p>
           ) : (
             <div className="dp-redemption-list">
               {redemptions.map((r) => (
@@ -363,12 +386,13 @@ function RedeemMode({ token, onBack }: { token: string; onBack: () => void }) {
                   </div>
                   <div className="dp-redemption-amount">
                     <b>₹{r.amount_redeemed.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</b>
-                    <small>{r.redeemed_at ? new Date(r.redeemed_at).toLocaleDateString('en-IN') : '—'}</small>
+                    <small>{r.redeemed_at ? new Date(r.redeemed_at).toLocaleString('en-IN') : '—'} · {r.settled?'In credit note':'Outstanding'}</small>
                   </div>
                 </article>
               ))}
             </div>
           )}
+          {!!summary?.credit_notes.length&&<div className="dp-settlement-list"><h4>Settlement history</h4>{summary.credit_notes.map(note=><article key={note.id}><div><b>{note.note_number}</b><small>{note.period_start} – {note.period_end} · {note.redemption_count} coupons</small></div><div><b>₹{Number(note.total_amount).toLocaleString('en-IN')}</b><small>{note.status==='settled'?`Settled ${note.settled_at?new Date(note.settled_at).toLocaleDateString('en-IN'):''}`:'Awaiting CLSL settlement'}{note.settlement_reference?` · ${note.settlement_reference}`:''}</small></div></article>)}</div>}
         </div>
       </div>
     </div>

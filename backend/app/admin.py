@@ -1303,6 +1303,8 @@ class CampaignInput(BaseModel):
     districts: list[str] = Field(default_factory=list, max_length=100)
     villages: list[str] = Field(default_factory=list, max_length=200)
     products: list[str] = Field(default_factory=list, max_length=100)
+    product_ids: list[str] = Field(default_factory=list, max_length=100)
+    packings: list[str] = Field(default_factory=list, max_length=100)
     coupon_limit: int = Field(default=0, ge=0, le=1000000)
     budget: float = Field(default=0, ge=0)
     random_percentage: int = Field(default=10, ge=1, le=100)
@@ -1358,6 +1360,7 @@ def create_campaign(payload: CampaignInput, identity: AdminIdentity = Depends(_i
     rules = {
         "campaign_type": payload.campaign_type, "description": payload.description.strip(), "audience": payload.audience,
         "states": payload.states, "districts": payload.districts, "villages": payload.villages, "products": payload.products,
+        "product_ids": payload.product_ids, "packings": payload.packings,
         "coupon_limit": payload.coupon_limit, "budget": payload.budget, "random_percentage": payload.random_percentage,
         "expiry_days": payload.expiry_days,
     }
@@ -1789,6 +1792,21 @@ class SettleCreditNotePayload(BaseModel):
     settlement_reference: str = Field(min_length=2,max_length=120)
     note: Optional[str] = Field(default=None,max_length=1000)
 
+@router.get("/dealers/{dealer_id}/financials")
+def dealer_financials(dealer_id: UUID, identity: AdminIdentity = Depends(_identity)):
+    _require(identity, ADMIN_READ_ROLES)
+    with connection() as conn:
+        dealer=conn.execute("SELECT id,name,dealer_code FROM dealers WHERE id=%s",(dealer_id,)).fetchone()
+        if not dealer: raise HTTPException(404,"Dealer not found.")
+        totals=conn.execute("""SELECT COUNT(*) redemption_count,COALESCE(SUM(amount_redeemed),0) redeemed_amount,
+          COUNT(*) FILTER(WHERE credit_note_id IS NULL) outstanding_count,
+          COALESCE(SUM(amount_redeemed) FILTER(WHERE credit_note_id IS NULL),0) outstanding_amount
+          FROM coupon_redemptions WHERE dealer_id=%s""",(dealer_id,)).fetchone()
+        notes=conn.execute("""SELECT id,note_number,period_start,period_end,redemption_count,total_amount,status,
+          generated_at,settled_at,settlement_reference,settlement_note
+          FROM dealer_credit_notes WHERE dealer_id=%s ORDER BY generated_at DESC""",(dealer_id,)).fetchall()
+    return {"dealer":dealer,"summary":totals,"credit_notes":notes}
+
 @router.get("/dealer-credit-notes")
 def list_credit_notes(identity: AdminIdentity = Depends(_identity)):
     _require(identity, ADMIN_READ_ROLES)
@@ -1987,8 +2005,11 @@ def list_farmers(
 @router.get("/login-audit")
 def login_audit(
     date: str = Query(default=""),
+    period: str = Query(default="", pattern="^(|today|yesterday|7d|30d)$"),
     dealer_code: str = Query(default=""),
     role: str = Query(default=""),
+    state: str = Query(default=""),
+    activity: str = Query(default="", pattern="^(|active|logged_out)$"),
     limit: int = Query(default=500, ge=0, le=5000),
     offset: int = Query(default=0, ge=0),
     identity: AdminIdentity = Depends(_identity)
@@ -2000,12 +2021,21 @@ def login_audit(
     if date:
         filters.append("DATE(ps.created_at) = %s")
         params.append(date)
+    elif period == "today": filters.append("ps.created_at >= current_date")
+    elif period == "yesterday": filters.append("ps.created_at >= current_date - interval '1 day' AND ps.created_at < current_date")
+    elif period == "7d": filters.append("ps.created_at >= now() - interval '7 days'")
+    elif period == "30d": filters.append("ps.created_at >= now() - interval '30 days'")
     if dealer_code:
         filters.append("d.dealer_code ILIKE %s")
         params.append(f"%{dealer_code.strip()}%")
     if role:
         filters.append("f.role = %s")
         params.append(role)
+    if state:
+        filters.append("f.state = %s")
+        params.append(state)
+    if activity == "active": filters.append("ps.revoked_at IS NULL AND ps.expires_at > now()")
+    elif activity == "logged_out": filters.append("ps.revoked_at IS NOT NULL OR ps.expires_at <= now()")
         
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
     sql = f"""
@@ -2028,5 +2058,15 @@ def login_audit(
                 {where_clause}""",
             params,
         ).fetchone()["total"]
+        summary = conn.execute(
+            f"""SELECT COUNT(*) total,
+                COUNT(*) FILTER(WHERE ps.revoked_at IS NULL AND ps.expires_at > now()) active,
+                COUNT(*) FILTER(WHERE f.role='farmer') farmers,
+                COUNT(*) FILTER(WHERE f.role='dealer') dealers,
+                COUNT(DISTINCT ps.farmer_id) unique_users
+                FROM public_sessions ps JOIN farmers f ON ps.farmer_id=f.id
+                LEFT JOIN dealers d ON COALESCE(f.acquisition_dealer_id,f.preferred_dealer_id,f.verified_dealer_id)=d.id {where_clause}""", params
+        ).fetchone()
+        states=conn.execute("SELECT DISTINCT BTRIM(state) state FROM farmers WHERE BTRIM(COALESCE(state,''))<>'' ORDER BY state").fetchall()
         
-    return {"items": rows, "total": total, "offset": offset, "limit": limit}
+    return {"items": rows, "total": total, "offset": offset, "limit": limit, "summary": summary, "states": [x["state"] for x in states]}

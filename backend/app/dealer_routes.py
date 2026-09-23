@@ -8,11 +8,13 @@ app — this prevents IDOR attacks.
 
 from __future__ import annotations
 
+import io
 import secrets
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Query, Response
 from pydantic import BaseModel
 
 from .db import connection
@@ -172,6 +174,7 @@ def dealer_dashboard(authorization: str = Header(...)):
 def dealer_redemptions(
     page: int = 1,
     per_page: int = 20,
+    period: str = Query(default="month", pattern="^(today|month|all)$"),
     authorization: str = Header(...),
 ):
     """Return paginated coupon redemptions for the authenticated dealer."""
@@ -182,23 +185,29 @@ def dealer_redemptions(
         dealer = _resolve_dealer(conn, authorization)
         dealer_id = dealer["id"]
 
+        period_sql = ""
+        if period == "today":
+            period_sql = " AND cr.redeemed_at >= date_trunc('day', now())"
+        elif period == "month":
+            period_sql = " AND cr.redeemed_at >= date_trunc('month', now())"
         rows = conn.execute(
             """SELECT cr.id, cr.redeemed_at, cr.amount_redeemed, cr.purchase_reference,
                       c.code AS coupon_code,
-                      cp.name AS campaign_name, cp.discount_type, cp.discount_value
+                      cp.name AS campaign_name, cp.discount_type, cp.discount_value,
+                      cp.rules, cr.credit_note_id
                FROM coupon_redemptions cr
                JOIN coupons c ON c.id = cr.coupon_id
                JOIN campaigns cp ON cp.id = c.campaign_id
-               WHERE cr.dealer_id = %s
+               WHERE cr.dealer_id = %s""" + period_sql + """
                ORDER BY cr.redeemed_at DESC
                LIMIT %s OFFSET %s""",
             (dealer_id, per_page, offset),
         ).fetchall()
 
-        total = conn.execute(
-            "SELECT COUNT(*) AS c FROM coupon_redemptions WHERE dealer_id = %s",
+        totals = conn.execute(
+            "SELECT COUNT(*) AS c, COALESCE(SUM(amount_redeemed),0) AS amount FROM coupon_redemptions cr WHERE dealer_id = %s" + period_sql,
             (dealer_id,),
-        ).fetchone()["c"]
+        ).fetchone()
 
     items = [
         {
@@ -210,6 +219,8 @@ def dealer_redemptions(
             "discount_value": float(r["discount_value"]) if r["discount_value"] else 0,
             "amount_redeemed": float(r["amount_redeemed"]) if r["amount_redeemed"] else 0,
             "purchase_reference": r["purchase_reference"],
+            "rules": r["rules"] or {},
+            "settled": bool(r["credit_note_id"]),
         }
         for r in rows
     ]
@@ -217,10 +228,88 @@ def dealer_redemptions(
     return {
         "status": "success",
         "items": items,
-        "total": int(total),
+        "total": int(totals["c"]),
+        "total_amount": float(totals["amount"]),
         "page": page,
         "per_page": per_page,
     }
+
+
+@router.get("/me/redemption-summary")
+def dealer_redemption_summary(authorization: str = Header(...)):
+    """Dealer-facing reconciliation totals, trends and settlement history."""
+    with connection() as conn:
+        dealer = _resolve_dealer(conn, authorization)
+        dealer_id = dealer["id"]
+        summary = conn.execute(
+            """SELECT
+                 COUNT(*) FILTER (WHERE cr.redeemed_at >= date_trunc('day', now())) today_count,
+                 COALESCE(SUM(cr.amount_redeemed) FILTER (WHERE cr.redeemed_at >= date_trunc('day', now())),0) today_amount,
+                 COUNT(*) FILTER (WHERE cr.redeemed_at >= date_trunc('month', now())) month_count,
+                 COALESCE(SUM(cr.amount_redeemed) FILTER (WHERE cr.redeemed_at >= date_trunc('month', now())),0) month_amount,
+                 COUNT(*) all_count, COALESCE(SUM(cr.amount_redeemed),0) all_amount,
+                 COUNT(*) FILTER (WHERE cr.credit_note_id IS NULL) outstanding_count,
+                 COALESCE(SUM(cr.amount_redeemed) FILTER (WHERE cr.credit_note_id IS NULL),0) outstanding_amount
+               FROM coupon_redemptions cr WHERE cr.dealer_id=%s""", (dealer_id,)
+        ).fetchone()
+        daily = conn.execute(
+            """SELECT redeemed_at::date day, COUNT(*) count, COALESCE(SUM(amount_redeemed),0) amount
+               FROM coupon_redemptions WHERE dealer_id=%s AND redeemed_at >= current_date - interval '29 days'
+               GROUP BY redeemed_at::date ORDER BY day""", (dealer_id,)
+        ).fetchall()
+        monthly = conn.execute(
+            """SELECT to_char(date_trunc('month', redeemed_at),'YYYY-MM') month, COUNT(*) count,
+                      COALESCE(SUM(amount_redeemed),0) amount
+               FROM coupon_redemptions WHERE dealer_id=%s AND redeemed_at >= date_trunc('month',now()) - interval '11 months'
+               GROUP BY date_trunc('month', redeemed_at) ORDER BY date_trunc('month', redeemed_at)""", (dealer_id,)
+        ).fetchall()
+        notes = conn.execute(
+            """SELECT id,note_number,period_start,period_end,redemption_count,total_amount,status,
+                      generated_at,settled_at,settlement_reference
+               FROM dealer_credit_notes WHERE dealer_id=%s ORDER BY generated_at DESC LIMIT 24""", (dealer_id,)
+        ).fetchall()
+    def normal(row):
+        return {k: (v.isoformat() if hasattr(v, "isoformat") else float(v) if isinstance(v, Decimal) else v) for k,v in dict(row).items()}
+    return {"summary": normal(summary), "daily": [normal(x) for x in daily], "monthly": [normal(x) for x in monthly], "credit_notes": [normal(x) for x in notes]}
+
+
+def _dealer_report_pdf(dealer: dict, rows: list[dict], period: str) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=landscape(A4), rightMargin=14*mm, leftMargin=14*mm, topMargin=13*mm, bottomMargin=13*mm)
+    styles = getSampleStyleSheet(); story=[]
+    story.append(Paragraph("<b>Crop Life Science Limited</b>", styles["Title"]))
+    story.append(Paragraph("Dealer Coupon Redemption Statement", styles["Heading2"]))
+    story.append(Paragraph(f"Dealer: <b>{dealer['name']}</b> &nbsp; Code: {dealer['dealer_code']} &nbsp; Period: {period.title()}", styles["BodyText"]))
+    story.append(Spacer(1, 7*mm))
+    data=[["Date & time","Coupon","Campaign","Product / packing","Reference","Amount (INR)","Settlement"]]
+    total=0.0
+    for row in rows:
+        amount=float(row["amount_redeemed"] or 0); total+=amount; rules=row["rules"] or {}
+        scope=", ".join((rules.get("products") or []) + (rules.get("packings") or [])) or "All eligible products"
+        data.append([row["redeemed_at"].strftime("%d %b %Y %H:%M"),row["coupon_code"],row["campaign_name"],scope,row["purchase_reference"] or "—",f"{amount:,.2f}","Included" if row["credit_note_id"] else "Outstanding"])
+    data.append(["","","","","TOTAL",f"{total:,.2f}",""])
+    table=Table(data,colWidths=[34*mm,29*mm,48*mm,61*mm,35*mm,28*mm,28*mm],repeatRows=1)
+    table.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#064878")),("TEXTCOLOR",(0,0),(-1,0),colors.white),("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),("GRID",(0,0),(-1,-2),.35,colors.HexColor("#b9c9d4")),("BACKGROUND",(0,1),(-1,-2),colors.HexColor("#f5f9fc")),("FONTNAME",(-2,-1),(-1,-1),"Helvetica-Bold"),("ALIGN",(-2,1),(-1,-1),"RIGHT"),("FONTSIZE",(0,0),(-1,-1),8),("VALIGN",(0,0),(-1,-1),"TOP"),("TOPPADDING",(0,0),(-1,-1),6),("BOTTOMPADDING",(0,0),(-1,-1),6)]))
+    story.append(table); story.append(Spacer(1,5*mm)); story.append(Paragraph("System-generated reconciliation statement. Final payment status is recorded in the CLSL admin portal.",styles["BodyText"]))
+    doc.build(story); return output.getvalue()
+
+
+@router.get("/me/redemptions/report.pdf")
+def dealer_redemptions_report(period: str = Query(default="month", pattern="^(today|month|all)$"), authorization: str = Header(...)):
+    with connection() as conn:
+        dealer=_resolve_dealer(conn, authorization); where=""
+        if period=="today": where=" AND cr.redeemed_at >= date_trunc('day',now())"
+        elif period=="month": where=" AND cr.redeemed_at >= date_trunc('month',now())"
+        rows=conn.execute("""SELECT cr.redeemed_at,cr.amount_redeemed,cr.purchase_reference,cr.credit_note_id,c.code coupon_code,cp.name campaign_name,cp.rules
+          FROM coupon_redemptions cr JOIN coupons c ON c.id=cr.coupon_id JOIN campaigns cp ON cp.id=c.campaign_id
+          WHERE cr.dealer_id=%s"""+where+" ORDER BY cr.redeemed_at DESC",(dealer["id"],)).fetchall()
+    pdf=_dealer_report_pdf(dealer,rows,period)
+    return Response(pdf,media_type="application/pdf",headers={"Content-Disposition":f'attachment; filename="CLSL-{dealer["dealer_code"]}-{period}-redemptions.pdf"'})
 
 
 # ---------------------------------------------------------------------------

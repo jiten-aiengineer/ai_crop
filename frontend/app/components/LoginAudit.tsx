@@ -28,11 +28,16 @@ export default function LoginAudit() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<AdminPageSize>(25);
   const [total, setTotal] = useState(0);
+  const [summary,setSummary]=useState({total:0,active:0,farmers:0,dealers:0,unique_users:0});
+  const [states,setStates]=useState<string[]>([]);
   
   // Filters
   const [dateFilter, setDateFilter] = useState('');
   const [dealerCodeFilter, setDealerCodeFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [periodFilter,setPeriodFilter]=useState('30d');
+  const [stateFilter,setStateFilter]=useState('');
+  const [activityFilter,setActivityFilter]=useState('');
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -41,6 +46,9 @@ export default function LoginAudit() {
       if (dateFilter) params.append('date', dateFilter);
       if (dealerCodeFilter) params.append('dealer_code', dealerCodeFilter);
       if (roleFilter) params.append('role', roleFilter);
+      if (periodFilter&&!dateFilter) params.append('period',periodFilter);
+      if (stateFilter) params.append('state',stateFilter);
+      if (activityFilter) params.append('activity',activityFilter);
       params.set('limit', String(pageSize));
       params.set('offset', String(pageSize === 0 ? 0 : (page - 1) * pageSize));
       
@@ -50,17 +58,19 @@ export default function LoginAudit() {
       const items = isObject(data) && Array.isArray(data.items) ? data.items as AuditLog[] : [];
       setLogs(items);
       setTotal(isObject(data) && typeof data.total === 'number' ? data.total : items.length);
+      if(isObject(data)&&isObject(data.summary))setSummary(data.summary as typeof summary);
+      if(isObject(data)&&Array.isArray(data.states))setStates(data.states as string[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
-  }, [dateFilter, dealerCodeFilter, roleFilter, page, pageSize]);
+  }, [dateFilter, dealerCodeFilter, roleFilter, periodFilter, stateFilter, activityFilter, page, pageSize]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
-  useEffect(() => setPage(1), [dateFilter, dealerCodeFilter, roleFilter, pageSize]);
+  useEffect(() => setPage(1), [dateFilter, dealerCodeFilter, roleFilter, periodFilter, stateFilter, activityFilter, pageSize]);
 
   return (
     <div className="admin-content">
@@ -71,12 +81,16 @@ export default function LoginAudit() {
           <p>View public portal login sessions by date, dealer code, or role.</p>
         </div>
       </div>
+      <div className="dealer-kpis"><article><span>Sessions in view</span><b>{summary.total}</b></article><article><span>Currently active</span><b>{summary.active}</b></article><article><span>Farmer sessions</span><b>{summary.farmers}</b></article><article><span>Dealer sessions</span><b>{summary.dealers}</b><small>{summary.unique_users} unique users</small></article></div>
       
       <div className="admin-catalogue-filters" style={{ marginBottom: '20px' }}>
+        <label className="admin-search"><span>Quick period</span><select value={periodFilter} onChange={e=>{setPeriodFilter(e.target.value);if(e.target.value)setDateFilter('')}}><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="">All time / exact date</option></select></label>
         <label className="admin-search">
           <span>Date</span>
           <input type="date" value={dateFilter} onChange={(e)=>setDateFilter(e.target.value)} />
         </label>
+        <label className="admin-search"><span>State</span><select value={stateFilter} onChange={e=>setStateFilter(e.target.value)}><option value="">All states</option>{states.map(item=><option key={item}>{item}</option>)}</select></label>
+        <label className="admin-search"><span>Session status</span><select value={activityFilter} onChange={e=>setActivityFilter(e.target.value)}><option value="">All sessions</option><option value="active">Active</option><option value="logged_out">Logged out / expired</option></select></label>
         <label className="admin-search">
           <span>Role / Activity Type</span>
           <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
