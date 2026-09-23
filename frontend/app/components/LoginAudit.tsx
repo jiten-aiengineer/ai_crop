@@ -97,7 +97,7 @@ export default function LoginAudit() {
             <option value="">All Roles</option>
             <option value="farmer">Farmer</option>
             <option value="dealer">Dealer</option>
-            <option value="guest">Guest</option>
+            <option value="general_user">General user</option>
           </select>
         </label>
         <label className="admin-search">
