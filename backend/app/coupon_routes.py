@@ -61,7 +61,7 @@ def _fetch_and_validate_coupon(conn, coupon_code: str) -> dict:
 
     if not coupon:
         raise HTTPException(404, "Coupon code not found. Please check and try again.")
-    if coupon["status"] != "available":
+    if coupon["status"] not in {"available", "issued"}:
         raise HTTPException(
             400,
             f"This coupon has already been used or is not available. Status: {coupon['status']}",

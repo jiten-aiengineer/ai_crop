@@ -243,10 +243,13 @@ def dealer_referral(authorization: str = Header(...)):
             (dealer_id,),
         ).fetchone()
 
-        if existing:
-            token = existing["referral_token"]
-        else:
+        token = existing["referral_token"] if existing else ""
+        if len(token) != 7 or not token.isalnum():
             token = _new_short_referral_code()
+        if existing:
+            conn.execute("UPDATE dealer_referrals SET referral_token=%s WHERE dealer_id=%s", (token, dealer_id))
+            conn.commit()
+        else:
             conn.execute(
                 "INSERT INTO dealer_referrals(dealer_id, referral_token) VALUES (%s, %s)",
                 (dealer_id, token),

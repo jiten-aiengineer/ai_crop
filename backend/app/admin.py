@@ -1296,6 +1296,17 @@ class CampaignInput(BaseModel):
     start_date: datetime
     end_date: datetime | None = None
     status: Literal["active", "paused", "completed"] = "active"
+    campaign_type: Literal["welcome", "festival", "regional", "random", "general"] = "general"
+    description: str = Field(default="", max_length=500)
+    audience: Literal["new_farmer", "all_farmers", "targeted", "random"] = "all_farmers"
+    states: list[str] = Field(default_factory=list, max_length=50)
+    districts: list[str] = Field(default_factory=list, max_length=100)
+    villages: list[str] = Field(default_factory=list, max_length=200)
+    products: list[str] = Field(default_factory=list, max_length=100)
+    coupon_limit: int = Field(default=0, ge=0, le=1000000)
+    budget: float = Field(default=0, ge=0)
+    random_percentage: int = Field(default=10, ge=1, le=100)
+    expiry_days: int = Field(default=30, ge=1, le=365)
 
 @router.get("/analytics/farmers")
 def admin_analytics_farmers(identity: AdminIdentity = Depends(_identity)):
@@ -1342,13 +1353,21 @@ def get_campaigns(identity: AdminIdentity = Depends(_identity)):
 @router.post("/campaigns")
 def create_campaign(payload: CampaignInput, identity: AdminIdentity = Depends(_identity)):
     _require(identity, CATALOGUE_MANAGER_ROLES)
+    if payload.end_date and payload.end_date <= payload.start_date:
+        raise HTTPException(400, "Campaign end date must be after its start date.")
+    rules = {
+        "campaign_type": payload.campaign_type, "description": payload.description.strip(), "audience": payload.audience,
+        "states": payload.states, "districts": payload.districts, "villages": payload.villages, "products": payload.products,
+        "coupon_limit": payload.coupon_limit, "budget": payload.budget, "random_percentage": payload.random_percentage,
+        "expiry_days": payload.expiry_days,
+    }
     with connection() as conn:
         row = conn.execute(
             """
-            INSERT INTO campaigns(name, discount_type, discount_value, start_date, end_date, status)
-            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+            INSERT INTO campaigns(name, discount_type, discount_value, start_date, end_date, status, rules)
+            VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb) RETURNING id
             """,
-            (payload.name, payload.discount_type, payload.discount_value, payload.start_date, payload.end_date, payload.status)
+            (payload.name, payload.discount_type, payload.discount_value, payload.start_date, payload.end_date, payload.status, json.dumps(rules))
         ).fetchone()
         conn.commit()
     return {"status": "success", "campaign_id": str(row["id"])}
@@ -1374,13 +1393,15 @@ def bulk_generate_coupons(campaign_id: UUID, payload: BulkCouponInput, identity:
     
     with connection() as conn:
         # verify campaign exists
-        cam = conn.execute("SELECT id FROM campaigns WHERE id = %s", (campaign_id,)).fetchone()
+        cam = conn.execute("SELECT id,rules FROM campaigns WHERE id = %s", (campaign_id,)).fetchone()
         if not cam:
             raise HTTPException(status_code=404, detail="Campaign not found")
-            
+        limit = int((cam.get("rules") or {}).get("coupon_limit") or 0)
+        existing_count = conn.execute("SELECT COUNT(*) AS count FROM coupons WHERE campaign_id=%s", (campaign_id,)).fetchone()["count"]
+        target_count = min(payload.count, max(0, limit-existing_count)) if limit else payload.count
         inserted = 0
         attempts = 0
-        while inserted < payload.count and attempts < payload.count * 4:
+        while inserted < target_count and attempts < max(4, target_count * 4):
             attempts += 1
             code = ''.join(secrets.choice(alphabet) for _ in range(7))
             row = conn.execute(
@@ -1404,8 +1425,10 @@ def get_campaigns_analytics(identity: AdminIdentity = Depends(_identity)):
                 c.name,
                 c.status,
                 c.discount_type,
-                c.discount_value,
+                c.discount_value,c.start_date,c.end_date,c.rules,
                 (SELECT COUNT(*) FROM coupons cp WHERE cp.campaign_id=c.id) as total_issued,
+                (SELECT COUNT(*) FROM coupons cp WHERE cp.campaign_id=c.id AND cp.status='available') as total_available,
+                (SELECT COUNT(*) FROM coupons cp WHERE cp.campaign_id=c.id AND cp.status='issued') as total_assigned,
                 (SELECT COUNT(*) FROM coupons cp WHERE cp.campaign_id=c.id AND cp.status='redeemed') as total_redeemed,
                 (SELECT COALESCE(SUM(cr.amount_redeemed),0)
                    FROM coupon_redemptions cr JOIN coupons cp ON cp.id=cr.coupon_id
@@ -1697,10 +1720,13 @@ def generate_dealer_referral(dealer_id: UUID, identity: AdminIdentity = Depends(
         if not dealer or not dealer["dealer_code"] or not dealer["owner_name"] or not dealer["portal_mobile_number"]:
             raise HTTPException(400, "Generate the dealer account with owner name and mobile number first.")
         existing = conn.execute("SELECT referral_token FROM dealer_referrals WHERE dealer_id = %s LIMIT 1", (dealer_id,)).fetchone()
-        if existing:
-            token = existing["referral_token"]
-        else:
+        token = existing["referral_token"] if existing else ""
+        if len(token) != 7 or not token.isalnum():
             token = _new_short_referral_code()
+        if existing:
+            conn.execute("UPDATE dealer_referrals SET referral_token=%s WHERE dealer_id=%s", (token, dealer_id))
+            conn.commit()
+        else:
             conn.execute(
                 "INSERT INTO dealer_referrals(dealer_id, referral_token) VALUES (%s, %s)",
                 (dealer_id, token)
@@ -1739,8 +1765,10 @@ def generate_dealer_account(dealer_id: UUID, payload: DealerAccountPayload, iden
             (code,payload.owner_name.strip(),mobile,dealer_id),
         ).fetchone()
         referral = conn.execute("SELECT referral_token FROM dealer_referrals WHERE dealer_id=%s LIMIT 1", (dealer_id,)).fetchone()
-        token = referral["referral_token"] if referral else _new_short_referral_code()
-        if not referral: conn.execute("INSERT INTO dealer_referrals(dealer_id,referral_token) VALUES(%s,%s)", (dealer_id,token))
+        token = referral["referral_token"] if referral else ""
+        if len(token) != 7 or not token.isalnum(): token = _new_short_referral_code()
+        if referral: conn.execute("UPDATE dealer_referrals SET referral_token=%s WHERE dealer_id=%s", (token,dealer_id))
+        else: conn.execute("INSERT INTO dealer_referrals(dealer_id,referral_token) VALUES(%s,%s)", (dealer_id,token))
         _audit(conn, identity, "generate_account", "dealer", str(dealer_id), None, {"dealer_code":code,"referral_token":token})
         conn.commit()
     return {

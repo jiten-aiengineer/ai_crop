@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -33,24 +33,45 @@ def _new_coupon_code() -> str:
     return "".join(secrets.choice(_REFERRAL_ALPHABET) for _ in range(7))
 
 
-def _issue_welcome_coupon(conn, farmer_id) -> None:
-    """Issue at most one welcome coupon after a profile becomes a farmer."""
-    campaign = conn.execute(
-        """SELECT id,end_date FROM campaigns
-           WHERE status='active' AND start_date<=now()
-             AND (end_date IS NULL OR end_date>=now())
-             AND (lower(name)='welcome' OR COALESCE(rules->>'audience','')='new_farmer')
-           ORDER BY CASE WHEN COALESCE(rules->>'audience','')='new_farmer' THEN 0 ELSE 1 END,
-                    created_at DESC LIMIT 1"""
-    ).fetchone()
-    if not campaign:
-        return
-    existing = conn.execute(
-        "SELECT 1 FROM coupons WHERE campaign_id=%s AND farmer_id=%s LIMIT 1",
-        (campaign["id"], farmer_id),
-    ).fetchone()
+def _campaign_matches_farmer(campaign: dict, farmer: dict) -> bool:
+    rules = campaign.get("rules") or {}
+    def values(key: str) -> set[str]:
+        raw = rules.get(key) or []
+        return {str(value).strip().casefold() for value in raw if str(value).strip()}
+    for rule_key, farmer_key in (("states", "state"), ("districts", "district"), ("villages", "village")):
+        allowed = values(rule_key)
+        if allowed and str(farmer.get(farmer_key) or "").strip().casefold() not in allowed:
+            return False
+    if rules.get("audience") == "random":
+        percentage = max(1, min(100, int(rules.get("random_percentage") or 10)))
+        bucket = int(hashlib.sha256(f'{campaign["id"]}:{farmer["id"]}'.encode()).hexdigest()[:8], 16) % 100
+        if bucket >= percentage:
+            return False
+    return True
+
+
+def _issue_campaign_coupon(conn, campaign: dict, farmer_id) -> bool:
+    existing = conn.execute("SELECT 1 FROM coupons WHERE campaign_id=%s AND farmer_id=%s LIMIT 1", (campaign["id"], farmer_id)).fetchone()
     if existing:
-        return
+        return False
+    rules = campaign.get("rules") or {}
+    coupon_limit = int(rules.get("coupon_limit") or 0)
+    if coupon_limit:
+        total = conn.execute("SELECT COUNT(*) AS count FROM coupons WHERE campaign_id=%s", (campaign["id"],)).fetchone()["count"]
+        if total >= coupon_limit:
+            return False
+    budget = float(rules.get("budget") or 0)
+    if budget:
+        spent = conn.execute(
+            """SELECT COALESCE(SUM(cr.amount_redeemed),0) AS amount
+               FROM coupon_redemptions cr JOIN coupons c ON c.id=cr.coupon_id
+               WHERE c.campaign_id=%s""", (campaign["id"],),
+        ).fetchone()["amount"]
+        if float(spent or 0) + float(campaign["discount_value"] or 0) > budget:
+            return False
+    expiry = datetime.now(timezone.utc) + timedelta(days=max(1, min(365, int(rules.get("expiry_days") or 30))))
+    if campaign.get("end_date") and campaign["end_date"] < expiry:
+        expiry = campaign["end_date"]
     claimed = conn.execute(
         """UPDATE coupons SET farmer_id=%s,status='issued',issued_at=now(),
                               expires_at=COALESCE(expires_at,%s)
@@ -58,20 +79,30 @@ def _issue_welcome_coupon(conn, farmer_id) -> None:
                      WHERE campaign_id=%s AND farmer_id IS NULL AND status='available'
                      ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1)
            RETURNING id""",
-        (farmer_id, campaign["end_date"], campaign["id"]),
+        (farmer_id, expiry, campaign["id"]),
     ).fetchone()
     if claimed:
-        return
+        return True
     for _ in range(12):
         inserted = conn.execute(
             """INSERT INTO coupons(code,campaign_id,farmer_id,status,issued_at,expires_at)
                VALUES(%s,%s,%s,'issued',now(),%s)
                ON CONFLICT(code) DO NOTHING RETURNING id""",
-            (_new_coupon_code(), campaign["id"], farmer_id, campaign["end_date"]),
+            (_new_coupon_code(), campaign["id"], farmer_id, expiry),
         ).fetchone()
         if inserted:
-            return
-    raise HTTPException(503, "A welcome coupon could not be generated. Please try again.")
+            return True
+    raise HTTPException(503, "A coupon could not be generated. Please try again.")
+
+
+def _sync_farmer_campaign_coupons(conn, farmer: dict) -> None:
+    campaigns = conn.execute(
+        """SELECT * FROM campaigns WHERE status='active' AND start_date<=now()
+           AND (end_date IS NULL OR end_date>=now()) ORDER BY created_at"""
+    ).fetchall()
+    for campaign in campaigns:
+        if _campaign_matches_farmer(campaign, farmer):
+            _issue_campaign_coupon(conn, campaign, farmer["id"])
 
 
 class SendOtpPayload(BaseModel):
@@ -377,7 +408,7 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
              referral_dealer_id,referral_dealer_id,verified_dealer_id,json.dumps(metadata),user["id"]),
         ).fetchone()
         if payload.role == "farmer":
-            _issue_welcome_coupon(conn, user["id"])
+            _sync_farmer_campaign_coupons(conn, updated)
         conn.commit()
     return {"status": "success", "user": _public_user(updated)}
 
@@ -400,8 +431,13 @@ def dealer_referral(authorization: str = Header(...)):
                ORDER BY created_at DESC LIMIT 1""",
             (dealer["id"],),
         ).fetchone()
-        token = existing["referral_token"] if existing else _new_short_referral_code()
-        if not existing:
+        token = existing["referral_token"] if existing else ""
+        if len(token) != 7 or not token.isalnum():
+            token = _new_short_referral_code()
+        if existing:
+            conn.execute("UPDATE dealer_referrals SET referral_token=%s WHERE dealer_id=%s", (token, dealer["id"]))
+            conn.commit()
+        else:
             conn.execute(
                 "INSERT INTO dealer_referrals(dealer_id,referral_token) VALUES(%s,%s)",
                 (dealer["id"], token),
@@ -432,6 +468,7 @@ def get_my_coupons(authorization: str = Header(...)):
         user = _session_user(conn, authorization)
         if user.get("role") != "farmer":
             raise HTTPException(403, "Farmer access is required to view coupons.")
+        _sync_farmer_campaign_coupons(conn, user)
         conn.execute(
             """UPDATE coupons SET status='expired'
                WHERE farmer_id=%s AND status IN ('available','issued')
@@ -444,7 +481,7 @@ def get_my_coupons(authorization: str = Header(...)):
                 cp.name as campaign_name, cp.discount_type, cp.discount_value, cp.end_date
             FROM coupons c
             JOIN campaigns cp ON cp.id = c.campaign_id
-            WHERE c.farmer_id = %s
+            WHERE c.farmer_id = %s AND c.status IN ('issued','available')
             ORDER BY c.issued_at DESC NULLS LAST
         """, (user["id"],)).fetchall()
         conn.commit()
