@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.croplifescience.clslai",
+      "sha256_cert_fingerprints": [
+        "F4:DE:4B:CF:63:F4:99:55:EF:CF:70:E7:31:88:2E:33:7A:EC:0C:1E:1F:74:82:9A:B1:D7:4D:43:51:6E:54:B7"
+      ]
+    }
+  }
+]

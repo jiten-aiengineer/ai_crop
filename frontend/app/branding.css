@@ -365,6 +365,24 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 /* Status bar integration on mobile */
 @media (display-mode: standalone) {
-  .topbar { padding-top: env(safe-area-inset-top); height: calc(66px + env(safe-area-inset-top)); }
+  html, body { min-height:100%; background:#fffefa; }
+  body { min-height:100dvh; }
+  .app-shell { min-height:100dvh; }
+  .topbar {
+    padding-top:max(env(safe-area-inset-top), 4px);
+    height:calc(66px + max(env(safe-area-inset-top), 4px));
+  }
+  .mobile-nav {
+    padding-bottom:max(10px, env(safe-area-inset-bottom));
+    height:calc(76px + max(10px, env(safe-area-inset-bottom)));
+  }
+  .pwa-install { display:none !important; }
 }
 
+@media (max-width:600px) and (display-mode:standalone) {
+  .topbar { position:fixed; left:0; right:0; top:0; }
+  .top-weather-bar { margin-top:calc(66px + max(env(safe-area-inset-top), 4px)); }
+  .workspace { padding-bottom:calc(104px + env(safe-area-inset-bottom)); }
+  input, select, textarea { font-size:16px; }
+  button, [role="button"], a { touch-action:manipulation; }
+}

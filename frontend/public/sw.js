@@ -1,5 +1,15 @@
-const CACHE = 'clsl-ai-shell-v6';
-const SHELL = ['/', '/manifest.webmanifest', '/clsl-logo.png', '/crop-life-mitra-tomato-doctor.jpg', '/clsl-field-sprayer.png'];
+const CACHE = 'clsl-ai-shell-v7-mobile';
+const SHELL = [
+  '/',
+  '/manifest.webmanifest',
+  '/clsl-logo.png',
+  '/icon-192x192.png',
+  '/icon-512x512.png',
+  '/icon-maskable-192x192.png',
+  '/icon-maskable-512x512.png',
+  '/crop-life-mitra-tomato-doctor.jpg',
+  '/clsl-field-sprayer.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));

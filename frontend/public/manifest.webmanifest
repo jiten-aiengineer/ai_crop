@@ -1,17 +1,26 @@
 {
+  "id": "/",
   "name": "CLSL AI – Crop Protection",
   "short_name": "CLSL AI",
   "description": "Crop protection, crop guidance and Crop Life Science products.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "lang": "en-IN",
+  "dir": "ltr",
   "background_color": "#fffefa",
   "theme_color": "#1f6b43",
   "categories": ["agriculture", "productivity", "utilities"],
   "icons": [
-    { "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
+  "launch_handler": { "client_mode": ["navigate-existing", "auto"] },
+  "handle_links": "preferred",
   "shortcuts": [
     { "name": "Inspect a crop", "short_name": "Inspect", "url": "/?open=inspect", "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png" }] },
     { "name": "Ask Crop Life Mitra", "short_name": "Ask Mitra", "url": "/?open=assistant", "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png" }] }
