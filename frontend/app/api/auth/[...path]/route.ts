@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export async function POST(request: Request, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
   const endpoint = path.join('/');
-  if (!['send-otp', 'verify-otp', 'profile', 'me', 'logout', 'dealer-lookup', 'dealer-referral', 'referral-lookup'].includes(endpoint)) {
+  if (!['send-otp', 'verify-otp', 'profile', 'me', 'me/coupons', 'logout', 'dealer-mobile-status', 'dealer-lookup', 'dealer-referral', 'referral-lookup'].includes(endpoint)) {
     return NextResponse.json({ detail: 'Unknown authentication action.' }, { status: 404 });
   }
   try {

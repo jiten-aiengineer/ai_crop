@@ -26,7 +26,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 export default function FarmerDetails() {
   const [farmers, setFarmers] = useState<Farmer[]>([]);
-  const [facets, setFacets] = useState<{states:string[]}>({states:[]});
+  const [facets, setFacets] = useState<{states:string[], cities:string[], villages:string[]}>({states:[], cities:[], villages:[]});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
@@ -36,6 +36,8 @@ export default function FarmerDetails() {
   // Filters
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState('');
+  const [cityFilter, setCityFilter] = useState('');
+  const [villageFilter, setVillageFilter] = useState('');
   const [dealerCodeFilter, setDealerCodeFilter] = useState('');
 
   const fetchFarmers = useCallback(async () => {
@@ -44,6 +46,8 @@ export default function FarmerDetails() {
       const params = new URLSearchParams();
       if (search.trim()) params.append('search', search.trim());
       if (stateFilter) params.append('state', stateFilter);
+      if (cityFilter) params.append('city', cityFilter);
+      if (villageFilter) params.append('village', villageFilter);
       if (dealerCodeFilter) params.append('dealer_code', dealerCodeFilter);
       params.set('limit', String(pageSize));
       params.set('offset', String(pageSize === 0 ? 0 : (page - 1) * pageSize));
@@ -55,18 +59,28 @@ export default function FarmerDetails() {
       setFarmers(items as Farmer[]);
       setTotal(isObject(data) && typeof data.total === 'number' ? data.total : items.length);
       const facets = isObject(data) && isObject(data.facets) ? data.facets : null;
-      if (facets && Array.isArray(facets.states)) setFacets({ states: facets.states.filter((value): value is string => typeof value === 'string') });
+      if (facets && Array.isArray(facets.states)) {
+        setFacets({ 
+          states: facets.states.filter((value): value is string => typeof value === 'string'),
+          cities: Array.isArray(facets.cities) ? facets.cities.filter((value): value is string => typeof value === 'string') : [],
+          villages: Array.isArray(facets.villages) ? facets.villages.filter((value): value is string => typeof value === 'string') : []
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
-  }, [search, stateFilter, dealerCodeFilter, page, pageSize]);
+  }, [search, stateFilter, cityFilter, villageFilter, dealerCodeFilter, page, pageSize]);
 
   useEffect(() => {
     fetchFarmers();
   }, [fetchFarmers]);
-  useEffect(() => setPage(1), [search, stateFilter, dealerCodeFilter, pageSize]);
+  useEffect(() => setPage(1), [search, stateFilter, cityFilter, villageFilter, dealerCodeFilter, pageSize]);
+  const whatsappNumber = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    return digits.length === 10 ? `91${digits}` : digits;
+  };
 
   return (
     <div className="admin-content farmer-details">
@@ -91,6 +105,20 @@ export default function FarmerDetails() {
           </select>
         </label>
         <label className="admin-search">
+          <span>City</span>
+          <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
+            <option value="">All Cities</option>
+            {facets.cities.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label className="admin-search">
+          <span>Village</span>
+          <select value={villageFilter} onChange={(e) => setVillageFilter(e.target.value)}>
+            <option value="">All Villages</option>
+            {facets.villages.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label className="admin-search">
           <span>Dealer Code</span>
           <input value={dealerCodeFilter} onChange={(e)=>setDealerCodeFilter(e.target.value)} placeholder="Filter by dealer code" />
         </label>
@@ -112,6 +140,7 @@ export default function FarmerDetails() {
                 <th>Dealer Name / Code</th>
                 <th>Verified</th>
                 <th>Joined At</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -124,6 +153,10 @@ export default function FarmerDetails() {
                   <td>{farmer.dealer_name ? `${farmer.dealer_name} (${farmer.dealer_code})` : '—'}</td>
                   <td>{farmer.is_verified ? 'Yes' : 'No'}</td>
                   <td>{new Date(farmer.created_at).toLocaleDateString()}</td>
+                  <td style={{ display: 'flex', gap: '8px' }}>
+                    <a href={`sms:${farmer.mobile_number}`} className="admin-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>SMS</a>
+                    <a href={`https://wa.me/${whatsappNumber(farmer.mobile_number)}`} target="_blank" rel="noreferrer" className="admin-primary" style={{ padding: '4px 8px', fontSize: '12px', background: '#25D366' }}>WhatsApp</a>
+                  </td>
                 </tr>
               ))}
             </tbody>

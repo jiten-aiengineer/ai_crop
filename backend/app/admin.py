@@ -1353,6 +1353,72 @@ def create_campaign(payload: CampaignInput, identity: AdminIdentity = Depends(_i
         conn.commit()
     return {"status": "success", "campaign_id": str(row["id"])}
 
+class CampaignStatusInput(BaseModel):
+    status: Literal["active", "paused", "completed"]
+
+@router.put("/campaigns/{campaign_id}/status")
+def update_campaign_status(campaign_id: UUID, payload: CampaignStatusInput, identity: AdminIdentity = Depends(_identity)):
+    _require(identity, CATALOGUE_MANAGER_ROLES)
+    with connection() as conn:
+        conn.execute("UPDATE campaigns SET status = %s, updated_at = now() WHERE id = %s", (payload.status, campaign_id))
+        conn.commit()
+    return {"status": "success"}
+
+class BulkCouponInput(BaseModel):
+    count: int = Field(gt=0, le=5000)
+
+@router.post("/campaigns/{campaign_id}/bulk-generate")
+def bulk_generate_coupons(campaign_id: UUID, payload: BulkCouponInput, identity: AdminIdentity = Depends(_identity)):
+    _require(identity, CATALOGUE_MANAGER_ROLES)
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    
+    with connection() as conn:
+        # verify campaign exists
+        cam = conn.execute("SELECT id FROM campaigns WHERE id = %s", (campaign_id,)).fetchone()
+        if not cam:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+            
+        inserted = 0
+        attempts = 0
+        while inserted < payload.count and attempts < payload.count * 4:
+            attempts += 1
+            code = ''.join(secrets.choice(alphabet) for _ in range(7))
+            row = conn.execute(
+                """INSERT INTO coupons(code,campaign_id,status) VALUES(%s,%s,'available')
+                   ON CONFLICT(code) DO NOTHING RETURNING id""",
+                (code, campaign_id),
+            ).fetchone()
+            if row:
+                inserted += 1
+        conn.commit()
+        
+    return {"status": "success", "generated_count": inserted}
+
+@router.get("/campaigns/analytics")
+def get_campaigns_analytics(identity: AdminIdentity = Depends(_identity)):
+    _require(identity, ADMIN_READ_ROLES)
+    with connection() as conn:
+        stats = conn.execute("""
+            SELECT 
+                c.id as campaign_id,
+                c.name,
+                c.status,
+                c.discount_type,
+                c.discount_value,
+                (SELECT COUNT(*) FROM coupons cp WHERE cp.campaign_id=c.id) as total_issued,
+                (SELECT COUNT(*) FROM coupons cp WHERE cp.campaign_id=c.id AND cp.status='redeemed') as total_redeemed,
+                (SELECT COALESCE(SUM(cr.amount_redeemed),0)
+                   FROM coupon_redemptions cr JOIN coupons cp ON cp.id=cr.coupon_id
+                  WHERE cp.campaign_id=c.id) as total_spend
+            FROM campaigns c
+            ORDER BY c.created_at DESC
+        """).fetchall()
+        
+        # Calculate total overall spend
+        total_overall_spend = sum((s["total_spend"] or 0) for s in stats)
+        
+    return {"items": stats, "total_spend": total_overall_spend}
+
 class ExpertReviewInput(BaseModel):
     review_status: Literal["Correct", "Partially Correct", "Incorrect", "Corrected", "Reject"]
     training_eligible: bool
@@ -1830,6 +1896,8 @@ def dealer_redemption_summary(
 def list_farmers(
     search: str = Query(default="", max_length=120),
     state: str = Query(default="", max_length=100),
+    city: str = Query(default="", max_length=100),
+    village: str = Query(default="", max_length=100),
     dealer_code: str = Query(default="", max_length=100),
     limit: int = Query(default=500, ge=0, le=5000),
     offset: int = Query(default=0, ge=0),
@@ -1846,6 +1914,14 @@ def list_farmers(
     if state:
         filters.append("LOWER(BTRIM(COALESCE(f.state, ''))) = LOWER(BTRIM(%s))")
         params.append(state)
+        
+    if city:
+        filters.append("LOWER(BTRIM(COALESCE(f.city, ''))) = LOWER(BTRIM(%s))")
+        params.append(city)
+        
+    if village:
+        filters.append("LOWER(BTRIM(COALESCE(f.village, ''))) = LOWER(BTRIM(%s))")
+        params.append(village)
         
     if dealer_code:
         filters.append("d.dealer_code ILIKE %s")
@@ -1870,7 +1946,11 @@ def list_farmers(
             params,
         ).fetchone()["total"]
         facets = conn.execute(
-            """SELECT ARRAY(SELECT DISTINCT BTRIM(state) FROM farmers WHERE BTRIM(COALESCE(state, ''))<>'' ORDER BY BTRIM(state)) AS states"""
+            """SELECT 
+               ARRAY(SELECT DISTINCT BTRIM(state) FROM farmers WHERE BTRIM(COALESCE(state, ''))<>'' ORDER BY BTRIM(state)) AS states,
+               ARRAY(SELECT DISTINCT BTRIM(city) FROM farmers WHERE BTRIM(COALESCE(city, ''))<>'' ORDER BY BTRIM(city)) AS cities,
+               ARRAY(SELECT DISTINCT BTRIM(village) FROM farmers WHERE BTRIM(COALESCE(village, ''))<>'' ORDER BY BTRIM(village)) AS villages
+               """
         ).fetchone()
         
     return {"items": rows, "facets": facets, "total": total, "offset": offset, "limit": limit}

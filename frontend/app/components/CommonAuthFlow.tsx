@@ -37,7 +37,7 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
   const [social,setSocial] = useState<string[]>([]); const [source,setSource] = useState('');
   const [place,setPlace] = useState<DevicePlace | null>(null);
   const [relationship,setRelationship] = useState<'none'|'dealer'|'referral'>('none');
-  const [isFarmer,setIsFarmer] = useState<'yes'|'no'|null>(null);
+  const [isFarmer,setIsFarmer] = useState<'yes'|'no'>('no');
 
   const [dealerCode,setDealerCode] = useState(''); const [dealer,setDealer] = useState<Dealer | null>(null); const [dealerConfirmed,setDealerConfirmed] = useState(false);
   const [isDealerUI,setIsDealerUI] = useState(false);
@@ -183,20 +183,28 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
       setError('Camera permission was not granted. Allow camera access and try again, or choose a saved QR image.');
     }
   }
-  function chooseAccountType(type: 'general' | 'farmer' | 'dealer') {
+  function chooseFarmer(selected: boolean) {
     setError(''); setDealerError(''); setReferralError('');
-    if (type === 'farmer') {
+    if (selected) {
       setIsFarmer('yes'); setIsDealerUI(false); setDealerCode(''); setDealer(null); setDealerConfirmed(false);
       setRelationship(referral ? 'referral' : 'none');
       return;
     }
-    if (type === 'dealer') {
-      setIsFarmer('no'); setIsDealerUI(true); setReferral(''); setReferralName('');
-      setRelationship(dealer ? 'dealer' : 'none');
-      return;
-    }
     setIsFarmer('no'); setIsDealerUI(false); setRelationship('none');
     setDealerCode(''); setDealer(null); setDealerConfirmed(false); setReferral(''); setReferralName('');
+  }
+  async function continueFromAccount(event: FormEvent) {
+    event.preventDefault();
+    if(firstName.trim().length<2||lastName.trim().length<1||normalizedMobile.length!==10) return setError(c.required);
+    setLoading(true); setError(''); setDealerError('');
+    try {
+      const status = await api<{is_registered_dealer:boolean}>('dealer-mobile-status', { mobile_number:`+91${normalizedMobile}` });
+      setIsDealerUI(status.is_registered_dealer);
+      setIsFarmer('no'); setReferral(''); setReferralName('');
+      setDealerCode(''); setDealer(null); setDealerConfirmed(false); setRelationship('none');
+      setStep('details');
+    } catch(problem) { fail(problem); }
+    finally { setLoading(false); }
   }
   async function startOtp(event: FormEvent) {
     event.preventDefault(); setSubmitAttempted(true); setError('');
@@ -204,7 +212,6 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
     if (isDealerUI && (!dealer || !dealerConfirmed)) { setDealerError(dealer ? 'Confirm the dealership details to continue.' : 'Enter and verify your dealer code.'); return; }
     if (relationship==='dealer' && (!dealer || !dealerConfirmed)) { setDealerError(dealer ? 'Confirm the dealership details to continue.' : 'Enter and verify your dealer code.'); return; }
     if (relationship==='referral' && !referralName) { setReferralError('Enter a valid farmer referral code to continue.'); return; }
-    if (isFarmer === null && relationship !== 'dealer') return setError('Please specify if you are a farmer.');
     if (!social.length) return setError('Select at least one social media platform.');
     if (!source) return setError('Select where you heard about CLSL AI.');
     setLoading(true);
@@ -231,9 +238,10 @@ export function CommonAuthFlow({ onComplete }: { onComplete: (token: string, use
 
   return <main className={`auth-shell common-auth auth-screen-${step}`}><section className="auth-visual"><div className="auth-brand"><img src="/clsl-logo.png" alt="Crop Life Science Limited"/><span><b>CLSL AI</b><small>Crop care, made smarter.</small></span></div><div className="auth-welcome"><small>CROP LIFE SCIENCE LIMITED</small><h1>{c.welcome}</h1><p>{c.intro}</p></div><figure className="auth-mascot"><img src="/crop-life-mitra-tomato-doctor.jpg" alt="Crop Life Mitra"/><figcaption><b>Crop Life Mitra</b><small>Your smart crop companion</small></figcaption></figure><div className="auth-field-art"><SprayerScene /></div></section><section className="auth-panel"><header className="auth-panel-head"><span>STEP {stepNumber} OF 4</span><b>{Math.round(stepNumber/4*100)}% complete</b></header><div className="auth-progress">{order.map((item,index)=><i key={item} className={index<stepNumber?'active':''}/>)}</div>{step!=='language'&&<button type="button" className="auth-back" onClick={()=>{setError('');setStep(previous[step]);}}>← {c.back}</button>}{error&&<p className="auth-error" role="alert">{error}</p>}
     {step==='language'&&<div className="auth-step"><span className="auth-step-icon">文</span><h2>{c.choose}</h2><div className="language-grid">{languages.map(item=><button type="button" key={item.code} className={language===item.code?'selected':''} onClick={()=>setLanguage(item.code)}><b>{item.name}</b><small>{item.code.toUpperCase()}</small></button>)}</div><button className="auth-primary" onClick={()=>setStep('account')}>{c.continue} →</button></div>}
-    {step==='account'&&<form className="auth-step" onSubmit={event=>{event.preventDefault();if(firstName.trim().length<2||lastName.trim().length<1||normalizedMobile.length!==10)return setError(c.required);setError('');setStep('details');}}><h2>{c.account}</h2><p>{c.intro}</p><label>{c.name}<input value={firstName} onChange={event=>setFirstName(event.target.value)} required autoComplete="given-name"/></label><label>{c.lastName || 'Last name'}<input value={lastName} onChange={event=>setLastName(event.target.value)} required autoComplete="family-name"/></label><label>{c.mobile}<div className="phone-field"><span>+91</span><input inputMode="numeric" value={mobile} onChange={event=>setMobile(event.target.value.replace(/\D/g,'').slice(0,10))} required placeholder="98765 43210" autoComplete="tel"/></div></label><button className="auth-primary">{c.continue} →</button></form>}
+    {step==='account'&&<form className="auth-step" onSubmit={continueFromAccount}><h2>{c.account}</h2><p>{c.intro}</p><label>{c.name}<input value={firstName} onChange={event=>setFirstName(event.target.value)} required autoComplete="given-name"/></label><label>{c.lastName || 'Last name'}<input value={lastName} onChange={event=>setLastName(event.target.value)} required autoComplete="family-name"/></label><label>{c.mobile}<div className="phone-field"><span>+91</span><input inputMode="numeric" value={mobile} onChange={event=>{setMobile(event.target.value.replace(/\D/g,'').slice(0,10));setIsDealerUI(false);setDealerCode('');setDealer(null);setDealerConfirmed(false);setRelationship('none');}} required placeholder="98765 43210" autoComplete="tel"/></div></label><button className="auth-primary" disabled={loading}>{loading?c.wait:c.continue} →</button></form>}
     {step==='details'&&<form className="auth-step auth-details common-login-details" onSubmit={startOtp}><h2>{c.details}</h2><p>{c.detailsHelp}</p><section className={`login-location-card ${place?'ready':''}`}><button type="button" className="location-consent" onClick={()=>void captureLocation()} disabled={loading}><span>{place?'✓':'⌖'}</span><b>{loading?c.wait:place?c.locationReady:c.location}</b></button>{place&&<dl><div><dt>{c.district}</dt><dd>{place.district}</dd></div></dl>}</section><section className={`marketing-profile ${submitAttempted&&(!social.length||!source)?'has-error':''}`}><fieldset><legend>{c.social} {submitAttempted&&!social.length&&<em>Required</em>}</legend><div className="social-grid">{socialOptions.map(item=><label key={item}><input type="checkbox" checked={social.includes(item)} onChange={()=>setSocial(current=>current.includes(item)?current.filter(value=>value!==item):[...current,item])}/><span>{item}</span></label>)}</div></fieldset><label>{c.source} {submitAttempted&&!source&&<em>Required</em>}<select aria-required="true" value={source} onChange={event=>setSource(event.target.value)}><option value="" disabled>Select one</option>{sourceOptions.map(item=><option key={item}>{item}</option>)}</select></label></section>
-      <section className="account-type-card"><div><b>Account type</b></div><div className="account-type-grid"><button type="button" className={isFarmer==='no'&&!isDealerUI?'selected':''} onClick={()=>chooseAccountType('general')}><b>General user</b></button><button type="button" className={isFarmer==='yes'?'selected':''} onClick={()=>chooseAccountType('farmer')}><b>Farmer</b></button><button type="button" className={isDealerUI?'selected':''} onClick={()=>chooseAccountType('dealer')}><b>Dealer</b></button></div></section>
+      {!isDealerUI&&<section className="account-type-card farmer-choice"><label><input type="checkbox" checked={isFarmer==='yes'} onChange={event=>chooseFarmer(event.target.checked)}/><span><b>I am a farmer</b><small>Select this only to receive farmer offers and coupons.</small></span></label></section>}
+      {isDealerUI&&<aside className="dealer-recognised"><b>Registered dealer mobile recognised</b><p>Enter your private CLSL dealer code below to verify the dealership.</p></aside>}
       {isFarmer==='yes'&&<aside className="farmer-benefit"><b>CLSL farmer benefits</b><p>Farmers can receive offers and coupons on CLSL products. Get a referral code from your nearest CLSL dealer.</p></aside>}
       
       {isFarmer === 'yes' && !isDealerUI && (

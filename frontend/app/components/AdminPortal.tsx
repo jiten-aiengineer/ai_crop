@@ -19,7 +19,7 @@ type Session = { configured: boolean; authenticated: boolean; auth_mode?: 'passw
 type CapabilityMap = Record<string, boolean>;
 type Product = { id: string; name: string; category: string; common_name: string | null; formulation: string | null; dose: string | null; use_benefits: string | null; packing: string | null; application_method: string | null; safety_information: string | null; image_path: string | null; source_page: number | null; catalogue_version: string; status: string; approval_status: string; version: number; crops: string[]; problems: string[]; price_per_pack: number | null; };
 type Approval = { id: string; entity_key: string; requested_action: string; review_stage?: 'senior_manager' | 'final_publisher'; proposed_data: { product: Product; crops: string[] }; requested_at: string; requested_by_name?: string };
-type PortalData = { overview?: any; products?: Product[]; options?: { categories: string[]; crops: string[] }; approvals?: Approval[]; inspections?: any[]; models?: any; employees?: any[]; employeeRoleOptions?: string[]; salesOfficers?: any; farmersAnalytics?: any; dealersAnalytics?: any; aiCostsAnalytics?: any; campaigns?: any[] };
+type PortalData = { overview?: any; products?: Product[]; options?: { categories: string[]; crops: string[] }; approvals?: Approval[]; inspections?: any[]; models?: any; employees?: any[]; employeeRoleOptions?: string[]; salesOfficers?: any; farmersAnalytics?: any; dealersAnalytics?: any; aiCostsAnalytics?: any; campaigns?: any[]; campaignsTotalSpend?: number };
 type Section = 'overview' | 'catalogue' | 'campaigns' | 'approvals' | 'inspections' | 'gallery' | 'fieldforce' | 'models' | 'team' | 'architecture' | 'dealerships' | 'farmer_details' | 'login_audit';
 
 const sections: Array<{ id: Section; label: string; icon: string; capability?: string }> = [
@@ -75,7 +75,7 @@ function ProductStatus({ kind, value }: { kind: 'availability' | 'approval'; val
   const label = kind === 'approval' ? (approved ? 'Approved' : 'Pending approval') : (active ? 'Active' : 'Inactive');
   return <span className={`admin-status-pill ${kind} ${value}`}><i aria-hidden="true" />{label}</span>;
 }
-function Metric({ label, value, note, tone = 'slate' }: { label: string; value: string | number; note: string; tone?: 'slate' | 'amber' | 'green' }) { return <article className={`admin-metric ${tone}`}><p>{label}</p><strong>{value}</strong><small>{note}</small></article>; }
+function Metric({ label, value, note, tone = 'slate' }: { label: string; value: string | number; note: string; tone?: 'slate' | 'amber' | 'green' | 'red' }) { return <article className={`admin-metric ${tone}`}><p>{label}</p><strong>{value}</strong><small>{note}</small></article>; }
 function BrandLogo({ gate = false }: { gate?: boolean }) { return <Image className={gate ? 'admin-gate-logo' : 'admin-brand-logo'} src="/clsl-logo.png" alt="Crop Life Science Limited" width={gate ? 118 : 54} height={gate ? 118 : 54} priority />; }
 
 export default function AdminPortal() {
@@ -95,9 +95,9 @@ export default function AdminPortal() {
       const safe = async <T,>(path: string) => api<T>(path).catch(() => undefined);
       const [overview, products, options, approvals, inspections, models, employees, salesOfficers, farmersAnalytics, dealersAnalytics, aiCostsAnalytics, campaigns] = await Promise.all([
         safe<any>('overview'), safe<{ items: Product[] }>('catalogue/products'), safe<{ categories: string[]; crops: string[] }>('catalogue/options'), safe<{ items: Approval[] }>('approvals'), safe<{ items: any[] }>('inspections'), safe<any>('models'), safe<{ items: any[]; assignable_role_codes?: string[] }>('access/employees'), safe<any>('sales-officers'),
-        safe<any>('analytics/farmers'), safe<any>('analytics/dealers'), safe<any>('analytics/ai-costs'), safe<{ items: any[] }>('campaigns')
+        safe<any>('analytics/farmers'), safe<any>('analytics/dealers'), safe<any>('analytics/ai-costs'), safe<{ items: any[], total_spend: number }>('campaigns/analytics')
       ]);
-      setData({ overview, products: products?.items, options, approvals: approvals?.items, inspections: inspections?.items, models, employees: employees?.items, employeeRoleOptions: employees?.assignable_role_codes, salesOfficers, farmersAnalytics, dealersAnalytics, aiCostsAnalytics, campaigns: campaigns?.items });
+      setData({ overview, products: products?.items, options, approvals: approvals?.items, inspections: inspections?.items, models, employees: employees?.items, employeeRoleOptions: employees?.assignable_role_codes, salesOfficers, farmersAnalytics, dealersAnalytics, aiCostsAnalytics, campaigns: campaigns?.items, campaignsTotalSpend: campaigns?.total_spend });
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to load the private portal.'); } finally { setLoading(false); }
   }
   useEffect(() => { api<Session>('../auth/session').then((value) => { setSession(value); if (value.authenticated) void loadPortal(); }).catch(() => setSession({ configured: false, authenticated: false, session: null })); }, []);
@@ -155,7 +155,7 @@ export default function AdminPortal() {
   if (!session) return <main className="admin-loading">Opening Crop Life AI administration…</main>;
   if (!session.configured) return <SetupScreen />;
   if (!session.authenticated) return <SignInScreen mode={session.auth_mode} />;
-  return <main className="admin-shell"><aside className="admin-sidebar"><a className="admin-brand" href="/"><BrandLogo /><span><strong>Crop Life AI</strong><small>CLSL OPERATIONS PORTAL</small></span></a><p className="admin-side-label">Control room</p><nav aria-label="Administration sections">{visibleSections.map((item) => <button key={item.id} className={section === item.id ? 'selected' : ''} onClick={() => { setSection(item.id); setSelected(null); setEditorOpen(false); }}><span>{item.icon}</span>{item.label}</button>)}</nav><div className="admin-sidebar-bottom"><p>Signed in as</p><strong>{identity?.employee.full_name || session.session?.name}</strong><small>{identity?.employee.email || session.session?.email}</small><div className="admin-role-list">{identity?.employee.roles.map((role) => <Badge key={role}>{roleLabel(role)}</Badge>)}</div><form action="/api/admin/auth/logout" method="post"><button className="admin-signout" type="submit">Sign out</button></form></div></aside><section className="admin-workspace"><header className="admin-topbar"><div><p className="admin-overline">Crop Life Science Limited</p><h1>{sections.find((item) => item.id === section)?.label}</h1></div><div className="admin-top-actions"><span className="admin-private"><i />Private operational data</span><button onClick={() => void loadPortal()} disabled={loading}>{loading ? 'Refreshing all data…' : 'Refresh all data'}</button></div></header>{(notice || error) && <div className={`admin-message ${error ? 'error' : 'success'}`} role="status" aria-live="polite"><span>{error ? '!' : '✓'}</span>{error || notice}<button aria-label="Dismiss message" onClick={() => { setNotice(''); setError(''); }}>×</button></div>}{section === 'overview' && <Overview data={data} productCount={data.products?.length || 0} onCatalogue={() => setSection('catalogue')} />}{section === 'catalogue' && <Catalogue editorOpen={editorOpen} onCancel={() => setEditorOpen(false)} products={data.products || []} options={data.options} draft={draft} selected={selected} canEdit={Boolean(capabilities.submit_catalogue_changes)} canDirectStatus={Boolean(capabilities.direct_catalogue_status)} statusBusy={productStatusBusy} onEdit={editProduct} onDirectStatus={directProductStatus} onChange={updateDraft} onCrop={toggleCrop} onImageUpload={uploadProductImage} onSubmit={submitChange} />}{section === 'campaigns' && <Campaigns items={data.campaigns || []} onRefresh={loadPortal} />}{section === 'approvals' && <Approvals items={data.approvals || []} canSenior={Boolean(capabilities.review_catalogue_changes)} canMap={Boolean(capabilities.decide_crop_mappings)} canSend={Boolean(capabilities.send_catalogue_changes_to_final_publisher)} canFinal={Boolean(capabilities.finalise_catalogue_release)} onDecision={decide} />}{section === 'inspections' && <Inspections items={data.inspections || []} canDelete={Boolean(capabilities.delete_inspections)} canReview={Boolean(capabilities.view_inspections)} onDelete={removeInspection} onReview={async (id, payload) => { await api(`inspections/${id}/expert-review`, { method: 'POST', body: JSON.stringify(payload) }); void loadPortal(); }} />}{section === 'gallery' && <InspectionGallery />}{section === 'fieldforce' && <FieldForce initialData={data.salesOfficers} canManage={Boolean(capabilities.manage_employee_roles)} />}{section === 'dealerships' && <Dealerships canManage={Boolean(capabilities.manage_dealers)} canManagePortalMobile={Boolean(capabilities.manage_dealer_portal_mobile)} canArchive={Boolean(capabilities.archive_dealers)} />}{section === 'farmer_details' && <FarmerDetails />}{section === 'login_audit' && <LoginAudit />}{section === 'models' && <AutomatedModelLab data={data.models} canControl={Boolean(capabilities.control_model_pipeline)} onRefresh={loadPortal} />}{section === 'team' && <Team items={data.employees || []} roleOptions={data.employeeRoleOptions || []} canManage={Boolean(capabilities.manage_employee_roles)} onSave={saveRoles} onInvite={inviteEmployee} />}{section === 'architecture' && <SystemArchitecture />}</section></main>;
+  return <main className="admin-shell"><aside className="admin-sidebar"><a className="admin-brand" href="/"><BrandLogo /><span><strong>Crop Life AI</strong><small>CLSL OPERATIONS PORTAL</small></span></a><p className="admin-side-label">Control room</p><nav aria-label="Administration sections">{visibleSections.map((item) => <button key={item.id} className={section === item.id ? 'selected' : ''} onClick={() => { setSection(item.id); setSelected(null); setEditorOpen(false); }}><span>{item.icon}</span>{item.label}</button>)}</nav><div className="admin-sidebar-bottom"><p>Signed in as</p><strong>{identity?.employee.full_name || session.session?.name}</strong><small>{identity?.employee.email || session.session?.email}</small><div className="admin-role-list">{identity?.employee.roles.map((role) => <Badge key={role}>{roleLabel(role)}</Badge>)}</div><form action="/api/admin/auth/logout" method="post"><button className="admin-signout" type="submit">Sign out</button></form></div></aside><section className="admin-workspace"><header className="admin-topbar"><div><p className="admin-overline">Crop Life Science Limited</p><h1>{sections.find((item) => item.id === section)?.label}</h1></div><div className="admin-top-actions"><span className="admin-private"><i />Private operational data</span><button onClick={() => void loadPortal()} disabled={loading}>{loading ? 'Refreshing all data…' : 'Refresh all data'}</button></div></header>{(notice || error) && <div className={`admin-message ${error ? 'error' : 'success'}`} role="status" aria-live="polite"><span>{error ? '!' : '✓'}</span>{error || notice}<button aria-label="Dismiss message" onClick={() => { setNotice(''); setError(''); }}>×</button></div>}{section === 'overview' && <Overview data={data} productCount={data.products?.length || 0} onCatalogue={() => setSection('catalogue')} />}{section === 'catalogue' && <Catalogue editorOpen={editorOpen} onCancel={() => setEditorOpen(false)} products={data.products || []} options={data.options} draft={draft} selected={selected} canEdit={Boolean(capabilities.submit_catalogue_changes)} canDirectStatus={Boolean(capabilities.direct_catalogue_status)} statusBusy={productStatusBusy} onEdit={editProduct} onDirectStatus={directProductStatus} onChange={updateDraft} onCrop={toggleCrop} onImageUpload={uploadProductImage} onSubmit={submitChange} />}{section === 'campaigns' && <Campaigns items={data.campaigns || []} totalSpend={data.campaignsTotalSpend || 0} onRefresh={loadPortal} />}{section === 'approvals' && <Approvals items={data.approvals || []} canSenior={Boolean(capabilities.review_catalogue_changes)} canMap={Boolean(capabilities.decide_crop_mappings)} canSend={Boolean(capabilities.send_catalogue_changes_to_final_publisher)} canFinal={Boolean(capabilities.finalise_catalogue_release)} onDecision={decide} />}{section === 'inspections' && <Inspections items={data.inspections || []} canDelete={Boolean(capabilities.delete_inspections)} canReview={Boolean(capabilities.view_inspections)} onDelete={removeInspection} onReview={async (id, payload) => { await api(`inspections/${id}/expert-review`, { method: 'POST', body: JSON.stringify(payload) }); void loadPortal(); }} />}{section === 'gallery' && <InspectionGallery />}{section === 'fieldforce' && <FieldForce initialData={data.salesOfficers} canManage={Boolean(capabilities.manage_employee_roles)} />}{section === 'dealerships' && <Dealerships canManage={Boolean(capabilities.manage_dealers)} canManagePortalMobile={Boolean(capabilities.manage_dealer_portal_mobile)} canArchive={Boolean(capabilities.archive_dealers)} />}{section === 'farmer_details' && <FarmerDetails />}{section === 'login_audit' && <LoginAudit />}{section === 'models' && <AutomatedModelLab data={data.models} canControl={Boolean(capabilities.control_model_pipeline)} onRefresh={loadPortal} />}{section === 'team' && <Team items={data.employees || []} roleOptions={data.employeeRoleOptions || []} canManage={Boolean(capabilities.manage_employee_roles)} onSave={saveRoles} onInvite={inviteEmployee} />}{section === 'architecture' && <SystemArchitecture />}</section></main>;
 }
 
 function SetupScreen() { return <main className="admin-gate"><div className="admin-gate-card"><BrandLogo gate /><p className="admin-overline">Private operational portal</p><h1>Administration is not configured yet.</h1><p>Configure temporary HTTPS password access or Microsoft Entra sign-in on the private administration hostname.</p></div></main>; }
@@ -273,10 +273,12 @@ function Team({ items, roleOptions, canManage, onSave, onInvite }: {
   </div>;
 }
 
-function Campaigns({ items, onRefresh }: { items: any[]; onRefresh: () => void }) {
+function Campaigns({ items, totalSpend, onRefresh }: { items: any[]; totalSpend: number; onRefresh: () => void }) {
   const [name, setName] = useState('');
   const [discountValue, setDiscountValue] = useState('10');
   const [discountType, setDiscountType] = useState('percentage');
+  const [bulkCount, setBulkCount] = useState('100');
+  const [selectedCampaign, setSelectedCampaign] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function submit(e: FormEvent) {
@@ -294,29 +296,96 @@ function Campaigns({ items, onRefresh }: { items: any[]; onRefresh: () => void }
     }
   }
 
+  async function toggleStatus(id: string, currentStatus: string) {
+    const newStatus = currentStatus === 'active' ? 'paused' : 'active';
+    try {
+      await api(`campaigns/${id}/status`, { method: 'PUT', body: JSON.stringify({ status: newStatus }) });
+      onRefresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error updating status');
+    }
+  }
+
+  async function generateBulk(e: FormEvent) {
+    e.preventDefault();
+    if (!selectedCampaign) return alert('Select a campaign first');
+    setBusy(true);
+    try {
+      const res = await api<{generated_count: number}>(`campaigns/${selectedCampaign}/bulk-generate`, { method: 'POST', body: JSON.stringify({ count: Number(bulkCount) }) });
+      alert(`Successfully generated ${res.generated_count} coupons!`);
+      onRefresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error generating coupons');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const activeCount = items.filter(i => i.status === 'active').length;
+  const totalIssued = items.reduce((acc, curr) => acc + (curr.total_issued || 0), 0);
+  const totalRedeemed = items.reduce((acc, curr) => acc + (curr.total_redeemed || 0), 0);
+
   return (
     <div className="admin-content">
       <div className="admin-list-toolbar">
         <div><p className="admin-overline">Farmer acquisition</p><h2>Marketing Campaigns</h2></div>
       </div>
+      
+      <div className="admin-metric-grid" style={{ marginBottom: '24px' }}>
+        <Metric label="Total Spend (INR)" value={`₹${Number(totalSpend || 0).toFixed(2)}`} note="Across all redemptions" tone={Number(totalSpend || 0) > 50000 ? "red" : "amber"} />
+        <Metric label="Coupons Redeemed" value={totalRedeemed} note={`${totalIssued} total issued`} tone="green" />
+        <Metric label="Active Campaigns" value={activeCount} note="Currently running" tone="slate" />
+      </div>
+
       <div className="admin-two-column">
-        <form className="admin-panel" onSubmit={submit}>
-          <h3>Create new campaign</h3>
-          <label>Campaign Name<input value={name} onChange={e=>setName(e.target.value)} required minLength={2} /></label>
-          <label>Discount Type<select value={discountType} onChange={e=>setDiscountType(e.target.value)}><option value="percentage">Percentage (%)</option><option value="fixed_amount">Fixed Amount (₹)</option></select></label>
-          <label>Discount Value<input type="number" min="1" step="0.5" value={discountValue} onChange={e=>setDiscountValue(e.target.value)} required /></label>
-          <button className="admin-primary" disabled={busy}>{busy ? 'Saving...' : 'Create Campaign'}</button>
-        </form>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <form className="admin-panel" onSubmit={submit}>
+            <h3>Create New Campaign</h3>
+            <label>Campaign Name<input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Welcome" required minLength={2} /></label>
+            <div style={{ display: 'flex', gap: '16px' }}>
+              <label style={{ flex: 1 }}>Discount Type<select value={discountType} onChange={e=>setDiscountType(e.target.value)}><option value="percentage">Percentage (%)</option><option value="fixed_amount">Fixed Amount (₹)</option></select></label>
+              <label style={{ flex: 1 }}>Value<input type="number" min="1" step="0.5" value={discountValue} onChange={e=>setDiscountValue(e.target.value)} required /></label>
+            </div>
+            <button className="admin-primary" disabled={busy} style={{ marginTop: '16px' }}>{busy ? 'Saving...' : 'Create Campaign'}</button>
+          </form>
+          
+          <form className="admin-panel" onSubmit={generateBulk}>
+            <h3>Bulk Generate Coupons</h3>
+            <p className="admin-side-label" style={{ marginBottom: '16px' }}>Generate unique 7-character secure codes for an existing campaign.</p>
+            <label>Select Campaign
+              <select value={selectedCampaign} onChange={e=>setSelectedCampaign(e.target.value)} required>
+                <option value="">-- Choose Campaign --</option>
+                {items.map(c => <option key={c.campaign_id} value={c.campaign_id}>{c.name}</option>)}
+              </select>
+            </label>
+            <label>Number of Coupons<input type="number" min="1" max="5000" value={bulkCount} onChange={e=>setBulkCount(e.target.value)} required /></label>
+            <button className="admin-secondary" disabled={busy || !selectedCampaign} style={{ marginTop: '16px' }}>{busy ? 'Generating...' : 'Generate Codes'}</button>
+          </form>
+        </div>
+
         <div className="admin-panel">
-          <h3>Active Campaigns</h3>
+          <h3>Campaign Analytics</h3>
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Name</th><th>Discount</th><th>Status</th></tr></thead>
+              <thead><tr><th>Campaign</th><th>Stats</th><th>Spend</th><th>Status / Action</th></tr></thead>
               <tbody>
-                {items.map(c => <tr key={c.id}><td>{c.name}</td><td>{c.discount_value}{c.discount_type === 'percentage' ? '%' : '₹'}</td><td><Badge tone={c.status === 'active' ? 'green' : 'slate'}>{c.status}</Badge></td></tr>)}
+                {items.map(c => (
+                  <tr key={c.campaign_id}>
+                    <td><b>{c.name}</b><small>{c.discount_value}{c.discount_type === 'percentage' ? '%' : '₹'} off</small></td>
+                    <td><b>{c.total_redeemed || 0} availed</b><small>{(c.total_issued || 0) - (c.total_redeemed || 0)} remaining</small></td>
+                    <td><b>₹{Number(c.total_spend || 0).toFixed(2)}</b></td>
+                    <td>
+                      <Badge tone={c.status === 'active' ? 'green' : 'slate'}>{c.status}</Badge>
+                      <button className="admin-secondary" onClick={() => toggleStatus(c.campaign_id, c.status)} style={{ marginTop: '8px', padding: '4px 8px', fontSize: '11px' }}>
+                        {c.status === 'active' ? 'Disable' : 'Activate'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
+          {!items.length && <p className="admin-empty">No campaigns found.</p>}
         </div>
       </div>
     </div>

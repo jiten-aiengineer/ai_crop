@@ -28,6 +28,52 @@ def _new_short_referral_code() -> str:
     return "".join(secrets.choice(_REFERRAL_ALPHABET) for _ in range(7))
 
 
+def _new_coupon_code() -> str:
+    """Generate the exact seven-character, hard-to-guess coupon format."""
+    return "".join(secrets.choice(_REFERRAL_ALPHABET) for _ in range(7))
+
+
+def _issue_welcome_coupon(conn, farmer_id) -> None:
+    """Issue at most one welcome coupon after a profile becomes a farmer."""
+    campaign = conn.execute(
+        """SELECT id,end_date FROM campaigns
+           WHERE status='active' AND start_date<=now()
+             AND (end_date IS NULL OR end_date>=now())
+             AND (lower(name)='welcome' OR COALESCE(rules->>'audience','')='new_farmer')
+           ORDER BY CASE WHEN COALESCE(rules->>'audience','')='new_farmer' THEN 0 ELSE 1 END,
+                    created_at DESC LIMIT 1"""
+    ).fetchone()
+    if not campaign:
+        return
+    existing = conn.execute(
+        "SELECT 1 FROM coupons WHERE campaign_id=%s AND farmer_id=%s LIMIT 1",
+        (campaign["id"], farmer_id),
+    ).fetchone()
+    if existing:
+        return
+    claimed = conn.execute(
+        """UPDATE coupons SET farmer_id=%s,status='issued',issued_at=now(),
+                              expires_at=COALESCE(expires_at,%s)
+           WHERE id=(SELECT id FROM coupons
+                     WHERE campaign_id=%s AND farmer_id IS NULL AND status='available'
+                     ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1)
+           RETURNING id""",
+        (farmer_id, campaign["end_date"], campaign["id"]),
+    ).fetchone()
+    if claimed:
+        return
+    for _ in range(12):
+        inserted = conn.execute(
+            """INSERT INTO coupons(code,campaign_id,farmer_id,status,issued_at,expires_at)
+               VALUES(%s,%s,%s,'issued',now(),%s)
+               ON CONFLICT(code) DO NOTHING RETURNING id""",
+            (_new_coupon_code(), campaign["id"], farmer_id, campaign["end_date"]),
+        ).fetchone()
+        if inserted:
+            return
+    raise HTTPException(503, "A welcome coupon could not be generated. Please try again.")
+
+
 class SendOtpPayload(BaseModel):
     mobile_number: str = Field(pattern=r"^\+?[1-9]\d{9,14}$")
     # A dealer code is only supplied by the private dealer onboarding path.  It
@@ -44,6 +90,10 @@ class VerifyOtpPayload(BaseModel):
 class DealerLookupPayload(BaseModel):
     dealer_code: str = Field(min_length=2, max_length=64)
     mobile_number: Optional[str] = Field(default=None, pattern=r"^\+?[1-9]\d{9,14}$")
+
+
+class DealerMobileStatusPayload(BaseModel):
+    mobile_number: str = Field(pattern=r"^\+?[1-9]\d{9,14}$")
 
 
 class ReferralLookupPayload(BaseModel):
@@ -162,6 +212,26 @@ def dealer_lookup(payload: DealerLookupPayload):
     dealer["registered_mobile"] = registered_mobile
     dealer["mobile_matches"] = mobile_matches
     return {"status": "success", "dealer": dealer}
+
+
+@router.post("/dealer-mobile-status")
+def dealer_mobile_status(payload: DealerMobileStatusPayload):
+    """Privately decide whether onboarding should expose dealer verification.
+
+    The public response deliberately contains no dealership identity or contact
+    data. Those details are returned only after the person supplies the CLSL
+    dealer code that belongs to the recognised mobile number.
+    """
+    digits = "".join(character for character in payload.mobile_number if character.isdigit())[-10:]
+    with connection() as conn:
+        row = conn.execute(
+            """SELECT 1 FROM dealers
+               WHERE status='active'
+                 AND right(regexp_replace(COALESCE(NULLIF(portal_mobile_number,''), contact_number, ''), '[^0-9]', '', 'g'), 10)=%s
+               LIMIT 1""",
+            (digits,),
+        ).fetchone()
+    return {"status": "success", "is_registered_dealer": bool(row)}
 
 
 @router.post("/referral-lookup")
@@ -306,6 +376,8 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
              json.dumps(payload.location_metadata),payload.location_consent,
              referral_dealer_id,referral_dealer_id,verified_dealer_id,json.dumps(metadata),user["id"]),
         ).fetchone()
+        if payload.role == "farmer":
+            _issue_welcome_coupon(conn, user["id"])
         conn.commit()
     return {"status": "success", "user": _public_user(updated)}
 
@@ -353,3 +425,40 @@ def logout(authorization: str = Header(...)):
         conn.execute("UPDATE public_sessions SET revoked_at=now() WHERE session_token=%s", (token,))
         conn.commit()
     return {"status": "success"}
+
+@router.post("/me/coupons")
+def get_my_coupons(authorization: str = Header(...)):
+    with connection() as conn:
+        user = _session_user(conn, authorization)
+        if user.get("role") != "farmer":
+            raise HTTPException(403, "Farmer access is required to view coupons.")
+        conn.execute(
+            """UPDATE coupons SET status='expired'
+               WHERE farmer_id=%s AND status IN ('available','issued')
+                 AND expires_at IS NOT NULL AND expires_at<now()""",
+            (user["id"],),
+        )
+        coupons = conn.execute("""
+            SELECT 
+                c.id, c.code, c.status, c.issued_at, COALESCE(c.expires_at,cp.end_date) AS expires_at,
+                cp.name as campaign_name, cp.discount_type, cp.discount_value, cp.end_date
+            FROM coupons c
+            JOIN campaigns cp ON cp.id = c.campaign_id
+            WHERE c.farmer_id = %s
+            ORDER BY c.issued_at DESC NULLS LAST
+        """, (user["id"],)).fetchall()
+        conn.commit()
+        
+        redemptions = conn.execute("""
+            SELECT 
+                cr.id, cr.redeemed_at, cr.amount_redeemed,
+                c.code, cp.name as campaign_name, d.name as dealer_name
+            FROM coupon_redemptions cr
+            JOIN coupons c ON c.id = cr.coupon_id
+            JOIN campaigns cp ON cp.id = c.campaign_id
+            JOIN dealers d ON d.id = cr.dealer_id
+            WHERE c.farmer_id = %s
+            ORDER BY cr.redeemed_at DESC
+        """, (user["id"],)).fetchall()
+        
+    return {"coupons": coupons, "redemptions": redemptions}

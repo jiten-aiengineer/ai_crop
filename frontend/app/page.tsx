@@ -13,8 +13,9 @@ import { DealerPortal } from './components/DealerPortal';
 import salesContactData from './data/sales-contacts.json';
 import type { FieldIdentity } from './lib/field-access';
 import { reverseGeocode } from './lib/device-location';
+import QRCode from 'react-qr-code';
 
-type View = 'home' | 'inspect' | 'assistant' | 'products' | 'tools' | 'history';
+type View = 'home' | 'inspect' | 'assistant' | 'products' | 'tools' | 'history' | 'coupons';
 type Diagnosis = {
   crop: string; crop_confidence: number | null; issue_detected: boolean; issue_type: string; likely_issue: string;
   confidence: number; observed_symptoms: string[]; alternative_possibilities: string[];
@@ -378,7 +379,8 @@ export default function Home() {
     {view === 'products' && <Products products={approvedCatalogue || []} loading={approvedCatalogue === null} unavailable={catalogueUnavailable} initialQuery={productQuery} onQuery={setProductQuery} openProduct={setSelectedProduct} t={t} />}
     {view === 'tools' && <FarmTools language={language} />}
     {view === 'history' && <HistoryView history={history} openResult={(savedResult) => { setResult(savedResult); nav('inspect'); }} nav={nav} clear={() => { setHistory([]); localStorage.removeItem(HISTORY_KEY); }} t={t} />}
-    <MobileNav view={view} nav={nav} t={t} />
+    {view === 'coupons' && <CouponsView sessionToken={publicSession.token} t={t} />}
+    <MobileNav view={view} nav={nav} t={t} role={publicSession.user?.role || (fieldSession.employee ? 'field_employee' : 'general_user')} />
     <PwaInstall label={t.installApp} iosHelp={t.iosInstallHelp} />
     <div className="app-sprayer-footer"><SprayerScene /></div><footer><img src="/clsl-logo.png" alt="Crop Life Science Limited" /><div><b>{t.productOf}</b></div><button onClick={() => nav('home')}>{t.home} ↑</button></footer>
     {selectedProduct && <ProductModal product={selectedProduct} close={() => setSelectedProduct(null)} nav={nav} t={t} />}
@@ -607,10 +609,81 @@ function ProfileModal({ profile, save, close, logout, sessionToken, publicRole, 
   return <div className="modal-backdrop" role="dialog" aria-modal="true"><form className="profile-modal contact-profile" onSubmit={(event) => { event.preventDefault(); save(draft); }}><button type="button" className="modal-close" onClick={close}>×</button><span className="profile-avatar">{initials(draft.name)}</span><h2>{fieldIdentity ? t.fieldOfficerProfile : t.profile}</h2><p>{fieldIdentity ? t.fieldProfileStored : t.profilePrivacy}</p>{fieldIdentity && <section className="field-profile-card"><small>{t.fieldOfficialIdentity}</small><b>{fieldIdentity.full_name} · {fieldIdentity.employee_code}</b><p>{fieldIdentity.designation || t.fieldSalesOfficer} · {fieldIdentity.department || 'CLSL'}</p><dl><div><dt>{t.territory}</dt><dd>{fieldIdentity.territory}, {fieldIdentity.state}</dd></div><div><dt>{t.officialContact}</dt><dd>{fieldIdentity.office_email || fieldIdentity.office_mobile || '—'}</dd></div></dl></section>}<div className="profile-fields"><label>{t.name}<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required readOnly={Boolean(fieldIdentity)} /></label><label>{t.preferredLanguage}<select value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value as LanguageCode })}>{languages.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label><label>Role<select value={draft.role || 'General User'} onChange={(event) => setDraft({ ...draft, role: event.target.value })}><option>Farmer</option><option>Dealer</option><option>General User</option></select></label>{draft.role === 'Farmer' && <label>Primary Crop<input value={draft.crop || ''} onChange={(event) => setDraft({ ...draft, crop: event.target.value })} /></label>}</div><section className="contact-directory"><div className="contact-title"><span>☎</span><div><small>{t.contactSales}</small><h3>{t.areaContact}</h3><p>{t.contactHelp}</p></div></div><div className="contact-location-grid"><label>{t.state}<select value={draft.state} disabled={Boolean(fieldIdentity)} onChange={(event) => setDraft({ ...draft, state: event.target.value, territory: '', city: '' })}><option value="">{t.chooseState}</option>{states.map((state) => <option key={state}>{state}</option>)}</select></label><label>{t.territory}<select value={draft.territory} disabled={Boolean(fieldIdentity) || !draft.state} onChange={(event) => changeTerritory(event.target.value)}><option value="">{t.chooseTerritory}</option>{territories.map((territory) => <option key={territory}>{territory}</option>)}</select></label><label>{t.city}<select value={draft.city} disabled={Boolean(fieldIdentity) || !draft.territory} onChange={(event) => setDraft({ ...draft, city: event.target.value })}><option value="">{t.chooseCity}</option>{cities.map((city) => <option key={city}>{city}</option>)}</select></label></div>{draft.state && draft.territory ? <div className="contact-results">{matches.map((contact) => <article key={`${contact.email}-${contact.territory}`}><span className="contact-avatar">{initials(contact.name)}</span><div><small>{t.officialContact}</small><b>{contact.name}</b><p>{contact.designation} · {contact.territory}</p></div><ContactButtons contact={contact} message={`${t.whatsappGreeting} ${draft.city || draft.territory}. ${t.whatsappHelp}`} t={t} /></article>)}</div> : <p className="no-area-contact">{t.noAreaContact}</p>}<p className="directory-privacy">✓ {t.directoryPrivacy}</p></section><button className="primary-button">{t.saveProfile}</button>{logout && <section className="profile-session-actions"><div><b>{t.logout}</b><small>{t.logoutHelp}</small></div><button type="button" onClick={() => void logout()}>↪ {t.logout}</button></section>}</form></div>;
 }
 
-function MobileNav({ view, nav, t }: { view: View; nav: (view: View) => void; t: Copy }) { return <nav className="mobile-nav" aria-label="Mobile navigation"><button className={view === 'home' ? 'active' : ''} onClick={() => nav('home')}><span>⌂</span>{t.home}</button><button className={view === 'assistant' ? 'active' : ''} onClick={() => nav('assistant')}><span>✦</span>{t.assistant}</button><button className="camera" onClick={() => nav('inspect')} aria-label={t.navInspect}><span>＋</span></button><button className={view === 'tools' ? 'active' : ''} onClick={() => nav('tools')}><span>⚖</span>{t.navTools}</button><button className={view === 'products' ? 'active' : ''} onClick={() => nav('products')}><span>◫</span>{t.navProducts}</button></nav>; }
+function MobileNav({ view, nav, t, role }: { view: View; nav: (view: View) => void; t: Copy; role?: string }) { return <nav className="mobile-nav" aria-label="Mobile navigation"><button className={view === 'home' ? 'active' : ''} onClick={() => nav('home')}><span>⌂</span>{t.home}</button><button className={view === 'assistant' ? 'active' : ''} onClick={() => nav('assistant')}><span>✦</span>{t.assistant}</button><button className="camera" onClick={() => nav('inspect')} aria-label={t.navInspect}><span>＋</span></button><button className={view === 'products' ? 'active' : ''} onClick={() => nav('products')}><span>◫</span>{t.navProducts}</button>{role === 'farmer' ? <button className={view === 'coupons' ? 'active' : ''} onClick={() => nav('coupons')}><span>🎟️</span>Coupons</button> : <button className={view === 'tools' ? 'active' : ''} onClick={() => nav('tools')}><span>⌁</span>{t.navTools}</button>}</nav>; }
 
 function DealerReferralBanner({ token }: { token:string }) {
   const [link,setLink]=useState(''); const [busy,setBusy]=useState(false); const [error,setError]=useState('');
   const generate=async()=>{setBusy(true);setError('');try{const response=await fetch('/api/auth/dealer-referral',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:'{}'});const data=await readApiResponse<{download_url?:string;detail?:string}>(response);if(!response.ok||!data.download_url)throw new Error(data.detail||'Unable to create referral link.');setLink(data.download_url);}catch(problem){setError(problem instanceof Error?problem.message:'Unable to create referral link.');}finally{setBusy(false);}};
   return <section className="dealer-referral-banner"><div><small>CLSL DEALER TOOL</small><b>Invite farmers with your referral code</b><p>Farmers using this link are securely associated with your dealership.</p></div>{link?<div className="dealer-referral-link"><code>{link}</code><button type="button" onClick={()=>void navigator.clipboard.writeText(link)}>Copy link</button></div>:<button type="button" onClick={()=>void generate()} disabled={busy}>{busy?'Creating…':'Generate referral code'}</button>}{error&&<p className="form-error">{error}</p>}</section>;
+}
+
+function CouponsView({ sessionToken, t }: { sessionToken: string; t: Copy }) {
+  type Coupon = { id:string; code:string; status:string; issued_at?:string; expires_at?:string; campaign_name:string; discount_type:'percentage'|'fixed_amount'; discount_value:number };
+  type Redemption = { id:string; redeemed_at:string; amount_redeemed:number; code:string; campaign_name:string; dealer_name:string };
+  const [data, setData] = useState<{coupons: Coupon[], redemptions: Redemption[]} | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!sessionToken) {
+      setLoading(false);
+      setError('Please sign in to view your coupons.');
+      return;
+    }
+    fetch('/api/auth/me/coupons', { method:'POST', headers: { 'content-type':'application/json', authorization: `Bearer ${sessionToken}` }, body:'{}' })
+      .then(async res => {
+        const body = await readApiResponse<{coupons:Coupon[];redemptions:Redemption[];detail?:string}>(res);
+        if (!res.ok) throw new Error(body.detail || 'Failed to load coupons');
+        return body;
+      })
+      .then(body => {
+        setData(body);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err instanceof Error ? err.message : 'Error loading coupons');
+        setLoading(false);
+      });
+  }, [sessionToken]);
+
+  return <section className="workspace coupons-view">
+    <PageTitle eyebrow="Rewards" title="My Coupons" text="View and manage your active discounts" />
+    {loading ? <div className="empty-state"><span>◌</span><h3>Loading...</h3><p>Fetching your latest rewards</p></div> : 
+     error ? <div className="empty-state"><span>!</span><h3>Error</h3><p>{error}</p></div> :
+     !data?.coupons.length && !data?.redemptions.length ? <div className="empty-state"><span>🎟️</span><h3>No Coupons Yet</h3><p>Complete purchases or sign up during campaigns to earn rewards.</p></div> :
+     <div className="coupons-container">
+       {data.coupons.length > 0 && <div className="active-coupons">
+         <h3>Active Coupons</h3>
+         <div className="coupon-grid">
+           {data.coupons.map(c => (
+             <article key={c.id} className={`coupon-card ${c.status}`}>
+               <header><small>CLSL FARMER REWARD</small><h4>{c.campaign_name}</h4><strong>{c.discount_type === 'percentage' ? `${c.discount_value}% OFF` : `₹${c.discount_value} OFF`}</strong></header>
+               <div className="coupon-qr"><QRCode value={c.code} size={116} aria-label={`QR code for coupon ${c.code}`}/></div>
+               <code>{c.code}</code>
+               {c.expires_at && <p>Valid until {new Date(c.expires_at).toLocaleDateString()}</p>}
+             </article>
+           ))}
+         </div>
+       </div>}
+       
+       {data.redemptions.length > 0 && <div className="past-redemptions">
+         <h3>Past Redemptions</h3>
+         <div className="redemption-list">
+           {data.redemptions.map(r => (
+             <article key={r.id} className="redemption-row">
+               <div>
+                 <strong>{r.campaign_name}</strong>
+                 <p>Redeemed at {r.dealer_name}</p>
+               </div>
+               <div>
+                 <strong>₹{r.amount_redeemed} saved</strong>
+                 <p>{new Date(r.redeemed_at).toLocaleDateString()}</p>
+               </div>
+             </article>
+           ))}
+         </div>
+       </div>}
+     </div>
+    }
+  </section>;
 }
