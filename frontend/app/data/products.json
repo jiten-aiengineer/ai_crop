@@ -11,15 +11,15 @@
     "sourcePage": 15,
     "catalogCrops": [
       "Paddy",
-      "Cotton",
-      "Potato",
       "Tomato",
-      "Chili",
-      "Brinjal",
+      "Cotton",
       "Onion",
-      "Garlic",
+      "Papaya",
+      "Chili",
+      "Potato",
+      "Brinjal",
       "Grapes",
-      "Papaya"
+      "Garlic"
     ],
     "approvedCrops": [
       "Paddy",
@@ -117,9 +117,9 @@
       "Paddy",
       "Cotton",
       "Potato",
+      "Soybean",
       "Onion",
-      "Garlic",
-      "Soybean"
+      "Garlic"
     ],
     "approvedCrops": [
       "Paddy",
@@ -188,15 +188,15 @@
     "catalogCrops": [
       "Paddy",
       "Cotton",
-      "Groundnut",
-      "Sugarcane",
-      "Wheat",
       "Tomato",
-      "Chili",
-      "Onion",
-      "Soybean",
       "Turmeric",
-      "Blackgram"
+      "Blackgram",
+      "Sugarcane",
+      "Chili",
+      "Soybean",
+      "Onion",
+      "Groundnut",
+      "Wheat"
     ],
     "approvedCrops": [
       "Paddy",
@@ -364,8 +364,8 @@
     "sourcePage": 7,
     "catalogCrops": [
       "Paddy",
-      "Cotton",
-      "Sugarcane"
+      "Sugarcane",
+      "Cotton"
     ],
     "approvedCrops": [
       "Cotton",
@@ -414,13 +414,13 @@
     "image": "/products/bio-prahar.jpg",
     "sourcePage": 8,
     "catalogCrops": [
-      "Cotton",
-      "Tea"
+      "Tea",
+      "Cotton"
     ],
     "approvedCrops": [
       "Grapes",
-      "roses",
-      "and apples"
+      "Rose",
+      "Apple"
     ],
     "cropMappingSource": "CLSL manager-approved CIB crop update"
   },
@@ -524,13 +524,13 @@
     "sourcePage": 9,
     "catalogCrops": [
       "Paddy",
-      "Wheat",
-      "Potato",
       "Tomato",
+      "Apple",
       "Chili",
+      "Potato",
       "Onion",
       "Grapes",
-      "Apple"
+      "Wheat"
     ],
     "approvedCrops": [
       "Sugarcane",
@@ -647,8 +647,8 @@
     "image": "/products/interex.jpg",
     "sourcePage": 10,
     "catalogCrops": [
-      "Cotton",
-      "Groundnut"
+      "Groundnut",
+      "Cotton"
     ],
     "approvedCrops": [
       "Cotton",
@@ -924,8 +924,8 @@
     "image": "/products/suforty-90.jpg",
     "sourcePage": 19,
     "catalogCrops": [
-      "Sugarcane",
       "Onion",
+      "Sugarcane",
       "Garlic",
       "Pulses"
     ],
@@ -967,9 +967,9 @@
     "image": "/products/feramitoz.jpg",
     "sourcePage": 18,
     "catalogCrops": [
-      "Cotton",
       "Chili",
       "Grapes",
+      "Cotton",
       "Mango"
     ],
     "approvedCrops": [
@@ -1137,9 +1137,9 @@
     "image": "/products/chhalang.jpg",
     "sourcePage": 20,
     "catalogCrops": [
+      "Corn",
       "Sugarcane",
-      "Maize",
-      "Corn"
+      "Maize"
     ],
     "approvedCrops": [
       "Maize"
@@ -1331,10 +1331,10 @@
     "sourcePage": 22,
     "catalogCrops": [
       "Paddy",
-      "Wheat",
       "Maize",
+      "Tea",
       "Sorghum",
-      "Tea"
+      "Wheat"
     ],
     "approvedCrops": [
       "Wheat",
@@ -1358,9 +1358,9 @@
     "image": "/products/mesopower.jpg",
     "sourcePage": 22,
     "catalogCrops": [
+      "Corn",
       "Sugarcane",
-      "Maize",
-      "Corn"
+      "Maize"
     ],
     "approvedCrops": [
       "Sugarcane",
@@ -1485,10 +1485,10 @@
     "sourcePage": 23,
     "catalogCrops": [
       "Cotton",
-      "Groundnut",
-      "Onion",
+      "Gram",
       "Soybean",
-      "Gram"
+      "Onion",
+      "Groundnut"
     ],
     "approvedCrops": [
       "Soybean",

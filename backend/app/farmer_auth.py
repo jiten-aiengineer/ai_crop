@@ -17,10 +17,23 @@ from pydantic import BaseModel, Field, field_validator
 
 from .config import PUBLIC_AUTH_MODE, PUBLIC_AUTH_TOKEN_PEPPER, PUBLIC_SESSION_DAYS, PUBLIC_TEST_OTP
 from .db import connection
+from indic_transliteration import detect
+from indic_transliteration.sanscript import transliterate, ITRANS
 
 router = APIRouter(prefix="/api/v1/public/auth", tags=["public_auth"])
 PublicRole = Literal["general_user", "farmer", "dealer", "other"]
 _REFERRAL_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+def _to_english(text: str | None) -> str | None:
+    if not text:
+        return text
+    try:
+        script = detect.detect(text)
+        if script and script not in ['itrans', 'hk', 'iast']:
+            return transliterate(text, script, ITRANS).lower().title()
+        return text
+    except Exception:
+        return text
 
 
 def _new_short_referral_code() -> str:
@@ -135,6 +148,7 @@ class ProfilePayload(BaseModel):
     role: PublicRole
     first_name: str = Field(min_length=2, max_length=180)
     last_name: str = Field(min_length=1, max_length=180)
+    date_of_birth: Optional[str] = None
     preferred_language: str = Field(default="en", pattern=r"^(en|hi|gu|mr|bn|bho)$")
     email: Optional[str] = Field(default=None, max_length=255)
     city: Optional[str] = Field(default=None, max_length=120)
@@ -392,7 +406,7 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
             verified_dealer_id = dealer["id"]
         metadata = {"dealer_code": payload.dealer_code, "referral_code": payload.referral_code, "profile_completed_at": datetime.now(timezone.utc).isoformat()}
         updated = conn.execute(
-            """UPDATE farmers SET role=%s,name=%s,last_name=%s,preferred_language=%s,email=%s,city=%s,district=%s,
+            """UPDATE farmers SET role=%s,name=%s,last_name=%s,date_of_birth=%s,preferred_language=%s,email=%s,city=%s,district=%s,
                  village=%s,state=%s,social_media_used=%s::jsonb,acquisition_source=%s,
                  location_latitude=%s,location_longitude=%s,location_label=%s,
                  location_postcode=%s,location_country=%s,location_accuracy_meters=%s,location_metadata=%s::jsonb,
@@ -400,8 +414,18 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
                  acquisition_dealer_id=COALESCE(acquisition_dealer_id,%s),preferred_dealer_id=COALESCE(%s,preferred_dealer_id),
                  verified_dealer_id=%s,profile_metadata=profile_metadata || %s::jsonb,updated_at=now()
                WHERE id=%s RETURNING *""",
-            (payload.role,payload.first_name.strip(),payload.last_name.strip(),payload.preferred_language,payload.email,payload.city,payload.district,
-             payload.village,payload.state,json.dumps(payload.social_media_used),payload.acquisition_source,
+            (payload.role,
+             _to_english(payload.first_name.strip()),
+             _to_english(payload.last_name.strip()),
+             payload.date_of_birth,
+             payload.preferred_language,
+             payload.email,
+             _to_english(payload.city),
+             _to_english(payload.district),
+             _to_english(payload.village),
+             _to_english(payload.state),
+             json.dumps(payload.social_media_used),
+             payload.acquisition_source,
              payload.location_latitude,payload.location_longitude,payload.location_label,
              payload.location_postcode,payload.location_country,payload.location_accuracy_meters,
              json.dumps(payload.location_metadata),payload.location_consent,
@@ -499,3 +523,21 @@ def get_my_coupons(authorization: str = Header(...)):
         """, (user["id"],)).fetchall()
         
     return {"coupons": coupons, "redemptions": redemptions}
+
+@router.post("/me/inspections")
+def get_my_inspections(authorization: str = Header(...)):
+    with connection() as conn:
+        user = _session_user(conn, authorization)
+        
+        inspections = conn.execute("""
+            SELECT 
+                i.id, i.farmer_crop_text, i.plant_text, i.symptom_notes,
+                i.status, i.completed_at, i.photo_count, i.diagnosis_confidence,
+                p.issue_name, p.severity
+            FROM inspections i
+            LEFT JOIN ai_predictions p ON p.inspection_id = i.id AND p.prediction_role = 'primary'
+            WHERE i.farmer_id = %s
+            ORDER BY i.created_at DESC
+        """, (user["id"],)).fetchall()
+        
+    return {"inspections": inspections}

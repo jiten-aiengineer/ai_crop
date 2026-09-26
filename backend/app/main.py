@@ -780,3 +780,59 @@ def persist_inspection(
         "stored_images": len(payload.storage.images),
         "shadow_status": ";".join(shadow_states),
     }
+
+
+@app.get('/api/i18n/login')
+def get_i18n_login(lang: str = "en"):
+    """Fetch localized strings for the login screen."""
+    fallback = {
+        "welcomeTitle": "Welcome!",
+        "welcomeSub": "I am your smart crop doctor, ready to help.",
+        "welcome": "Welcome to CLSL AI",
+        "choose": "Choose your language",
+        "account": "Join CLSL AI",
+        "intro": "Unlock AI crop care, weather, products, rewards, and offers.",
+        "firstName": "First name",
+        "lastName": "Last name",
+        "mobile": "Mobile number",
+        "details": "Complete your login",
+        "farmer": "Farmer",
+        "dealer": "CLSL Dealer",
+        "farmerBenefitTitle": "CLSL Farmer Benefits",
+        "farmerBenefitText": "Farmers get offers and coupons on CLSL products. Get a referral code from your nearest CLSL dealer.",
+        "dealerRecognised": "Dealer Mobile Recognised",
+        "dealerRecognisedHelp": "Enter your CLSL dealer code to verify dealership.",
+        "dealerCode": "Dealer Code",
+        "referralCode": "Dealer Referral Code",
+        "scanQr": "Scan Referral QR",
+        "orEnterCode": "Or enter 7-letter code",
+        "verify": "Verify",
+        "verified": "Verified",
+        "confirmDealer": "Confirm Dealership Details",
+        "dealerConfirmed": "✓ Details verified",
+        "otpButton": "Continue with OTP",
+        "otpTitle": "Verify Mobile",
+        "otpHelp": "TEST MODE: Enter 123456.",
+        "otp": "6-digit OTP",
+        "enter": "Enter CLSL AI",
+        "back": "Back",
+        "continue": "Continue",
+        "wait": "Please wait...",
+        "required": "Complete required fields.",
+        "test": "Test login",
+        "cityTerritory": "City / Territory",
+        "owner": "Owner",
+        "registeredMobile": "Registered Mobile",
+        "mobileWarning": "This dealership is registered to another number.",
+        "selectOne": "Select one",
+        "requiredField": "Required"
+    }
+    if lang == "en":
+        return fallback
+    try:
+        data = json.loads((Path(__file__).parent / "i18n_login.json").read_text(encoding="utf-8"))
+        if lang in data:
+            return data[lang]
+    except Exception:
+        pass
+    return fallback
