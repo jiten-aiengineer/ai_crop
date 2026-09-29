@@ -7,14 +7,64 @@ The legacy explicit dealer_id path is retained for admin tool use.
 
 from __future__ import annotations
 
+import json
+import re
+from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter, Header, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .db import connection
 
 router = APIRouter(prefix="/api/v1/coupons", tags=["coupons"])
+
+_COUPON_CODE_PATTERN = re.compile(r"^[A-HJ-NP-Z2-9]{7}$")
+
+
+def _normalise_coupon_code(raw_value: str) -> str:
+    """Extract the canonical seven-character CLSL coupon code.
+
+    Current app QRs contain the plain code.  URL and JSON payload support is
+    intentionally accepted as well so older/newer app builds interoperate.
+    Dealer-referral URLs (``?ref=``) are not treated as coupons.
+    """
+    value = (raw_value or "").strip()
+    if not value:
+        raise HTTPException(400, "Coupon code is required.")
+
+    candidates: list[str] = [value]
+    try:
+        decoded = json.loads(value)
+        if isinstance(decoded, dict):
+            candidates.extend(
+                str(decoded.get(key) or "")
+                for key in ("coupon_code", "coupon", "code")
+            )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        pass
+
+    try:
+        parsed = urlparse(value)
+        if parsed.scheme and parsed.netloc:
+            query = parse_qs(parsed.query)
+            for key in ("coupon_code", "coupon", "code"):
+                candidates.extend(query.get(key, []))
+            if parsed.path:
+                candidates.append(parsed.path.rstrip("/").split("/")[-1])
+    except ValueError:
+        pass
+
+    for candidate in candidates:
+        normalised = candidate.strip().upper()
+        if _COUPON_CODE_PATTERN.fullmatch(normalised):
+            return normalised
+
+    raise HTTPException(
+        400,
+        "This QR is not a valid CLSL coupon. Scan the coupon shown in the farmer's Rewards screen.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -49,40 +99,103 @@ def _resolve_dealer_id_from_session(conn, token: str) -> str:
 
 
 def _fetch_and_validate_coupon(conn, coupon_code: str) -> dict:
-    """Fetch coupon by code, validate it is available and not expired."""
+    """Fetch a farmer coupon and validate campaign and coupon eligibility."""
+    normalised_code = _normalise_coupon_code(coupon_code)
     coupon = conn.execute(
-        """SELECT c.id, c.status, c.expires_at,
-                  cp.discount_value, cp.discount_type, cp.name AS campaign_name
+        """SELECT c.id, c.code, c.status, c.expires_at, c.farmer_id,
+                  cp.discount_value, cp.discount_type, cp.name AS campaign_name,
+                  cp.status AS campaign_status, cp.start_date, cp.end_date, cp.rules
            FROM coupons c
            JOIN campaigns cp ON c.campaign_id = cp.id
            WHERE c.code = %s""",
-        (coupon_code.strip().upper(),),
+        (normalised_code,),
     ).fetchone()
 
     if not coupon:
         raise HTTPException(404, "Coupon code not found. Please check and try again.")
+    if not coupon["farmer_id"]:
+        raise HTTPException(400, "This coupon has not been issued to a farmer yet.")
+    if coupon["campaign_status"] != "active":
+        raise HTTPException(400, "This coupon campaign is currently paused or closed.")
+    now = datetime.now(timezone.utc)
+    if coupon["start_date"] > now:
+        raise HTTPException(400, "This coupon campaign has not started yet.")
+    if coupon["end_date"] and coupon["end_date"] < now:
+        raise HTTPException(400, "This coupon campaign has ended.")
     if coupon["status"] not in {"available", "issued"}:
         raise HTTPException(
             400,
             f"This coupon has already been used or is not available. Status: {coupon['status']}",
         )
-    if coupon["expires_at"]:
-        valid = conn.execute(
-            "SELECT (expires_at > now()) AS is_valid FROM coupons WHERE id = %s",
-            (coupon["id"],),
-        ).fetchone()
-        if not valid["is_valid"]:
-            raise HTTPException(400, "This coupon has expired.")
+    if coupon["expires_at"] and coupon["expires_at"] <= now:
+        raise HTTPException(400, "This coupon has expired.")
     return coupon
 
 
-def _do_redeem(conn, coupon_id, dealer_id: str, purchase_reference: Optional[str], amount_redeemed: Optional[float]):
-    """Mark coupon as redeemed and insert redemption record."""
-    conn.execute("UPDATE coupons SET status='redeemed' WHERE id = %s", (coupon_id,))
+def _validate_purchase_scope(rules: dict, product_name: Optional[str], packing: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    allowed_products = [str(item).strip() for item in (rules.get("products") or []) if str(item).strip()]
+    allowed_packings = [str(item).strip() for item in (rules.get("packings") or []) if str(item).strip()]
+
+    chosen_product = (product_name or "").strip()
+    chosen_packing = (packing or "").strip()
+    if allowed_products:
+        if not chosen_product:
+            raise HTTPException(400, "Select the purchased CLSL product before redeeming this coupon.")
+        if chosen_product.casefold() not in {item.casefold() for item in allowed_products}:
+            raise HTTPException(400, "This coupon is not valid for the selected product.")
+    if allowed_packings:
+        if not chosen_packing:
+            raise HTTPException(400, "Select the purchased pack size before redeeming this coupon.")
+        if chosen_packing.casefold() not in {item.casefold() for item in allowed_packings}:
+            raise HTTPException(400, "This coupon is not valid for the selected pack size.")
+    return chosen_product or None, chosen_packing or None
+
+
+def _redemption_amount(coupon: dict, purchase_amount: Optional[float]) -> float:
+    discount_value = float(coupon["discount_value"] or 0)
+    if coupon["discount_type"] == "percentage":
+        if purchase_amount is None or purchase_amount <= 0:
+            raise HTTPException(400, "Enter the bill amount to redeem a percentage coupon.")
+        amount = purchase_amount * discount_value / 100
+        maximum = float((coupon.get("rules") or {}).get("max_discount") or 0)
+        if maximum:
+            amount = min(amount, maximum)
+        return round(min(amount, purchase_amount), 2)
+    if purchase_amount is not None and purchase_amount > 0:
+        return round(min(discount_value, purchase_amount), 2)
+    return round(discount_value, 2)
+
+
+def _do_redeem(
+    conn,
+    coupon_id,
+    dealer_id: str,
+    purchase_reference: Optional[str],
+    amount_redeemed: float,
+    product_name: Optional[str],
+    packing: Optional[str],
+):
+    """Atomically redeem a coupon and insert exactly one ledger record."""
+    updated = conn.execute(
+        """UPDATE coupons SET status='redeemed'
+           WHERE id=%s AND status IN ('available','issued')
+           RETURNING id""",
+        (coupon_id,),
+    ).fetchone()
+    if not updated:
+        raise HTTPException(409, "This coupon was already redeemed. Refresh the statement to see the entry.")
+    reference_parts = []
+    if purchase_reference:
+        reference_parts.append(purchase_reference.strip())
+    if product_name:
+        reference_parts.append(f"Product: {product_name}")
+    if packing:
+        reference_parts.append(f"Pack: {packing}")
+    ledger_reference = " | ".join(reference_parts)[:120] or None
     conn.execute(
         """INSERT INTO coupon_redemptions (coupon_id, dealer_id, purchase_reference, amount_redeemed)
            VALUES (%s, %s, %s, %s)""",
-        (coupon_id, dealer_id, purchase_reference, amount_redeemed),
+        (coupon_id, dealer_id, ledger_reference, amount_redeemed),
     )
     conn.commit()
 
@@ -108,12 +221,7 @@ def validate_coupon(
         # Validates that it's available and not expired
         coupon = _fetch_and_validate_coupon(conn, coupon_code)
         
-        cp = conn.execute(
-            "SELECT cp.rules FROM coupons c JOIN campaigns cp ON c.campaign_id = cp.id WHERE c.id = %s",
-            (coupon["id"],)
-        ).fetchone()
-
-        rules_dict = cp["rules"] if cp and cp["rules"] else {}
+        rules_dict = coupon.get("rules") or {}
         
         details = []
         if rules_dict.get("products"):
@@ -128,17 +236,23 @@ def validate_coupon(
 
     return {
         "status": "success",
-        "coupon_code": coupon_code.strip().upper(),
+        "coupon_code": coupon["code"],
         "campaign_name": coupon["campaign_name"],
         "discount_value": float(coupon["discount_value"]) if coupon["discount_value"] else 0,
         "discount_type": coupon["discount_type"],
-        "criteria": criteria
+        "criteria": criteria,
+        "products": rules_dict.get("products") or [],
+        "packings": rules_dict.get("packings") or [],
+        "requires_purchase_amount": coupon["discount_type"] == "percentage",
     }
 
 
 class RedeemCouponPayload(BaseModel):
-    coupon_code: str
-    purchase_reference: Optional[str] = None
+    coupon_code: str = Field(min_length=1, max_length=2048)
+    purchase_reference: Optional[str] = Field(default=None, max_length=120)
+    purchase_amount: Optional[float] = Field(default=None, gt=0)
+    product_name: Optional[str] = Field(default=None, max_length=180)
+    packing: Optional[str] = Field(default=None, max_length=120)
 
 
 @router.post("/redeem")
@@ -158,16 +272,23 @@ def redeem_coupon(
         token = authorization[7:].strip()
         dealer_id = _resolve_dealer_id_from_session(conn, token)
         coupon = _fetch_and_validate_coupon(conn, payload.coupon_code)
-        amount = float(coupon["discount_value"]) if coupon["discount_value"] else None
-        _do_redeem(conn, coupon["id"], dealer_id, payload.purchase_reference, amount)
+        product_name, packing = _validate_purchase_scope(
+            coupon.get("rules") or {}, payload.product_name, payload.packing
+        )
+        amount = _redemption_amount(coupon, payload.purchase_amount)
+        _do_redeem(
+            conn, coupon["id"], dealer_id, payload.purchase_reference,
+            amount, product_name, packing,
+        )
 
     return {
         "status": "success",
         "message": "Coupon redeemed successfully.",
-        "coupon_code": payload.coupon_code.strip().upper(),
+        "coupon_code": coupon["code"],
         "campaign_name": coupon["campaign_name"],
         "discount_value": float(coupon["discount_value"]) if coupon["discount_value"] else 0,
         "discount_type": coupon["discount_type"],
+        "amount_redeemed": amount,
     }
 
 
@@ -181,6 +302,8 @@ class AdminRedeemCouponPayload(BaseModel):
     dealer_id: str
     purchase_reference: Optional[str] = None
     amount_redeemed: Optional[float] = None
+    product_name: Optional[str] = None
+    packing: Optional[str] = None
 
 
 @router.post("/admin/redeem")
@@ -205,9 +328,15 @@ def admin_redeem_coupon(
             raise HTTPException(404, "Active dealer not found.")
 
         coupon = _fetch_and_validate_coupon(conn, payload.coupon_code)
+        product_name, packing = _validate_purchase_scope(
+            coupon.get("rules") or {}, payload.product_name, payload.packing
+        )
+        amount = payload.amount_redeemed
+        if amount is None:
+            amount = _redemption_amount(coupon, None)
         _do_redeem(
             conn, coupon["id"], payload.dealer_id,
-            payload.purchase_reference, payload.amount_redeemed,
+            payload.purchase_reference, amount, product_name, packing,
         )
 
     return {

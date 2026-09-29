@@ -55,7 +55,14 @@ def _campaign_matches_farmer(campaign: dict, farmer: dict) -> bool:
         allowed = values(rule_key)
         if allowed and str(farmer.get(farmer_key) or "").strip().casefold() not in allowed:
             return False
-    if rules.get("audience") == "random":
+    audience = str(rules.get("audience") or "all_farmers")
+    campaign_type = str(rules.get("campaign_type") or "general")
+    if audience == "new_farmer" or campaign_type == "welcome":
+        farmer_created_at = farmer.get("created_at")
+        campaign_start = campaign.get("start_date")
+        if not farmer_created_at or not campaign_start or farmer_created_at < campaign_start:
+            return False
+    if audience == "random":
         percentage = max(1, min(100, int(rules.get("random_percentage") or 10)))
         bucket = int(hashlib.sha256(f'{campaign["id"]}:{farmer["id"]}'.encode()).hexdigest()[:8], 16) % 100
         if bucket >= percentage:

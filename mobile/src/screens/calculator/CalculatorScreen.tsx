@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, TextInput, View, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, TextInput, View, ScrollView, ActivityIndicator, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppColors, MobileScreen, shared } from '../../components/MobileScreen';
 import { getCatalogue, CatalogProduct } from '../../services/api';
@@ -116,7 +116,7 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
                 <View style={styles.unitDrop}>
                   {['Acre', 'Hectare', 'Bigha'].map(u => (
                     <TouchableOpacity key={u} style={styles.unitDropItem} onPress={() => { setAreaUnit(u); setShowUnitDrop(false); }}>
-                      <Text style={[styles.searchItemTitle, areaUnit === u && { color: AppColors.green }]}>{u}</Text>
+                      <Text style={[styles.inputFlex, areaUnit === u && { color: AppColors.green }]}>{u}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -127,69 +127,91 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
           </View>
 
           <View style={styles.card}>
-            <View style={[styles.inputGroup, { zIndex: 10 }]}>
+            <View style={styles.inputGroup}>
               <Text style={styles.label}>CLSL product</Text>
-
-            <View style={[styles.searchBoxWrapper, isDropdownOpen && styles.searchBoxWrapperActive]}>
-              <Ionicons name="search" size={18} color={AppColors.muted} style={{ marginLeft: 16 }} />
-              <TextInput 
-                value={search} 
-                onChangeText={(t) => { setSearch(t); setIsDropdownOpen(true); }} 
-                onFocus={() => setIsDropdownOpen(true)}
-                placeholder={selectedProduct ? selectedProduct.name : "Search products or crops..."} 
-                placeholderTextColor={selectedProduct ? AppColors.ink : AppColors.muted}
-                style={styles.searchInput} 
-              />
-              {search.length > 0 && (
-                <TouchableOpacity onPress={() => setSearch('')} style={{ padding: 10 }}>
-                  <Ionicons name="close-circle" size={18} color={AppColors.muted} />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={() => setIsDropdownOpen(!isDropdownOpen)} style={{ padding: 10, paddingRight: 16 }}>
-                <Ionicons name={isDropdownOpen ? "chevron-up" : "chevron-down"} size={20} color={AppColors.muted} />
+              
+              <TouchableOpacity 
+                style={styles.productSelectorBtn} 
+                onPress={() => setIsDropdownOpen(true)}
+              >
+                {selectedProduct ? (
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: AppColors.ink }}>{selectedProduct.name}</Text>
+                    <Text style={{ fontSize: 12, color: AppColors.muted, marginTop: 2 }}>{selectedProduct.category}</Text>
+                  </View>
+                ) : (
+                  <Text style={{ fontSize: 16, color: AppColors.muted, flex: 1 }}>Select a product...</Text>
+                )}
+                <Ionicons name="search" size={20} color={AppColors.green} />
               </TouchableOpacity>
             </View>
 
-            {loading ? <ActivityIndicator color={AppColors.green} style={{ marginTop: 10 }} /> : (
-              (isDropdownOpen || search.length > 0) && (
-                <View style={styles.searchResults}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 12 }} style={{ borderBottomWidth: 1, borderBottomColor: '#F0F4F8' }}>
-                    {categories.map(c => (
-                      <TouchableOpacity 
-                        key={c} 
-                        onPress={() => setSelectedCategory(c)}
-                        style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 24, backgroundColor: selectedCategory === c ? AppColors.green : '#F0F4F8', marginRight: 10 }}
-                      >
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: selectedCategory === c ? '#FFF' : '#8294A0' }}>{c}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                  
-                  {filteredProducts.length === 0 ? (
-                    <Text style={{ padding: 16, color: '#8294A0', textAlign: 'center', fontSize: 13, fontWeight: '700' }}>No products found in this category.</Text>
-                  ) : (
-                    filteredProducts.map(p => (
-                      <TouchableOpacity 
-                        key={p.id} 
-                        style={styles.searchItem} 
-                        onPress={() => {
-                          selectProduct(p);
-                          setSearch('');
-                          setIsDropdownOpen(false);
-                          setSelectedCategory('All');
-                        }}
-                      >
-                        <Text style={styles.searchItemTitle}>
-                          {p.name} {p.category && <Text style={{fontWeight: 'normal', color: AppColors.muted}}>({p.category})</Text>}
-                        </Text>
-                        <Text style={styles.searchItemSub}>Crops: {(p.approvedCrops||[]).slice(0,3).join(', ')}</Text>
-                      </TouchableOpacity>
-                    ))
-                  )}
-                </View>
-              )
-            )}
+          <Modal visible={isDropdownOpen} animationType="slide" onRequestClose={() => setIsDropdownOpen(false)}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={() => setIsDropdownOpen(false)} style={{ padding: 8 }}>
+                  <Ionicons name="close" size={28} color={AppColors.ink} />
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>Select Product</Text>
+                <View style={{ width: 44 }} />
+              </View>
+
+              <View style={styles.modalSearchBox}>
+                <Ionicons name="search" size={20} color={AppColors.muted} />
+                <TextInput 
+                  value={search} 
+                  onChangeText={setSearch} 
+                  placeholder="Search by name, crop, or category..." 
+                  style={styles.modalSearchInput}
+                  autoFocus 
+                />
+                {search.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearch('')}>
+                    <Ionicons name="close-circle" size={20} color={AppColors.muted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 10 }}>
+                  {categories.map(c => (
+                    <TouchableOpacity 
+                      key={c} 
+                      onPress={() => setSelectedCategory(c)}
+                      style={[styles.categoryPill, selectedCategory === c && styles.categoryPillActive]}
+                    >
+                      <Text style={[styles.categoryPillText, selectedCategory === c && styles.categoryPillTextActive]}>{c}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
+                {loading ? <ActivityIndicator color={AppColors.green} size="large" style={{ marginTop: 40 }} /> : 
+                 filteredProducts.length === 0 ? (
+                  <Text style={{ textAlign: 'center', marginTop: 40, color: AppColors.muted, fontSize: 16 }}>No products found.</Text>
+                ) : (
+                  filteredProducts.map(p => (
+                    <TouchableOpacity 
+                      key={p.id} 
+                      style={styles.modalProductItem} 
+                      onPress={() => {
+                        selectProduct(p);
+                        setIsDropdownOpen(false);
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.modalProductName}>{p.name}</Text>
+                        <Text style={styles.modalProductCat}>{p.category} • {p.formulation}</Text>
+                        <Text style={styles.modalProductCrops} numberOfLines={1}>{p.approvedCrops?.join(', ')}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color={AppColors.muted} />
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
             </View>
+          </Modal>
 
           <View style={styles.row}>
             <View style={styles.inputGroup}>
@@ -296,14 +318,25 @@ const styles = StyleSheet.create({
 
   helpText: { fontSize: 12, color: '#8294A0', lineHeight: 18, marginTop: 24 },
 
-  searchBoxWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E8EEF2', borderRadius: 12, marginTop: 8 },
-  searchBoxWrapperActive: { borderWidth: 2, borderColor: AppColors.green },
-  searchInput: { flex: 1, paddingVertical: 16, paddingHorizontal: 12, fontSize: 16, color: '#102A43', fontWeight: '800' },
-
-  searchResults: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E8EEF2', borderRadius: 12, marginTop: 12, overflow: 'hidden' },
-  searchItem: { padding: 14, borderBottomWidth: 1, borderBottomColor: '#F0F4F8' },
-  searchItemTitle: { fontWeight: '700', color: '#102A43', fontSize: 14 },
-  searchItemSub: { fontSize: 11, color: '#8294A0', marginTop: 4 },
+  // Product Selector Button
+  productSelectorBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#E8EEF2' },
+  
+  // Modal Styles
+  modalContainer: { flex: 1, backgroundColor: '#F8FBF3' },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingTop: 60, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E8EEF2' },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: AppColors.ink },
+  modalSearchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', margin: 16, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: '#E8EEF2', height: 50 },
+  modalSearchInput: { flex: 1, marginLeft: 12, fontSize: 16, color: AppColors.ink },
+  
+  categoryPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 24, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E8EEF2' },
+  categoryPillActive: { backgroundColor: AppColors.green, borderColor: AppColors.green },
+  categoryPillText: { fontSize: 14, fontWeight: '700', color: AppColors.muted },
+  categoryPillTextActive: { color: '#FFF' },
+  
+  modalProductItem: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FFF', marginHorizontal: 16, marginBottom: 8, borderRadius: 12, borderWidth: 1, borderColor: '#E8EEF2' },
+  modalProductName: { fontSize: 16, fontWeight: '800', color: AppColors.ink },
+  modalProductCat: { fontSize: 13, color: AppColors.muted, marginTop: 4, fontWeight: '600' },
+  modalProductCrops: { fontSize: 12, color: AppColors.muted, marginTop: 2 },
 
   resultCard: { backgroundColor: '#FFF', borderRadius: 16, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
   tankList: { padding: 20 },

@@ -13,6 +13,8 @@ import WeatherScreen from '../screens/weather/WeatherScreen';
 import AssistantScreen from '../screens/assistant/AssistantScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import DealerHomeScreen from '../screens/dealer/DealerHomeScreen';
+import DealerRedeemScreen from '../screens/dealer/DealerRedeemScreen';
+import DealerFarmersScreen from '../screens/dealer/DealerFarmersScreen';
 import HistoryScreen from '../screens/history/HistoryScreen';
 import * as SplashScreen from 'expo-splash-screen';
 
@@ -21,10 +23,10 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 const PRIMARY = '#3e7025';   // green — matches website's --green variable
 const MUTED = '#94a096';     // muted green-grey — matches website's muted text
 
-type Tab = 'home' | 'inspect' | 'products' | 'coupons' | 'profile';
+type Tab = 'home' | 'inspect' | 'products' | 'coupons' | 'profile' | 'redeem' | 'farmers';
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
-const TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: IoniconName }[] = [
+const FARMER_TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: IoniconName }[] = [
   { id: 'home', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
   { id: 'inspect', label: 'Inspect', icon: 'leaf-outline', activeIcon: 'leaf' },
   { id: 'products', label: 'Products', icon: 'grid-outline', activeIcon: 'grid' },
@@ -32,11 +34,19 @@ const TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: IoniconName
   { id: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
 ];
 
-function BottomTabBar({ active, onPress }: { active: Tab; onPress: (tab: Tab) => void }) {
+const DEALER_TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: IoniconName }[] = [
+  { id: 'home', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
+  { id: 'redeem', label: 'Redeem', icon: 'scan-outline', activeIcon: 'scan' },
+  { id: 'farmers', label: 'Farmers', icon: 'people-outline', activeIcon: 'people' },
+  { id: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
+];
+
+function BottomTabBar({ active, onPress, role }: { active: Tab; onPress: (tab: Tab) => void; role: string | undefined }) {
   const insets = useSafeAreaInsets();
+  const tabs = role === 'dealer' ? DEALER_TABS : FARMER_TABS;
   return (
     <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-      {TABS.map(tab => {
+      {tabs.map(tab => {
         const isActive = active === tab.id;
         return (
           <TouchableOpacity
@@ -136,6 +146,8 @@ function AppContent() {
       case 'inspect': return <InspectScreen onBack={goHome} />;
       case 'products': return <ProductsScreen onBack={goHome} />;
       case 'coupons': return <CouponsScreen onBack={goHome} />;
+      case 'redeem': return <DealerRedeemScreen onBack={goHome} />;
+      case 'farmers': return <DealerFarmersScreen onBack={goHome} />;
       case 'profile': return (
         <ProfileScreen onNavigate={handleNavigate} />
       );
@@ -148,7 +160,7 @@ function AppContent() {
       <View style={{ flex: 1 }}>
         {renderScreen()}
       </View>
-      <BottomTabBar active={activeTab} onPress={(tab) => { setSubScreen(null); setActiveTab(tab); }} />
+      <BottomTabBar active={activeTab} onPress={(tab) => { setSubScreen(null); setActiveTab(tab); }} role={user?.role} />
     </View>
   );
 }

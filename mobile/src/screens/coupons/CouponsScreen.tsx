@@ -31,13 +31,23 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
       setLoading(false);
       return;
     }
-    getMyCoupons(token).then(r => setCoupons(r.coupons.map((x, i) => ({
-      code: String(x.code || `CLSL${i + 1}`),
-      title: String(x.campaign_name || x.title || 'CLSL product reward'),
-      discount: x.discount_type === 'percentage' ? `${x.discount_value}% OFF` : `₹${x.discount_value || 0} OFF`,
-      expires: String(x.valid_until || 'See offer terms'),
-      status: (x.status === 'redeemed' ? 'used' : 'available') as Coupon['status']
-    })))).catch(() => setCoupons([])).finally(() => setLoading(false));
+    getMyCoupons(token).then(r => {
+      const available = r.coupons.map((x, i) => ({
+        code: String(x.code || `CLSL${i + 1}`),
+        title: String(x.campaign_name || x.title || 'CLSL product reward'),
+        discount: x.discount_type === 'percentage' ? `${x.discount_value}% OFF` : `₹${x.discount_value || 0} OFF`,
+        expires: x.expires_at ? new Date(String(x.expires_at)).toLocaleDateString('en-IN') : 'See offer terms',
+        status: 'available' as const,
+      }));
+      const used = r.redemptions.map((x, i) => ({
+        code: String(x.code || `USED${i + 1}`),
+        title: String(x.campaign_name || 'CLSL product reward'),
+        discount: `₹${Number(x.amount_redeemed || 0).toFixed(2)} SAVED`,
+        expires: x.redeemed_at ? `Redeemed ${new Date(String(x.redeemed_at)).toLocaleDateString('en-IN')}` : 'Redeemed',
+        status: 'used' as const,
+      }));
+      setCoupons([...available, ...used]);
+    }).catch(() => setCoupons([])).finally(() => setLoading(false));
   }, [token, user?.role]);
 
   const doUpgrade = () => {
@@ -75,8 +85,8 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
           <Text style={[shared.body, { textAlign: 'center', marginHorizontal: 20 }]}>
             Rewards, offers, and coupons are available exclusively for registered farmers.
           </Text>
-          <TouchableOpacity style={[shared.button, { marginTop: 20 }]} onPress={() => setIsUpgrading(true)}>
-            <Text style={shared.buttonText}>I am a farmer</Text>
+          <TouchableOpacity style={[shared.primary, { marginTop: 20 }]} onPress={() => setIsUpgrading(true)}>
+            <Text style={shared.primaryText}>I am a farmer</Text>
           </TouchableOpacity>
         </View>
       </MobileScreen>
@@ -128,8 +138,8 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={[shared.button, { marginTop: 24 }]} onPress={doUpgrade}>
-              <Text style={shared.buttonText}>Submit & Upgrade</Text>
+            <TouchableOpacity style={[shared.primary, { marginTop: 24 }]} onPress={doUpgrade}>
+              <Text style={shared.primaryText}>Submit & Upgrade</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -142,7 +152,7 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
             <View style={styles.camFrame}>
               {isCameraOpen && (
                 <CameraView
-                  style={StyleSheet.absoluteFillObject}
+                  style={StyleSheet.absoluteFill}
                   facing="back"
                   onBarcodeScanned={handleBarcodeScanned}
                   barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
@@ -195,14 +205,12 @@ function CouponItem({ coupon: c }: { coupon: any }) {
       <View style={{ flex: 1 }}>
         <Text style={styles.discount}>{c.discount}</Text>
         <Text style={styles.couponTitle}>{c.title}</Text>
-        <Text style={styles.expiry}>Valid until {c.expires}</Text>
+        <Text style={styles.expiry}>{c.status === 'used' ? c.expires : `Valid until ${c.expires}`}</Text>
       </View>
       <View style={styles.codeBox}>
-        <TouchableOpacity style={styles.revealBtn} onPress={() => setRevealed(true)}>
-          <Text style={styles.revealBtnText}>Generate Coupon</Text>
-        </TouchableOpacity>
+        {c.status === 'used' ? <View style={styles.usedBadge}><Ionicons name="checkmark-circle" size={18} color={AppColors.green}/><Text style={styles.usedBadgeText}>Used</Text></View> : <TouchableOpacity style={styles.revealBtn} onPress={() => setRevealed(true)}><Text style={styles.revealBtnText}>View Coupon</Text></TouchableOpacity>}
       </View>
-      <Modal visible={revealed} transparent animationType="fade">
+      <Modal visible={revealed && c.status !== 'used'} transparent animationType="fade">
         <View style={styles.qrModalOverlay}>
           <View style={styles.qrModalBox}>
             <TouchableOpacity style={styles.qrCloseBtn} onPress={() => setRevealed(false)}>
@@ -240,6 +248,8 @@ const styles = StyleSheet.create({
   code: { color: AppColors.blue, fontWeight: '900', fontSize: 12 }, 
   revealBtn: { backgroundColor: AppColors.blue, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
   revealBtnText: { color: '#FFF', fontSize: 10, fontWeight: '800', textAlign: 'center' },
+  usedBadge: { alignItems: 'center', gap: 3 },
+  usedBadgeText: { color: AppColors.green, fontSize: 10, fontWeight: '900' },
   
   qrModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   qrModalBox: { backgroundColor: '#F8FBF3', borderRadius: 24, padding: 24, alignItems: 'center', width: '100%' },

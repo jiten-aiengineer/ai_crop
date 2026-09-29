@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   },
   notes: {
     fontSize: 13,
-    color: AppColors.textSub,
+    color: AppColors.muted,
     marginTop: 12,
     fontStyle: 'italic',
   }

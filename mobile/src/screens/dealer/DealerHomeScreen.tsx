@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Image, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator, StatusBar, Dimensions, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Image, Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, StatusBar, Dimensions, Platform } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../contexts/AuthContext';
@@ -57,6 +57,12 @@ export default function DealerHomeScreen({onNavigate}:{onNavigate:(s:string)=>vo
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [scannedData, setScannedData] = useState<any>(null);
+  const [purchaseAmount, setPurchaseAmount] = useState('');
+  const [purchaseReference, setPurchaseReference] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState('');
+  const [selectedPacking, setSelectedPacking] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
+  const scanLocked = useRef(false);
   
   useEffect(()=>{if(token)getDealerDashboard(token).then(setDashboard).catch(()=>{})},[token]);
   const openReferral=async()=>{setShowReferral(true);if(token&&!referral)getDealerReferral(token).then(setReferral).catch(()=>{})};
@@ -69,10 +75,13 @@ export default function DealerHomeScreen({onNavigate}:{onNavigate:(s:string)=>vo
         return;
       }
     }
+    scanLocked.current = false;
     setIsCameraOpen(true);
   };
 
   const handleBarcodeScanned = async ({ data }: { data: string }) => {
+    if (scanLocked.current) return;
+    scanLocked.current = true;
     setIsCameraOpen(false);
     
     if (!token) return;
@@ -83,17 +92,38 @@ export default function DealerHomeScreen({onNavigate}:{onNavigate:(s:string)=>vo
       const offer = response.discount_type === "percentage" ? `${response.discount_value}% OFF` : `₹${response.discount_value} OFF`;
       
       setScannedData({
-        code: data,
+        code: response.coupon_code,
         type,
         offer,
-        criteria: response.criteria
+        criteria: response.criteria,
+        products: response.products || [],
+        packings: response.packings || [],
+        requiresPurchaseAmount: response.requires_purchase_amount,
       });
+      setPurchaseAmount('');
+      setPurchaseReference('');
+      setSelectedProduct(response.products?.length === 1 ? response.products[0] : '');
+      setSelectedPacking(response.packings?.length === 1 ? response.packings[0] : '');
     } catch (e: any) {
-      Alert.alert("Invalid Coupon", e.message || "Failed to validate coupon.");
+      const title = e?.status === 401 || e?.status === 403 ? 'Dealer sign-in required' : e?.status >= 500 ? 'Coupon service unavailable' : 'Coupon not accepted';
+      Alert.alert(title, e.message || "Failed to validate coupon.");
     }
   };
 
   const processRedemption = () => {
+    if (scannedData?.products?.length && !selectedProduct) {
+      Alert.alert('Select product', 'Select the CLSL product purchased by the farmer.');
+      return;
+    }
+    if (scannedData?.packings?.length && !selectedPacking) {
+      Alert.alert('Select pack size', 'Select the pack size purchased by the farmer.');
+      return;
+    }
+    const numericPurchaseAmount = purchaseAmount.trim() ? Number(purchaseAmount) : undefined;
+    if (scannedData?.requiresPurchaseAmount && (!numericPurchaseAmount || numericPurchaseAmount <= 0)) {
+      Alert.alert('Enter bill amount', 'The purchase amount is required to calculate this percentage discount.');
+      return;
+    }
     Alert.alert(
       "Confirm Redemption",
       `Are you sure you want to redeem this offer? This action cannot be undone.`,
@@ -103,15 +133,24 @@ export default function DealerHomeScreen({onNavigate}:{onNavigate:(s:string)=>vo
           text: "Yes, Redeem", 
           style: "destructive",
           onPress: async () => {
-            if (!token || !scannedData) return;
+            if (!token || !scannedData || redeeming) return;
+            setRedeeming(true);
             try {
-              await redeemCoupon(token, scannedData.code);
-              Alert.alert("Success", "Redemption logged successfully.");
+              const result = await redeemCoupon(token, scannedData.code, {
+                purchaseReference: purchaseReference.trim() || undefined,
+                purchaseAmount: numericPurchaseAmount,
+                productName: selectedProduct || undefined,
+                packing: selectedPacking || undefined,
+              });
+              const recordedAmount = Number(result.amount_redeemed ?? result.discount_value ?? 0);
+              Alert.alert("Coupon redeemed", `₹${recordedAmount.toFixed(2)} discount recorded successfully.`);
               setScannedData(null);
               // Refresh dashboard
               getDealerDashboard(token).then(setDashboard).catch(()=>{});
             } catch (e: any) {
               Alert.alert("Redemption Failed", e.message || "Failed to redeem coupon.");
+            } finally {
+              setRedeeming(false);
             }
           }
         }
@@ -315,7 +354,7 @@ export default function DealerHomeScreen({onNavigate}:{onNavigate:(s:string)=>vo
               <Text style={s.scannedTitle}>{scannedData?.type || 'Coupon'} Scanned</Text>
             </View>
             
-            <View style={s.scannedBody}>
+            <ScrollView style={s.scannedBody} contentContainerStyle={s.scannedBodyContent} keyboardShouldPersistTaps="handled">
               <Text style={s.scannedLabel}>COUPON CODE</Text>
               <Text style={s.scannedValue}>{scannedData?.code}</Text>
               
@@ -331,14 +370,24 @@ export default function DealerHomeScreen({onNavigate}:{onNavigate:(s:string)=>vo
                   <Text style={s.criteriaText}>{scannedData?.criteria}</Text>
                 </View>
               </View>
-            </View>
+              {!!scannedData?.products?.length && <View style={s.redeemField}>
+                <Text style={s.redeemFieldLabel}>PURCHASED PRODUCT</Text>
+                <View style={s.choiceWrap}>{scannedData.products.map((product: string) => <TouchableOpacity key={product} style={[s.choiceChip,selectedProduct===product&&s.choiceChipOn]} onPress={()=>setSelectedProduct(product)}><Text style={[s.choiceChipText,selectedProduct===product&&s.choiceChipTextOn]}>{product}</Text></TouchableOpacity>)}</View>
+              </View>}
+              {!!scannedData?.packings?.length && <View style={s.redeemField}>
+                <Text style={s.redeemFieldLabel}>PACK SIZE</Text>
+                <View style={s.choiceWrap}>{scannedData.packings.map((packing: string) => <TouchableOpacity key={packing} style={[s.choiceChip,selectedPacking===packing&&s.choiceChipOn]} onPress={()=>setSelectedPacking(packing)}><Text style={[s.choiceChipText,selectedPacking===packing&&s.choiceChipTextOn]}>{packing}</Text></TouchableOpacity>)}</View>
+              </View>}
+              {scannedData?.requiresPurchaseAmount&&<View style={s.redeemField}><Text style={s.redeemFieldLabel}>BILL AMOUNT (₹)</Text><TextInput style={s.redeemInput} value={purchaseAmount} onChangeText={setPurchaseAmount} keyboardType="decimal-pad" placeholder="Enter purchase amount"/></View>}
+              <View style={s.redeemField}><Text style={s.redeemFieldLabel}>BILL / INVOICE NUMBER (OPTIONAL)</Text><TextInput style={s.redeemInput} value={purchaseReference} onChangeText={setPurchaseReference} placeholder="Enter reference" autoCapitalize="characters"/></View>
+            </ScrollView>
 
             <View style={s.scannedActions}>
               <TouchableOpacity style={s.scannedBtnCancel} onPress={() => setScannedData(null)}>
                 <Text style={s.scannedBtnCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.scannedBtnRedeem} onPress={processRedemption}>
-                <Text style={s.scannedBtnRedeemText}>Redeem Offer</Text>
+              <TouchableOpacity style={[s.scannedBtnRedeem,redeeming&&s.buttonDisabled]} disabled={redeeming} onPress={processRedemption}>
+                <Text style={s.scannedBtnRedeemText}>{redeeming?'Redeeming…':'Redeem Offer'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -482,11 +531,12 @@ const s = StyleSheet.create({
 
   // Scan modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 20 },
-  scannedCard: { backgroundColor: '#FFF', borderRadius: 24, overflow: 'hidden', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 },
+  scannedCard: { backgroundColor: '#FFF', borderRadius: 24, overflow: 'hidden', maxHeight: '92%', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 },
   scannedHeader: { backgroundColor: C.green, padding: 24, alignItems: 'center', gap: 10 },
   scannedIconWrapper: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   scannedTitle: { fontSize: 20, fontWeight: '900', color: '#FFF' },
-  scannedBody: { padding: 28 },
+  scannedBody: { flexShrink: 1 },
+  scannedBodyContent: { padding: 28 },
   scannedLabel: { fontSize: 11, color: C.muted, fontWeight: '800', letterSpacing: 0.8 },
   scannedValue: { fontSize: 22, color: C.ink, fontWeight: '900', marginTop: 4, letterSpacing: 2 },
   divider: { height: 1, backgroundColor: C.line, marginVertical: 18 },
@@ -494,10 +544,19 @@ const s = StyleSheet.create({
   criteriaBox: { backgroundColor: '#F0F7FB', padding: 16, borderRadius: 14, marginTop: 24, flexDirection: 'row', gap: 12, borderWidth: 1, borderColor: '#DCECF5' },
   criteriaTitle: { color: '#064878', fontWeight: '800', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 },
   criteriaText: { color: '#0A62A3', fontSize: 14, marginTop: 6, lineHeight: 20, fontWeight: '500' },
+  redeemField: { marginTop: 16 },
+  redeemFieldLabel: { fontSize: 10, color: C.muted, fontWeight: '900', letterSpacing: 0.7, marginBottom: 7 },
+  redeemInput: { borderWidth: 1, borderColor: C.line, backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 13, minHeight: 46, color: C.ink, fontSize: 14 },
+  choiceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  choiceChip: { borderWidth: 1, borderColor: C.line, backgroundColor: '#FFF', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  choiceChipOn: { borderColor: C.green, backgroundColor: C.pale },
+  choiceChipText: { color: C.muted, fontSize: 12, fontWeight: '700' },
+  choiceChipTextOn: { color: C.greenDark },
   
   scannedActions: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.line, backgroundColor: '#FAFAFA' },
   scannedBtnCancel: { flex: 1, padding: 20, alignItems: 'center', borderRightWidth: 1, borderRightColor: C.line },
   scannedBtnCancelText: { color: C.muted, fontWeight: '800', fontSize: 16 },
   scannedBtnRedeem: { flex: 1, padding: 20, alignItems: 'center', backgroundColor: '#FFF' },
+  buttonDisabled: { opacity: 0.55 },
   scannedBtnRedeemText: { color: C.green, fontWeight: '900', fontSize: 16 }
 });

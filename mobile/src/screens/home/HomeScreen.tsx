@@ -97,7 +97,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (screen: strin
   const flatListRef = useRef<FlatList>(null);
   const [facts, setFacts] = useState<FarmingFact[]>([]);
   const [currentFactIndex, setCurrentFactIndex] = useState(0);
-  const scrollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedFact, setSelectedFact] = useState<FarmingFact | null>(null);
 
@@ -549,7 +549,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8,
     alignSelf: 'flex-start',
   },
-  heroBtnText: { fontSize: 11, fontWeight: '800', color: C.ink },
   heroBtnText: { fontSize: 11, fontWeight: '800', color: C.ink },
 
   // Live stats bar

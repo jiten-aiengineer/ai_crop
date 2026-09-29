@@ -272,8 +272,8 @@ export default function LoginScreen() {
       });
       await login(verified.session_token, {
         id: verified.user.id,
-        first_name: data?.user?.first_name || firstName,
-        last_name: data?.user?.last_name || lastName,
+        first_name: (data?.user?.first_name as string) || firstName,
+        last_name: (data?.user?.last_name as string) || lastName,
         mobile_number: verified.user.mobile_number,
         role,
         preferred_language: language,

@@ -15,6 +15,51 @@ class ApiError extends Error {
   }
 }
 
+const COUPON_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/;
+
+/**
+ * Convert supported QR payloads into the canonical seven-character coupon.
+ * Farmer referral QRs intentionally use `?ref=` and are not accepted here.
+ */
+export function normalizeCouponCode(rawValue: string): string {
+  const value = String(rawValue || '').trim();
+  const candidates: string[] = [value];
+
+  try {
+    const decoded = JSON.parse(value) as Record<string, unknown>;
+    if (decoded && typeof decoded === 'object') {
+      for (const key of ['coupon_code', 'coupon', 'code']) {
+        if (typeof decoded[key] === 'string') candidates.push(decoded[key] as string);
+      }
+    }
+  } catch {
+    // Plain-code and URL QRs are expected and are handled below.
+  }
+
+  try {
+    const url = new URL(value);
+    for (const key of ['coupon_code', 'coupon', 'code']) {
+      const candidate = url.searchParams.get(key);
+      if (candidate) candidates.push(candidate);
+    }
+    const pathCandidate = url.pathname.split('/').filter(Boolean).at(-1);
+    if (pathCandidate) candidates.push(pathCandidate);
+  } catch {
+    // Not a URL; continue with the raw value.
+  }
+
+  const normalized = candidates
+    .map(candidate => candidate.trim().toUpperCase())
+    .find(candidate => COUPON_CODE_PATTERN.test(candidate));
+  if (!normalized) {
+    throw new ApiError(
+      400,
+      "This QR is not a valid CLSL coupon. Scan the coupon shown in the farmer's Rewards screen.",
+    );
+  }
+  return normalized;
+}
+
 async function request<T>(
   url: string,
   method: HttpMethod = 'GET',
@@ -268,19 +313,36 @@ export async function getI18nTranslations(lang: string) {
 
 // ─── Coupons ───────────────────────────────────────────────────────
 export async function validateCoupon(token: string, couponCode: string) {
-  return request<{ status: string; coupon_code: string; campaign_name: string; discount_value: number; discount_type: string; criteria: string }>(
-    `${API_BASE}/api/v1/coupons/validate/${encodeURIComponent(couponCode)}`,
+  const normalizedCode = normalizeCouponCode(couponCode);
+  return request<{ status: string; coupon_code: string; campaign_name: string; discount_value: number; discount_type: string; criteria: string; products: string[]; packings: string[]; requires_purchase_amount: boolean }>(
+    `${API_BASE}/api/v1/coupons/validate/${encodeURIComponent(normalizedCode)}`,
     'GET',
     undefined,
     token
   );
 }
 
-export async function redeemCoupon(token: string, couponCode: string, purchaseReference?: string) {
-  return request<{ status: string; message: string; discount_value: number; discount_type: string }>(
+export async function redeemCoupon(
+  token: string,
+  couponCode: string,
+  details: {
+    purchaseReference?: string;
+    purchaseAmount?: number;
+    productName?: string;
+    packing?: string;
+  } = {},
+) {
+  const normalizedCode = normalizeCouponCode(couponCode);
+  return request<{ status: string; message: string; coupon_code?: string; discount_value: number; discount_type: string; amount_redeemed?: number }>(
     `${API_BASE}/api/v1/coupons/redeem`,
     'POST',
-    { coupon_code: couponCode, purchase_reference: purchaseReference },
+    {
+      coupon_code: normalizedCode,
+      purchase_reference: details.purchaseReference,
+      purchase_amount: details.purchaseAmount,
+      product_name: details.productName,
+      packing: details.packing,
+    },
     token
   );
 }

@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
 
   body: { padding: 16 },
   cropTitle: { fontSize: 18, fontWeight: '800', color: AppColors.ink },
-  confidence: { fontSize: 13, color: AppColors.textSub, marginTop: 4 },
+  confidence: { fontSize: 13, color: AppColors.muted, marginTop: 4 },
 
   actionBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: AppColors.greenLight, padding: 12, borderRadius: 10, marginTop: 16 },
   actionText: { color: AppColors.green, fontWeight: '700', fontSize: 13, flex: 1 }

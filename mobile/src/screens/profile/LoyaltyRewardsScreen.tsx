@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   
   rewardCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: AppColors.line },
   rewardTitle: { fontSize: 16, fontWeight: '800', color: AppColors.ink },
-  rewardDesc: { fontSize: 13, color: AppColors.textSub, marginTop: 4, paddingRight: 10 },
+  rewardDesc: { fontSize: 13, color: AppColors.muted, marginTop: 4, paddingRight: 10 },
   reqPoints: { fontSize: 12, fontWeight: '700', color: AppColors.green, marginTop: 8 },
   
   claimBtn: { backgroundColor: AppColors.greenLight, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, flexDirection: 'row', alignItems: 'center' },

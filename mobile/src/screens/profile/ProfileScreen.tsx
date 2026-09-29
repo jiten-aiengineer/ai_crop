@@ -126,5 +126,5 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: AppColors.lineLight },
   modalTitle: { fontSize: 20, fontWeight: '900', color: AppColors.ink },
   termsContent: { padding: 20 },
-  termsBody: { fontSize: 14, lineHeight: 24, color: AppColors.textSub }
+  termsBody: { fontSize: 14, lineHeight: 24, color: AppColors.muted }
 });
