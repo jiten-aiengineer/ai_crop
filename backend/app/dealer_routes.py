@@ -243,23 +243,23 @@ def dealer_redemption_summary(authorization: str = Header(...)):
         dealer_id = dealer["id"]
         summary = conn.execute(
             """SELECT
-                 COUNT(*) FILTER (WHERE cr.redeemed_at >= date_trunc('day', now())) today_count,
-                 COALESCE(SUM(cr.amount_redeemed) FILTER (WHERE cr.redeemed_at >= date_trunc('day', now())),0) today_amount,
-                 COUNT(*) FILTER (WHERE cr.redeemed_at >= date_trunc('month', now())) month_count,
-                 COALESCE(SUM(cr.amount_redeemed) FILTER (WHERE cr.redeemed_at >= date_trunc('month', now())),0) month_amount,
-                 COUNT(*) all_count, COALESCE(SUM(cr.amount_redeemed),0) all_amount,
-                 COUNT(*) FILTER (WHERE cr.credit_note_id IS NULL) outstanding_count,
-                 COALESCE(SUM(cr.amount_redeemed) FILTER (WHERE cr.credit_note_id IS NULL),0) outstanding_amount
+                 COUNT(*) FILTER (WHERE cr.redeemed_at >= date_trunc('day', now())) AS today_count,
+                 COALESCE(SUM(cr.amount_redeemed) FILTER (WHERE cr.redeemed_at >= date_trunc('day', now())),0) AS today_amount,
+                 COUNT(*) FILTER (WHERE cr.redeemed_at >= date_trunc('month', now())) AS month_count,
+                 COALESCE(SUM(cr.amount_redeemed) FILTER (WHERE cr.redeemed_at >= date_trunc('month', now())),0) AS month_amount,
+                 COUNT(*) AS all_count, COALESCE(SUM(cr.amount_redeemed),0) AS all_amount,
+                 COUNT(*) FILTER (WHERE cr.credit_note_id IS NULL) AS outstanding_count,
+                 COALESCE(SUM(cr.amount_redeemed) FILTER (WHERE cr.credit_note_id IS NULL),0) AS outstanding_amount
                FROM coupon_redemptions cr WHERE cr.dealer_id=%s""", (dealer_id,)
         ).fetchone()
         daily = conn.execute(
-            """SELECT redeemed_at::date day, COUNT(*) count, COALESCE(SUM(amount_redeemed),0) amount
+            """SELECT redeemed_at::date AS day, COUNT(*) AS count, COALESCE(SUM(amount_redeemed),0) AS amount
                FROM coupon_redemptions WHERE dealer_id=%s AND redeemed_at >= current_date - interval '29 days'
                GROUP BY redeemed_at::date ORDER BY day""", (dealer_id,)
         ).fetchall()
         monthly = conn.execute(
-            """SELECT to_char(date_trunc('month', redeemed_at),'YYYY-MM') month, COUNT(*) count,
-                      COALESCE(SUM(amount_redeemed),0) amount
+            """SELECT to_char(date_trunc('month', redeemed_at),'YYYY-MM') AS month, COUNT(*) AS count,
+                      COALESCE(SUM(amount_redeemed),0) AS amount
                FROM coupon_redemptions WHERE dealer_id=%s AND redeemed_at >= date_trunc('month',now()) - interval '11 months'
                GROUP BY date_trunc('month', redeemed_at) ORDER BY date_trunc('month', redeemed_at)""", (dealer_id,)
         ).fetchall()

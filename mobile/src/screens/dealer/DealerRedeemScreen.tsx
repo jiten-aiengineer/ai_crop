@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, Alert, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, Alert, ActivityIndicator, TextInput, Platform, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MobileScreen, shared, AppColors } from '../../components/MobileScreen';
+import { MobileScreen } from '../../components/MobileScreen';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuth } from '../../contexts/AuthContext';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   DealerRedemption,
   DealerRedemptionSummary,
@@ -12,6 +13,31 @@ import {
   redeemCoupon,
   validateCoupon,
 } from '../../services/api';
+
+const { width: W } = Dimensions.get('window');
+
+const C = {
+  green:      '#3e7025',
+  greenDark:  '#173b1b',
+  greenMid:   '#4b7f21',
+  greenLight: '#72a52f',
+  lime:       '#cbe968',
+  limePale:   '#edf3d7',
+  ink:        '#1d3322',
+  muted:      '#71806d',
+  bg:         '#f2f6ed',
+  card:       '#ffffff',
+  line:       '#d7e4cf',
+  pale:       '#eff7df',
+  amber:      '#d97706',
+  amberPale:  '#fffbeb',
+  purple:     '#6d28d9',
+  purplePale: '#f5f3ff',
+  red:        '#b91c1c',
+  redPale:    '#fef2f2',
+  teal:       '#0d7d72',
+  tealPale:   '#e6f7f5',
+};
 
 export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
   const { token } = useAuth();
@@ -157,63 +183,91 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <MobileScreen title="Redeem & Statement" subtitle="Manage coupons and rewards" onBack={onBack}>
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+            <Ionicons name="arrow-back" size={24} color={C.ink} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Redeem & Statement</Text>
+      </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
         
-        <TouchableOpacity style={styles.scanBtn} onPress={openCamera}>
-          <Ionicons name="scan" size={32} color="#FFF" />
-          <View style={{ marginLeft: 16 }}>
-            <Text style={{ fontSize: 20, color: '#FFF', fontWeight: '800' }}>Scan Coupon / QR</Text>
-            <Text style={{ fontSize: 13, color: '#CCE1EE', marginTop: 4 }}>Instantly verify and redeem farmer offers</Text>
-          </View>
+        <TouchableOpacity style={styles.scanBtn} onPress={openCamera} activeOpacity={0.9}>
+          <LinearGradient colors={[C.greenDark, '#1f4726']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.scanGrad}>
+            <View style={styles.scanIconWrap}>
+              <Ionicons name="qr-code-outline" size={32} color={C.greenDark} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.scanTitle}>Scan Coupon / QR</Text>
+              <Text style={styles.scanSub}>Instantly verify and redeem farmer offers</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.4)" />
+          </LinearGradient>
         </TouchableOpacity>
 
         <View style={styles.manualCard}>
           <Text style={styles.manualLabel}>Or enter the farmer's 7-character coupon</Text>
-          <View style={styles.manualRow}><TextInput style={styles.manualInput} value={manualCode} onChangeText={setManualCode} autoCapitalize="characters" maxLength={7} placeholder="Example: AB7CD9E"/><TouchableOpacity style={styles.manualButton} onPress={()=>void validateManualCode()}><Text style={styles.manualButtonText}>Verify</Text></TouchableOpacity></View>
+          <View style={styles.manualRow}>
+            <TextInput style={styles.manualInput} value={manualCode} onChangeText={setManualCode} autoCapitalize="characters" maxLength={7} placeholder="Example: AB7CD9E" placeholderTextColor={C.muted}/>
+            <TouchableOpacity style={styles.manualButton} onPress={()=>void validateManualCode()}>
+              <Text style={styles.manualButtonText}>Verify</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <View style={shared.card}>
-          <View style={styles.sectionHeading}><Text style={shared.sectionTitle}>Statement Summary</Text><TouchableOpacity onPress={() => void loadStatement()} disabled={loading}><Ionicons name="refresh" size={20} color={AppColors.blue}/></TouchableOpacity></View>
-          {loading ? <ActivityIndicator style={{ marginTop: 20 }} /> : loadError ? <View style={styles.loadError}><Text style={styles.loadErrorText}>{loadError}</Text><TouchableOpacity onPress={() => void loadStatement()}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View> : (
+        <View style={styles.card}>
+          <View style={styles.sectionHeading}>
+            <Text style={styles.sectionTitle}>Statement Summary</Text>
+            <TouchableOpacity onPress={() => void loadStatement()} disabled={loading} style={styles.refreshBtn}>
+              <Ionicons name="refresh" size={18} color={C.green}/>
+            </TouchableOpacity>
+          </View>
+          
+          {loading ? <ActivityIndicator style={{ marginTop: 20 }} color={C.green} /> : loadError ? <View style={styles.loadError}><Text style={styles.loadErrorText}>{loadError}</Text><TouchableOpacity onPress={() => void loadStatement()} style={styles.retryBtn}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View> : (
             <View style={styles.statsRow}>
               <View style={styles.statBox}>
                 <Text style={styles.statVal}>₹{Number(summary?.summary.all_amount || 0).toFixed(0)}</Text>
                 <Text style={styles.statLabel}>Total Redeemed</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={[styles.statVal, { color: AppColors.error }]}>₹{Number(summary?.summary.outstanding_amount || 0).toFixed(0)}</Text>
+                <Text style={[styles.statVal, { color: C.amber }]}>₹{Number(summary?.summary.outstanding_amount || 0).toFixed(0)}</Text>
                 <Text style={styles.statLabel}>Outstanding</Text>
               </View>
             </View>
           )}
         </View>
 
-        <View style={[shared.card, { marginTop: 16 }]}>
-          <Text style={shared.sectionTitle}>This month&apos;s scanned coupons</Text>
-          {redemptions.length > 0 ? redemptions.slice(0, 20).map(item => (
-            <View key={item.id} style={styles.redemptionRow}>
-              <View style={styles.redemptionMain}><Text style={styles.noteTitle}>{item.campaign_name}</Text><Text style={styles.noteDate}>{item.coupon_code} · {new Date(item.redeemed_at).toLocaleString('en-IN')}</Text></View>
-              <View style={styles.redemptionAmount}><Text style={styles.noteAmount}>₹{Number(item.amount_redeemed || 0).toFixed(0)}</Text><Text style={[styles.noteStatus, item.settled && { color: AppColors.green }]}>{item.settled ? 'settled' : 'outstanding'}</Text></View>
+        <View style={[styles.card, { marginTop: 16 }]}>
+          <Text style={styles.sectionTitle}>This month&apos;s scanned coupons</Text>
+          {redemptions.length > 0 ? redemptions.slice(0, 20).map((item, i) => (
+            <View key={item.id} style={[styles.redemptionRow, i === redemptions.length - 1 && { borderBottomWidth: 0 }]}>
+              <View style={styles.redemptionMain}>
+                <Text style={styles.noteTitle}>{item.campaign_name}</Text>
+                <Text style={styles.noteDate}>{item.coupon_code} · {new Date(item.redeemed_at).toLocaleString('en-IN')}</Text>
+              </View>
+              <View style={styles.redemptionAmount}>
+                <Text style={styles.noteAmount}>₹{Number(item.amount_redeemed || 0).toFixed(0)}</Text>
+                <Text style={[styles.noteStatus, item.settled && { color: C.green }]}>{item.settled ? 'settled' : 'outstanding'}</Text>
+              </View>
             </View>
-          )) : <Text style={[shared.body, { marginTop: 12, textAlign: 'center' }]}>No coupons redeemed this month.</Text>}
+          )) : <Text style={styles.emptyText}>No coupons redeemed this month.</Text>}
         </View>
 
-        <View style={[shared.card, { marginTop: 16 }]}>
-          <Text style={shared.sectionTitle}>Recent Credit Notes</Text>
-          {summary?.credit_notes?.length ? summary.credit_notes.map(c => (
-            <View key={c.id} style={styles.noteRow}>
+        <View style={[styles.card, { marginTop: 16 }]}>
+          <Text style={styles.sectionTitle}>Recent Credit Notes</Text>
+          {summary?.credit_notes?.length ? summary.credit_notes.map((c, i) => (
+            <View key={c.id} style={[styles.noteRow, i === summary.credit_notes.length - 1 && { borderBottomWidth: 0 }]}>
               <View>
                 <Text style={styles.noteTitle}>{c.note_number}</Text>
                 <Text style={styles.noteDate}>{new Date(c.generated_at).toLocaleDateString()}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={styles.noteAmount}>₹{c.total_amount}</Text>
-                <Text style={[styles.noteStatus, c.status === 'settled' && { color: AppColors.green }]}>{c.status}</Text>
+                <Text style={[styles.noteStatus, c.status === 'settled' && { color: C.green }]}>{c.status}</Text>
               </View>
             </View>
           )) : (
-            <Text style={[shared.body, { marginTop: 12, textAlign: 'center' }]}>No credit notes generated yet.</Text>
+            <Text style={styles.emptyText}>No credit notes generated yet.</Text>
           )}
         </View>
       </ScrollView>
@@ -238,7 +292,7 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
         <View style={styles.modalOverlay}>
           <View style={styles.scannedCard}>
             <View style={styles.scannedHeader}>
-              <Ionicons name="scan-outline" size={32} color={AppColors.green} />
+              <Ionicons name="scan-outline" size={32} color={C.green} />
               <Text style={styles.scannedTitle}>{scannedData?.type} Scanned</Text>
             </View>
             <ScrollView style={styles.scannedBody} contentContainerStyle={styles.scannedBodyContent} keyboardShouldPersistTaps="handled">
@@ -261,8 +315,8 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
                 <Text style={styles.redeemFieldLabel}>PACK SIZE</Text>
                 <View style={styles.choiceWrap}>{scannedData.packings.map((packing: string) => <TouchableOpacity key={packing} style={[styles.choiceChip,selectedPacking===packing&&styles.choiceChipOn]} onPress={()=>setSelectedPacking(packing)}><Text style={[styles.choiceChipText,selectedPacking===packing&&styles.choiceChipTextOn]}>{packing}</Text></TouchableOpacity>)}</View>
               </View>}
-              {scannedData?.requiresPurchaseAmount&&<View style={styles.redeemField}><Text style={styles.redeemFieldLabel}>BILL AMOUNT (₹)</Text><TextInput style={styles.redeemInput} value={purchaseAmount} onChangeText={setPurchaseAmount} keyboardType="decimal-pad" placeholder="Enter purchase amount"/></View>}
-              <View style={styles.redeemField}><Text style={styles.redeemFieldLabel}>BILL / INVOICE NUMBER (OPTIONAL)</Text><TextInput style={styles.redeemInput} value={purchaseReference} onChangeText={setPurchaseReference} placeholder="Enter reference" autoCapitalize="characters"/></View>
+              {scannedData?.requiresPurchaseAmount&&<View style={styles.redeemField}><Text style={styles.redeemFieldLabel}>BILL AMOUNT (₹)</Text><TextInput style={styles.redeemInput} value={purchaseAmount} onChangeText={setPurchaseAmount} keyboardType="decimal-pad" placeholder="Enter purchase amount" placeholderTextColor={C.muted}/></View>}
+              <View style={styles.redeemField}><Text style={styles.redeemFieldLabel}>BILL / INVOICE NUMBER (OPTIONAL)</Text><TextInput style={styles.redeemInput} value={purchaseReference} onChangeText={setPurchaseReference} placeholder="Enter reference" autoCapitalize="characters" placeholderTextColor={C.muted}/></View>
             </ScrollView>
             <View style={styles.scannedActions}>
               <TouchableOpacity style={styles.scannedBtnCancel} onPress={() => { setScannedData(null); scanLocked.current=false; }}><Text style={styles.scannedBtnCancelText}>Cancel</Text></TouchableOpacity>
@@ -271,64 +325,89 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
           </View>
         </View>
       </Modal>
-    </MobileScreen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scanBtn: { backgroundColor: AppColors.blue, padding: 20, borderRadius: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 16, elevation: 4, shadowColor: '#000', shadowOffset: {width:0, height:4}, shadowOpacity: 0.15, shadowRadius: 8 },
-  manualCard: { backgroundColor: '#FFF', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: AppColors.line, marginBottom: 16 },
-  manualLabel: { color: AppColors.ink, fontSize: 12, fontWeight: '700', marginBottom: 8 },
-  manualRow: { flexDirection: 'row', gap: 8 },
-  manualInput: { flex: 1, minHeight: 46, borderWidth: 1, borderColor: AppColors.line, borderRadius: 11, paddingHorizontal: 12, color: AppColors.ink, letterSpacing: 2, fontWeight: '800' },
-  manualButton: { minWidth: 82, backgroundColor: AppColors.green, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
-  manualButtonText: { color: '#FFF', fontWeight: '800' },
-  sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  loadError: { alignItems: 'center', gap: 8, paddingVertical: 18 },
-  loadErrorText: { color: AppColors.error, textAlign: 'center', fontWeight: '600' },
-  retryText: { color: AppColors.blue, fontWeight: '800' },
-  statsRow: { flexDirection: 'row', marginTop: 16, gap: 16 },
-  statBox: { flex: 1, backgroundColor: '#F8FBF3', padding: 16, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#E8EEF2' },
-  statVal: { fontSize: 24, fontWeight: '900', color: AppColors.green },
-  statLabel: { fontSize: 12, color: AppColors.muted, marginTop: 4, fontWeight: '700' },
-  noteRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F0F4F8' },
-  noteTitle: { fontSize: 15, fontWeight: '700', color: AppColors.ink },
-  noteDate: { fontSize: 12, color: AppColors.muted, marginTop: 4 },
-  noteAmount: { fontSize: 16, fontWeight: '800', color: AppColors.ink },
-  noteStatus: { fontSize: 12, color: AppColors.muted, fontWeight: '700', marginTop: 4, textTransform: 'uppercase' },
-  redemptionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F0F4F8' },
+  header: {
+      flexDirection: 'row', alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 50 : 40,
+      paddingHorizontal: 16, paddingBottom: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: C.line,
+  },
+  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.pale, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '900', color: C.ink, marginLeft: 12 },
+  
+  scanBtn: { borderRadius: 16, overflow: 'hidden', marginBottom: 16, shadowColor: C.greenDark, shadowOffset: {width:0, height:6}, shadowOpacity: 0.2, shadowRadius: 16, elevation: 6 },
+  scanGrad: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 16 },
+  scanIconWrap: { width: 54, height: 54, borderRadius: 16, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center' },
+  scanTitle: { fontSize: 18, color: '#FFF', fontWeight: '900', letterSpacing: -0.3 },
+  scanSub: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 4, lineHeight: 16 },
+  
+  manualCard: { backgroundColor: '#FFF', padding: 18, borderRadius: 16, borderWidth: 1, borderColor: C.line, marginBottom: 24, shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
+  manualLabel: { color: C.ink, fontSize: 13, fontWeight: '800', marginBottom: 12 },
+  manualRow: { flexDirection: 'row', gap: 10 },
+  manualInput: { flex: 1, minHeight: 48, borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingHorizontal: 14, color: C.ink, letterSpacing: 2, fontWeight: '800', fontSize: 16, backgroundColor: C.bg },
+  manualButton: { minWidth: 86, backgroundColor: C.green, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  manualButtonText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
+  
+  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: C.line, shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
+  sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  sectionTitle: { fontSize: 16, fontWeight: '900', color: C.ink, letterSpacing: -0.3 },
+  refreshBtn: { padding: 6, backgroundColor: C.pale, borderRadius: 8 },
+  
+  loadError: { alignItems: 'center', gap: 12, paddingVertical: 24 },
+  loadErrorText: { color: C.red, textAlign: 'center', fontWeight: '600', fontSize: 14 },
+  retryBtn: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: C.redPale, borderRadius: 8 },
+  retryText: { color: C.red, fontWeight: '800' },
+  
+  statsRow: { flexDirection: 'row', gap: 12 },
+  statBox: { flex: 1, backgroundColor: C.pale, padding: 16, borderRadius: 14, borderWidth: 1, borderColor: C.line },
+  statVal: { fontSize: 24, fontWeight: '900', color: C.greenDark },
+  statLabel: { fontSize: 11, color: C.muted, marginTop: 6, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
+  
+  noteRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.pale },
+  noteTitle: { fontSize: 15, fontWeight: '800', color: C.ink },
+  noteDate: { fontSize: 12, color: C.muted, marginTop: 4, fontWeight: '600' },
+  noteAmount: { fontSize: 16, fontWeight: '900', color: C.ink },
+  noteStatus: { fontSize: 11, color: C.amber, fontWeight: '800', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  
+  redemptionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.pale },
   redemptionMain: { flex: 1 },
   redemptionAmount: { alignItems: 'flex-end' },
   
+  emptyText: { textAlign: 'center', color: C.muted, paddingVertical: 16, fontStyle: 'italic', fontSize: 13 },
+  
   // Modals
-  camOverlay: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
-  camCloseBtn: { position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 10 },
-  camFrame: { width: 300, height: 300, borderWidth: 2, borderColor: '#fff', borderRadius: 20, overflow: 'hidden' },
-  camHint: { color: '#fff', marginTop: 30, fontSize: 16, fontWeight: '600' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  scannedCard: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, maxHeight: '92%' },
+  camOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
+  camCloseBtn: { position: 'absolute', top: 52, right: 24, backgroundColor: 'rgba(255,255,255,0.2)', padding: 12, borderRadius: 20 },
+  camFrame: { width: 260, height: 260, borderWidth: 3, borderColor: C.lime, borderRadius: 24, overflow: 'hidden' },
+  camHint: { color: '#fff', marginTop: 32, fontSize: 15, fontWeight: '600' },
+  
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  scannedCard: { backgroundColor: '#FFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, maxHeight: '92%' },
   scannedHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
-  scannedTitle: { fontSize: 22, fontWeight: '800', color: AppColors.ink },
-  scannedBody: { flexShrink: 1, backgroundColor: '#F8FBF3', borderRadius: 16, borderWidth: 1, borderColor: AppColors.line },
+  scannedTitle: { fontSize: 22, fontWeight: '900', color: C.ink },
+  scannedBody: { flexShrink: 1, backgroundColor: C.pale, borderRadius: 16, borderWidth: 1, borderColor: C.line },
   scannedBodyContent: { padding: 16 },
-  scannedLabel: { fontSize: 12, color: AppColors.muted, fontWeight: '700', textTransform: 'uppercase' },
-  scannedValue: { fontSize: 18, fontWeight: '900', color: AppColors.blue, marginTop: 4 },
-  scannedOffer: { fontSize: 20, fontWeight: '900', color: AppColors.green, marginTop: 4 },
-  criteriaBox: { flexDirection: 'row', gap: 12, backgroundColor: '#FDF2E9', padding: 12, borderRadius: 12, marginTop: 20 },
-  criteriaTitle: { fontSize: 13, fontWeight: '800', color: '#B9770E' },
-  criteriaText: { fontSize: 12, color: '#935116', marginTop: 4 },
-  redeemField: { marginTop: 15 },
-  redeemFieldLabel: { fontSize: 10, color: AppColors.muted, fontWeight: '900', letterSpacing: 0.6, marginBottom: 7 },
-  redeemInput: { borderWidth: 1, borderColor: AppColors.line, backgroundColor: '#FFF', borderRadius: 11, paddingHorizontal: 12, minHeight: 45, color: AppColors.ink },
+  scannedLabel: { fontSize: 11, color: C.muted, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 },
+  scannedValue: { fontSize: 20, fontWeight: '900', color: C.ink, marginTop: 4, letterSpacing: 1 },
+  scannedOffer: { fontSize: 24, fontWeight: '900', color: C.green, marginTop: 4 },
+  criteriaBox: { flexDirection: 'row', gap: 12, backgroundColor: '#FDF2E9', padding: 14, borderRadius: 12, marginTop: 20, borderWidth: 1, borderColor: '#F5CBA7' },
+  criteriaTitle: { fontSize: 12, fontWeight: '900', color: '#B9770E', textTransform: 'uppercase', letterSpacing: 0.5 },
+  criteriaText: { fontSize: 13, color: '#935116', marginTop: 6, fontWeight: '600', lineHeight: 18 },
+  redeemField: { marginTop: 18 },
+  redeemFieldLabel: { fontSize: 10, color: C.muted, fontWeight: '900', letterSpacing: 0.8, marginBottom: 8 },
+  redeemInput: { borderWidth: 1, borderColor: C.line, backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 14, minHeight: 48, color: C.ink, fontSize: 15, fontWeight: '600' },
   choiceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  choiceChip: { borderWidth: 1, borderColor: AppColors.line, backgroundColor: '#FFF', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 8 },
-  choiceChipOn: { borderColor: AppColors.green, backgroundColor: AppColors.greenLight },
-  choiceChipText: { color: AppColors.muted, fontSize: 12, fontWeight: '700' },
-  choiceChipTextOn: { color: AppColors.green },
+  choiceChip: { borderWidth: 1, borderColor: C.line, backgroundColor: '#FFF', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
+  choiceChipOn: { borderColor: C.green, backgroundColor: C.limePale },
+  choiceChipText: { color: C.muted, fontSize: 13, fontWeight: '800' },
+  choiceChipTextOn: { color: C.greenDark },
   scannedActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
-  scannedBtnCancel: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: '#F0F4F8', alignItems: 'center' },
-  scannedBtnCancelText: { color: AppColors.ink, fontWeight: '800', fontSize: 16 },
-  scannedBtnRedeem: { flex: 2, padding: 16, borderRadius: 12, backgroundColor: AppColors.green, alignItems: 'center' },
+  scannedBtnCancel: { flex: 1, padding: 18, borderRadius: 14, backgroundColor: C.bg, alignItems: 'center' },
+  scannedBtnCancelText: { color: C.ink, fontWeight: '900', fontSize: 16 },
+  scannedBtnRedeem: { flex: 2, padding: 18, borderRadius: 14, backgroundColor: C.green, alignItems: 'center' },
   buttonDisabled: { opacity: 0.55 },
-  scannedBtnRedeemText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
+  scannedBtnRedeemText: { color: '#FFF', fontWeight: '900', fontSize: 16 },
 });
+
