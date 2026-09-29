@@ -115,12 +115,16 @@ def validate_coupon(
 
         rules_dict = cp["rules"] if cp and cp["rules"] else {}
         
-        criteria = "No specific criteria"
-        if rules_dict:
-            if "min_purchase" in rules_dict:
-                criteria = f"Valid only on minimum purchase of {rules_dict['min_purchase']}"
-            elif "products" in rules_dict:
-                criteria = f"Valid only on: {', '.join(rules_dict['products'])}"
+        details = []
+        if rules_dict.get("products"):
+            details.append(f"Valid on: {', '.join(rules_dict['products'])}")
+        if rules_dict.get("packings"):
+            details.append(f"Pack size: {', '.join(rules_dict['packings'])}")
+            
+        if details:
+            criteria = " | ".join(details)
+        else:
+            criteria = rules_dict.get("description") or "No specific criteria"
 
     return {
         "status": "success",
