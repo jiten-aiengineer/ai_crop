@@ -300,9 +300,10 @@ def _dealer_report_pdf(dealer: dict, rows: list[dict], period: str) -> bytes:
 
 
 @router.get("/me/redemptions/report.pdf")
-def dealer_redemptions_report(period: str = Query(default="month", pattern="^(today|month|all)$"), authorization: str = Header(...)):
+def dealer_redemptions_report(period: str = Query(default="month", pattern="^(today|month|all)$"), authorization: str = Header(default=None), token: str = Query(default=None)):
     with connection() as conn:
-        dealer=_resolve_dealer(conn, authorization); where=""
+        auth_val = authorization or f"Bearer {token}" if token else None
+        dealer=_resolve_dealer(conn, auth_val); where=""
         if period=="today": where=" AND cr.redeemed_at >= date_trunc('day',now())"
         elif period=="month": where=" AND cr.redeemed_at >= date_trunc('month',now())"
         rows=conn.execute("""SELECT cr.redeemed_at,cr.amount_redeemed,cr.purchase_reference,cr.credit_note_id,c.code coupon_code,cp.name campaign_name,cp.rules
