@@ -1152,6 +1152,7 @@ def employee_access(identity: AdminIdentity = Depends(_identity)):
             """
             SELECT e.id, e.employee_code, e.full_name, e.office_email, e.microsoft_upn, e.department,
                    e.designation, e.location, e.status, e.reporting_manager_name,
+                   e.office_mobile, e.personal_mobile,
                    e.hr_sync_state, e.hr_first_seen_at, e.hr_last_seen_at, e.hr_last_changed_at,
                    max(portal.email) AS portal_access_email,
                    bool_or(COALESCE(portal.active, false)) AS portal_access_active,
