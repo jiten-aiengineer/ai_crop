@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import secrets
+import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
@@ -235,6 +236,33 @@ def dealer_redemptions(
     }
 
 
+@router.post("/me/settle-all")
+def dealer_settle_all(authorization: str = Header(...)):
+    """TESTING/DEMO: Generates a credit note and settles all outstanding redemptions."""
+    with connection() as conn:
+        dealer = _resolve_dealer(conn, authorization)
+        dealer_id = dealer["id"]
+        
+        # Check outstanding
+        outstanding = conn.execute("SELECT id, amount_redeemed FROM coupon_redemptions WHERE dealer_id=%s AND credit_note_id IS NULL", (dealer_id,)).fetchall()
+        if not outstanding:
+            return {"status": "success", "message": "No outstanding redemptions."}
+            
+        total_amount = sum(float(r["amount_redeemed"] or 0) for r in outstanding)
+        note_id = str(uuid.uuid4())
+        note_number = f"CN-{uuid.uuid4().hex[:8].upper()}"
+        
+        # Create credit note
+        conn.execute("""
+            INSERT INTO dealer_credit_notes (id, dealer_id, note_number, period_start, period_end, redemption_count, total_amount, status)
+            VALUES (%s, %s, %s, now(), now(), %s, %s, 'settled')
+        """, (note_id, dealer_id, note_number, len(outstanding), total_amount))
+        
+        # Update redemptions
+        conn.execute("UPDATE coupon_redemptions SET credit_note_id=%s WHERE dealer_id=%s AND credit_note_id IS NULL", (note_id, dealer_id))
+        
+        return {"status": "success", "message": f"Settled {len(outstanding)} redemptions for {total_amount}"}
+
 @router.get("/me/redemption-summary")
 def dealer_redemption_summary(authorization: str = Header(...)):
     """Dealer-facing reconciliation totals, trends and settlement history."""
@@ -402,3 +430,29 @@ def dealer_auth_legacy(payload: LegacyDealerLoginPayload):
             raise HTTPException(403, "Dealer account is not active.")
 
     return {"status": "success", "dealer_id": str(row["id"]), "name": row["name"]}
+
+@router.get("/me/farmers")
+def dealer_farmers(authorization: str = Header(...)):
+    """Returns a list of farmers referred by this dealer."""
+    with connection() as conn:
+        dealer = _resolve_dealer(conn, authorization)
+        
+        rows = conn.execute("""
+            SELECT id, name, phone, location_consent_at, location_district, location_state 
+            FROM farmers 
+            WHERE verified_dealer_id = %s 
+            ORDER BY location_consent_at DESC NULLS LAST
+        """, (dealer["id"],)).fetchall()
+        
+        farmers = []
+        for r in rows:
+            farmers.append({
+                "id": r["id"],
+                "name": r["name"] or "Unknown Farmer",
+                "phone": r["phone"] or "",
+                "joined_at": r["location_consent_at"].isoformat() if r["location_consent_at"] else None,
+                "district": r["location_district"] or "",
+                "state": r["location_state"] or "",
+            })
+            
+        return {"items": farmers}
