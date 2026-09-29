@@ -132,7 +132,7 @@ function AppContent() {
 
   const handleNavigate = (screen: string) => {
     // Map quick-action IDs to tab IDs or sub-screens
-    if (screen === 'home' || screen === 'inspect' || screen === 'products' || screen === 'coupons') {
+    if (['home', 'inspect', 'products', 'coupons', 'redeem', 'farmers'].includes(screen)) {
       setActiveTab(screen as Tab);
     } else {
       setSubScreen(screen);

@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, Alert, ActivityIndicator, TextInput, Platform, Dimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, Alert, ActivityIndicator, TextInput, Platform, Dimensions, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MobileScreen } from '../../components/MobileScreen';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuth } from '../../contexts/AuthContext';
+import { DEALER_API } from '../../config/api';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   DealerRedemption,
@@ -12,6 +13,7 @@ import {
   getDealerRedemptionSummary,
   redeemCoupon,
   validateCoupon,
+  settleAllRedemptions
 } from '../../services/api';
 
 const { width: W } = Dimensions.get('window');
@@ -218,9 +220,14 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
         <View style={styles.card}>
           <View style={styles.sectionHeading}>
             <Text style={styles.sectionTitle}>Statement Summary</Text>
-            <TouchableOpacity onPress={() => void loadStatement()} disabled={loading} style={styles.refreshBtn}>
-              <Ionicons name="refresh" size={18} color={C.green}/>
-            </TouchableOpacity>
+            <View style={{flexDirection: 'row', gap: 8}}>
+              <TouchableOpacity onPress={() => { if(token) { Linking.openURL(`${DEALER_API}/me/redemptions/report.pdf?period=month&token=${encodeURIComponent(token)}`); } }} disabled={loading} style={[styles.refreshBtn, {backgroundColor: C.limePale}]}>
+                <Ionicons name="download-outline" size={18} color={C.greenDark}/>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => void loadStatement()} disabled={loading} style={styles.refreshBtn}>
+                <Ionicons name="refresh" size={18} color={C.green}/>
+              </TouchableOpacity>
+            </View>
           </View>
           
           {loading ? <ActivityIndicator style={{ marginTop: 20 }} color={C.green} /> : loadError ? <View style={styles.loadError}><Text style={styles.loadErrorText}>{loadError}</Text><TouchableOpacity onPress={() => void loadStatement()} style={styles.retryBtn}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View> : (
@@ -230,8 +237,31 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
                 <Text style={styles.statLabel}>Total Redeemed</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={[styles.statVal, { color: C.amber }]}>₹{Number(summary?.summary.outstanding_amount || 0).toFixed(0)}</Text>
-                <Text style={styles.statLabel}>Outstanding</Text>
+                <TouchableOpacity onPress={async () => {
+                  if (summary?.summary.outstanding_amount && token) {
+                    Alert.alert("Settle All", "Do you want to settle all outstanding redemptions? (For testing)", [
+                      {text: "Cancel", style: "cancel"},
+                      {text: "Settle Now", onPress: async () => {
+                        try {
+                          setLoading(true);
+                          await settleAllRedemptions(token);
+                          await loadStatement();
+                          Alert.alert("Success", "All redemptions have been settled.");
+                        } catch (e: any) {
+                          Alert.alert("Error", e.message || "Failed to settle.");
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                    ]);
+                  }
+                }}>
+                  <Text style={[styles.statVal, { color: C.amber }]}>₹{Number(summary?.summary.outstanding_amount || 0).toFixed(0)}</Text>
+                  <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 6}}>
+                    <Text style={[styles.statLabel, {marginTop: 0, marginRight: 4}]}>Outstanding</Text>
+                    {Number(summary?.summary.outstanding_amount || 0) > 0 && <Ionicons name="checkmark-done-circle" size={14} color={C.amber} />}
+                  </View>
+                </TouchableOpacity>
               </View>
             </View>
           )}
