@@ -403,6 +403,83 @@ def dealer_referral(authorization: str = Header(...)):
         "qr_data_url": qr_data_url,
     }
 
+@router.get("/me/referral/poster.pdf")
+def dealer_referral_poster(authorization: str = Header(default=None), token: str = Query(default=None)):
+    """Generate a printable A4 poster with the dealer's referral QR code."""
+    with connection() as conn:
+        auth_val = authorization or f"Bearer {token}" if token else None
+        dealer = _resolve_dealer(conn, auth_val)
+        
+        # Get the token
+        existing = conn.execute("SELECT referral_token FROM dealer_referrals WHERE dealer_id = %s", (dealer["id"],)).fetchone()
+        ref_token = existing["referral_token"] if existing else ""
+        if len(ref_token) != 7 or not ref_token.isalnum():
+            ref_token = _new_short_referral_code()
+            conn.execute("INSERT INTO dealer_referrals(dealer_id, referral_token) VALUES (%s, %s)", (dealer["id"], ref_token))
+        
+        # Base url
+        base_url = "https://ai.croplifescience.com"
+        link = f"{base_url}/farmer/join?ref={ref_token}"
+        
+        import qrcode # type: ignore
+        qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=15, border=2)
+        qr.add_data(link)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="#1a5928", back_color="white")
+        qr_io = io.BytesIO()
+        img.save(qr_io, format="PNG")
+        qr_io.seek(0)
+        
+        from reportlab.lib.pagesizes import A4, portrait
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.lib import colors
+        
+        output = io.BytesIO()
+        doc = SimpleDocTemplate(output, pagesize=portrait(A4), topMargin=20*mm, bottomMargin=20*mm)
+        elements = []
+        
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'Title', parent=styles['Heading1'], fontSize=32, spaceAfter=10, textColor=colors.HexColor("#1a5928"), alignment=1
+        )
+        subtitle_style = ParagraphStyle(
+            'Subtitle', parent=styles['Normal'], fontSize=20, spaceAfter=20*mm, textColor=colors.HexColor("#5e6c62"), alignment=1
+        )
+        dealer_style = ParagraphStyle(
+            'Dealer', parent=styles['Heading2'], fontSize=28, spaceAfter=5*mm, textColor=colors.HexColor("#1c221e"), alignment=1
+        )
+        code_style = ParagraphStyle(
+            'Code', parent=styles['Heading1'], fontSize=48, spaceBefore=10*mm, spaceAfter=10*mm, textColor=colors.HexColor("#d97706"), alignment=1
+        )
+        scan_style = ParagraphStyle(
+            'Scan', parent=styles['Normal'], fontSize=16, spaceAfter=5*mm, textColor=colors.HexColor("#11401b"), alignment=1
+        )
+        
+        elements.append(Paragraph("<b>CROP LIFE SCIENCE LTD.</b>", title_style))
+        elements.append(Paragraph("Farmer Reward Network", subtitle_style))
+        
+        elements.append(Paragraph(f"<b>{dealer['name']}</b>", dealer_style))
+        elements.append(Paragraph("Invites you to join the Crop Life AI platform", scan_style))
+        
+        elements.append(Spacer(1, 10*mm))
+        
+        # QR Code
+        qr_img = RLImage(qr_io, width=120*mm, height=120*mm)
+        elements.append(qr_img)
+        
+        elements.append(Paragraph("Scan to Register", scan_style))
+        
+        elements.append(Paragraph(f"Or use code: <b>{ref_token}</b>", code_style))
+        
+        doc.build(elements)
+        
+        pdf = output.getvalue()
+        return Response(pdf, media_type="application/pdf", headers={
+            "Content-Disposition": f'attachment; filename="CLSL-{dealer["dealer_code"]}-Poster.pdf"'
+        })
+
 
 # ---------------------------------------------------------------------------
 # Legacy endpoint — kept for admin tooling, not used by dealer app
