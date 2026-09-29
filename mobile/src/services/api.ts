@@ -301,6 +301,16 @@ export async function getDealerReferral(token: string) {
   return request<{ dealer_name: string; token: string; qr_data_url?: string | null }>(`${DEALER_API}/me/referral`, 'GET', undefined, token);
 }
 
+const SALES_OFFICER_API = `${API_BASE}/sales_officers`;
+
+export async function getSalesOfficerReferral(token: string) {
+  return request<{ referral_token: string }>(`${SALES_OFFICER_API}/me/referral`, 'GET', undefined, token);
+}
+
+export async function getSalesOfficerFarmers(token: string) {
+  return request<{ farmers: DealerFarmer[] }>(`${SALES_OFFICER_API}/me/farmers`, 'GET', undefined, token);
+}
+
 export type DealerRedemption = {
   id: string;
   redeemed_at: string;

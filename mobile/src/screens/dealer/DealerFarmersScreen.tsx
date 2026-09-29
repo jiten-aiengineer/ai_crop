@@ -3,8 +3,8 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator
 import { Ionicons } from '@expo/vector-icons';
 import { MobileScreen, shared, AppColors } from '../../components/MobileScreen';
 import { useAuth } from '../../contexts/AuthContext';
-import { getDealerDashboard, getDealerFarmers, getDealerReferral } from '../../services/api';
-import { DEALER_API } from '../../config/api';
+import { getDealerDashboard, getDealerFarmers, getDealerReferral, getSalesOfficerReferral, getSalesOfficerFarmers } from '../../services/api';
+import { DEALER_API, API_BASE } from '../../config/api';
 
 const C = {
   green: '#1a5928',
@@ -19,25 +19,37 @@ const C = {
 };
 
 export default function DealerFarmersScreen({ onBack }: { onBack: () => void }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [dashboard, setDashboard] = useState<any>(null);
   const [farmers, setFarmers] = useState<any[]>([]);
   const [referral, setReferral] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!token) return;
-    Promise.all([
-      getDealerDashboard(token),
-      getDealerFarmers(token),
-      getDealerReferral(token)
-    ]).then(([dashRes, famRes, refRes]) => {
-      setDashboard(dashRes);
-      setFarmers(famRes.items || []);
-      setReferral(refRes);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, [token]);
+    if (!token || !user) return;
+    
+    if (user.role === 'sales_officer') {
+      Promise.all([
+        getSalesOfficerFarmers(token),
+        getSalesOfficerReferral(token)
+      ]).then(([famRes, refRes]) => {
+        setFarmers(famRes.farmers || []);
+        setReferral(refRes);
+        setLoading(false);
+      }).catch(() => setLoading(false));
+    } else {
+      Promise.all([
+        getDealerDashboard(token),
+        getDealerFarmers(token),
+        getDealerReferral(token)
+      ]).then(([dashRes, famRes, refRes]) => {
+        setDashboard(dashRes);
+        setFarmers(famRes.items || []);
+        setReferral(refRes);
+        setLoading(false);
+      }).catch(() => setLoading(false));
+    }
+  }, [token, user]);
 
   return (
     <MobileScreen title="Referred Farmers" subtitle="Your connected network" onBack={onBack}>
@@ -60,7 +72,10 @@ export default function DealerFarmersScreen({ onBack }: { onBack: () => void }) 
               <View style={styles.card}>
                 <View style={styles.sectionHeading}>
                   <Text style={styles.sectionTitle}>Your Referral Code</Text>
-                  <TouchableOpacity onPress={() => { Linking.openURL(`${DEALER_API}/me/referral/poster.pdf?token=${encodeURIComponent(token!)}`); }} style={[styles.refreshBtn, {backgroundColor: C.limePale}]}>
+                  <TouchableOpacity onPress={() => { 
+                    const baseUrl = user?.role === 'sales_officer' ? `${API_BASE}/sales_officers` : DEALER_API;
+                    Linking.openURL(`${baseUrl}/me/referral/poster.pdf?token=${encodeURIComponent(token!)}`); 
+                  }} style={[styles.refreshBtn, {backgroundColor: C.limePale}]}>
                     <Ionicons name="download-outline" size={18} color={C.greenDark}/>
                   </TouchableOpacity>
                 </View>

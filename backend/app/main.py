@@ -33,6 +33,8 @@ app.include_router(admin_router)
 app.include_router(farmer_auth_router)
 app.include_router(dealer_router)
 app.include_router(coupon_router)
+from app.sales_officer_routes import router as sales_officer_router
+app.include_router(sales_officer_router)
 
 
 class InspectionContext(BaseModel):

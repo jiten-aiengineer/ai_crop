@@ -15,6 +15,8 @@ import ProfileScreen from '../screens/profile/ProfileScreen';
 import DealerHomeScreen from '../screens/dealer/DealerHomeScreen';
 import DealerRedeemScreen from '../screens/dealer/DealerRedeemScreen';
 import DealerFarmersScreen from '../screens/dealer/DealerFarmersScreen';
+import SalesOfficerHomeScreen from '../screens/sales_officer/SalesOfficerHomeScreen';
+import SalesOfficerDealersScreen from '../screens/sales_officer/SalesOfficerDealersScreen';
 import HistoryScreen from '../screens/history/HistoryScreen';
 import * as SplashScreen from 'expo-splash-screen';
 
@@ -23,7 +25,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 const PRIMARY = '#3e7025';   // green — matches website's --green variable
 const MUTED = '#94a096';     // muted green-grey — matches website's muted text
 
-type Tab = 'home' | 'inspect' | 'products' | 'coupons' | 'profile' | 'redeem' | 'farmers';
+type Tab = 'home' | 'inspect' | 'products' | 'coupons' | 'profile' | 'redeem' | 'farmers' | 'dealers';
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 const FARMER_TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: IoniconName }[] = [
@@ -41,9 +43,17 @@ const DEALER_TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: Ioni
   { id: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
 ];
 
+const SALES_OFFICER_TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: IoniconName }[] = [
+  { id: 'home', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
+  { id: 'inspect', label: 'Inspect', icon: 'leaf-outline', activeIcon: 'leaf' },
+  { id: 'farmers', label: 'Farmers', icon: 'people-outline', activeIcon: 'people' },
+  { id: 'dealers', label: 'Dealers', icon: 'business-outline', activeIcon: 'business' },
+  { id: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
+];
+
 function BottomTabBar({ active, onPress, role }: { active: Tab; onPress: (tab: Tab) => void; role: string | undefined }) {
   const insets = useSafeAreaInsets();
-  const tabs = role === 'dealer' ? DEALER_TABS : FARMER_TABS;
+  const tabs = role === 'sales_officer' ? SALES_OFFICER_TABS : (role === 'dealer' ? DEALER_TABS : FARMER_TABS);
   return (
     <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {tabs.map(tab => {
@@ -148,10 +158,13 @@ function AppContent() {
       case 'coupons': return <CouponsScreen onBack={goHome} />;
       case 'redeem': return <DealerRedeemScreen onBack={goHome} />;
       case 'farmers': return <DealerFarmersScreen onBack={goHome} />;
+      case 'dealers': return <SalesOfficerDealersScreen onBack={goHome} />;
       case 'profile': return (
         <ProfileScreen onNavigate={handleNavigate} />
       );
-      default: return user?.role === 'dealer' ? <DealerHomeScreen onNavigate={handleNavigate} /> : <HomeScreen onNavigate={handleNavigate} />;
+      default: 
+        if (user?.role === 'sales_officer') return <SalesOfficerHomeScreen onNavigate={handleNavigate} />;
+        return user?.role === 'dealer' ? <DealerHomeScreen onNavigate={handleNavigate} /> : <HomeScreen onNavigate={handleNavigate} />;
     }
   };
 
