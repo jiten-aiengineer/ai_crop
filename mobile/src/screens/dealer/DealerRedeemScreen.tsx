@@ -1,16 +1,24 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MobileScreen, shared, AppColors } from '../../components/MobileScreen';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuth } from '../../contexts/AuthContext';
-import { DEALER_API } from '../../config/api';
-import { redeemCoupon, validateCoupon } from '../../services/api';
+import {
+  DealerRedemption,
+  DealerRedemptionSummary,
+  getDealerRedemptions,
+  getDealerRedemptionSummary,
+  redeemCoupon,
+  validateCoupon,
+} from '../../services/api';
 
 export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
   const { token } = useAuth();
-  const [data, setData] = useState<any>(null);
+  const [summary, setSummary] = useState<DealerRedemptionSummary | null>(null);
+  const [redemptions, setRedemptions] = useState<DealerRedemption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   // Scanner state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -24,13 +32,28 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
   const [redeeming, setRedeeming] = useState(false);
   const scanLocked = useRef(false);
 
-  useEffect(() => {
-    if (!token) return;
-    fetch(`${DEALER_API}/me/redemptions`, { headers: { authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(d => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+  const loadStatement = useCallback(async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setLoadError('');
+    try {
+      const [statement, history] = await Promise.all([
+        getDealerRedemptionSummary(token),
+        getDealerRedemptions(token, 'month'),
+      ]);
+      setSummary(statement);
+      setRedemptions(history.items || []);
+    } catch (reason) {
+      setLoadError(reason instanceof Error ? reason.message : 'Dealer statement could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => { void loadStatement(); }, [loadStatement]);
 
   const openCamera = async () => {
     if (!cameraPermission?.granted) {
@@ -121,11 +144,7 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
               const recordedAmount = Number(result.amount_redeemed ?? result.discount_value ?? 0);
               Alert.alert("Coupon redeemed", `₹${recordedAmount.toFixed(2)} discount recorded successfully.`);
               setScannedData(null);
-              // Refresh redemptions
-              fetch(`${DEALER_API}/me/redemptions`, { headers: { authorization: `Bearer ${token}` } })
-                .then(r => r.json())
-                .then(d => setData(d))
-                .catch(() => {});
+              await loadStatement();
             } catch (e: any) {
               Alert.alert("Redemption Failed", e.message || "Failed to redeem coupon.");
             } finally {
@@ -155,15 +174,15 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
         </View>
 
         <View style={shared.card}>
-          <Text style={shared.sectionTitle}>Statement Summary</Text>
-          {loading ? <ActivityIndicator style={{ marginTop: 20 }} /> : (
+          <View style={styles.sectionHeading}><Text style={shared.sectionTitle}>Statement Summary</Text><TouchableOpacity onPress={() => void loadStatement()} disabled={loading}><Ionicons name="refresh" size={20} color={AppColors.blue}/></TouchableOpacity></View>
+          {loading ? <ActivityIndicator style={{ marginTop: 20 }} /> : loadError ? <View style={styles.loadError}><Text style={styles.loadErrorText}>{loadError}</Text><TouchableOpacity onPress={() => void loadStatement()}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View> : (
             <View style={styles.statsRow}>
               <View style={styles.statBox}>
-                <Text style={styles.statVal}>₹{data?.summary?.all_amount?.toFixed(0) || 0}</Text>
+                <Text style={styles.statVal}>₹{Number(summary?.summary.all_amount || 0).toFixed(0)}</Text>
                 <Text style={styles.statLabel}>Total Redeemed</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={[styles.statVal, { color: AppColors.error }]}>₹{data?.summary?.outstanding_amount?.toFixed(0) || 0}</Text>
+                <Text style={[styles.statVal, { color: AppColors.error }]}>₹{Number(summary?.summary.outstanding_amount || 0).toFixed(0)}</Text>
                 <Text style={styles.statLabel}>Outstanding</Text>
               </View>
             </View>
@@ -171,8 +190,18 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
         </View>
 
         <View style={[shared.card, { marginTop: 16 }]}>
+          <Text style={shared.sectionTitle}>This month&apos;s scanned coupons</Text>
+          {redemptions.length > 0 ? redemptions.slice(0, 20).map(item => (
+            <View key={item.id} style={styles.redemptionRow}>
+              <View style={styles.redemptionMain}><Text style={styles.noteTitle}>{item.campaign_name}</Text><Text style={styles.noteDate}>{item.coupon_code} · {new Date(item.redeemed_at).toLocaleString('en-IN')}</Text></View>
+              <View style={styles.redemptionAmount}><Text style={styles.noteAmount}>₹{Number(item.amount_redeemed || 0).toFixed(0)}</Text><Text style={[styles.noteStatus, item.settled && { color: AppColors.green }]}>{item.settled ? 'settled' : 'outstanding'}</Text></View>
+            </View>
+          )) : <Text style={[shared.body, { marginTop: 12, textAlign: 'center' }]}>No coupons redeemed this month.</Text>}
+        </View>
+
+        <View style={[shared.card, { marginTop: 16 }]}>
           <Text style={shared.sectionTitle}>Recent Credit Notes</Text>
-          {data?.credit_notes?.length > 0 ? data.credit_notes.map((c: any) => (
+          {summary?.credit_notes?.length ? summary.credit_notes.map(c => (
             <View key={c.id} style={styles.noteRow}>
               <View>
                 <Text style={styles.noteTitle}>{c.note_number}</Text>
@@ -254,6 +283,10 @@ const styles = StyleSheet.create({
   manualInput: { flex: 1, minHeight: 46, borderWidth: 1, borderColor: AppColors.line, borderRadius: 11, paddingHorizontal: 12, color: AppColors.ink, letterSpacing: 2, fontWeight: '800' },
   manualButton: { minWidth: 82, backgroundColor: AppColors.green, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
   manualButtonText: { color: '#FFF', fontWeight: '800' },
+  sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  loadError: { alignItems: 'center', gap: 8, paddingVertical: 18 },
+  loadErrorText: { color: AppColors.error, textAlign: 'center', fontWeight: '600' },
+  retryText: { color: AppColors.blue, fontWeight: '800' },
   statsRow: { flexDirection: 'row', marginTop: 16, gap: 16 },
   statBox: { flex: 1, backgroundColor: '#F8FBF3', padding: 16, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#E8EEF2' },
   statVal: { fontSize: 24, fontWeight: '900', color: AppColors.green },
@@ -263,6 +296,9 @@ const styles = StyleSheet.create({
   noteDate: { fontSize: 12, color: AppColors.muted, marginTop: 4 },
   noteAmount: { fontSize: 16, fontWeight: '800', color: AppColors.ink },
   noteStatus: { fontSize: 12, color: AppColors.muted, fontWeight: '700', marginTop: 4, textTransform: 'uppercase' },
+  redemptionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F0F4F8' },
+  redemptionMain: { flex: 1 },
+  redemptionAmount: { alignItems: 'flex-end' },
   
   // Modals
   camOverlay: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
