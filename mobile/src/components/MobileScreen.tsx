@@ -6,7 +6,7 @@
 import React, { type ReactNode } from 'react';
 import {
   ScrollView, StatusBar, StyleSheet,
-  Text, TouchableOpacity, View,
+  Text, TouchableOpacity, View, Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 export const AppColors = {
   // Primary greens (from --green, home-panel, auth-visual gradient)
   green:       '#3e7025',   // primary green — main brand colour
-  greenDark:   '#173b1b',   // deep forest green (hero gradient start)
+  greenDark:   '#3e7025',   // deep forest green (hero gradient start)
   greenMid:    '#4b7f21',   // auth-blue replacement
   greenLight:  '#72a52f',   // gradient end / lime accent
   lime:        '#cbe968',   // --lime accent chip colour
@@ -44,27 +44,29 @@ export const AppColors = {
 };
 
 export function MobileScreen({
-  title, subtitle, onBack, children, scroll = true,
+  title, subtitle, onBack, children, scroll = true, headerAvatar
 }: {
   title: string;
   subtitle?: string;
   onBack?: () => void;
   children: ReactNode;
   scroll?: boolean;
+  headerAvatar?: any;
 }) {
-  const body = <View style={styles.body}>{children}</View>;
+  const body = <View style={[styles.body, !scroll && { flex: 1, padding: 0 }]}>{children}</View>;
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={AppColors.greenDark} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.header}>
         {onBack ? (
           <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.back}>
-            <Ionicons name="arrow-back" size={22} color={AppColors.white} />
+            <Ionicons name="arrow-back" size={22} color={AppColors.ink} />
           </TouchableOpacity>
         ) : (
           <View style={styles.backSpace} />
         )}
-        <View style={styles.heading}>
+        {headerAvatar && <Image source={headerAvatar} style={styles.headerAvatar} />}
+        <View style={[styles.heading, headerAvatar && { alignItems: 'flex-start', marginLeft: 12 }]}>
           <Text style={styles.title}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
@@ -154,7 +156,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: AppColors.bg },
   header: {
     minHeight: 78,
-    backgroundColor: AppColors.greenDark,
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
@@ -164,14 +166,15 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: AppColors.bgAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   backSpace: { width: 42 },
+  headerAvatar: { width: 38, height: 38, borderRadius: 19, marginLeft: 4, backgroundColor: '#FFF' },
   heading: { flex: 1, alignItems: 'center' },
-  title: { color: '#FFF', fontSize: 20, fontWeight: '900' },
-  subtitle: { color: '#cce989', fontSize: 12, marginTop: 3 },
-  scroll: { paddingBottom: 30 },
+  title: { color: AppColors.ink, fontSize: 19, fontWeight: '700' },
+  subtitle: { color: AppColors.muted, fontSize: 12, marginTop: 1 },
+  scroll: { paddingBottom: 100 },
   body: { padding: 16, gap: 14 },
 });

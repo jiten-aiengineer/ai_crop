@@ -92,6 +92,46 @@ def _do_redeem(conn, coupon_id, dealer_id: str, purchase_reference: Optional[str
 # ---------------------------------------------------------------------------
 
 
+@router.get("/validate/{coupon_code}")
+def validate_coupon(
+    coupon_code: str,
+    authorization: str = Header(default=""),
+):
+    """Validate a coupon code and return its details without redeeming it."""
+    with connection() as conn:
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(401, "Authentication required. Please sign in as a dealer.")
+
+        token = authorization[7:].strip()
+        _resolve_dealer_id_from_session(conn, token)
+        
+        # Validates that it's available and not expired
+        coupon = _fetch_and_validate_coupon(conn, coupon_code)
+        
+        cp = conn.execute(
+            "SELECT cp.rules FROM coupons c JOIN campaigns cp ON c.campaign_id = cp.id WHERE c.id = %s",
+            (coupon["id"],)
+        ).fetchone()
+
+        rules_dict = cp["rules"] if cp and cp["rules"] else {}
+        
+        criteria = "No specific criteria"
+        if rules_dict:
+            if "min_purchase" in rules_dict:
+                criteria = f"Valid only on minimum purchase of {rules_dict['min_purchase']}"
+            elif "products" in rules_dict:
+                criteria = f"Valid only on: {', '.join(rules_dict['products'])}"
+
+    return {
+        "status": "success",
+        "coupon_code": coupon_code.strip().upper(),
+        "campaign_name": coupon["campaign_name"],
+        "discount_value": float(coupon["discount_value"]) if coupon["discount_value"] else 0,
+        "discount_type": coupon["discount_type"],
+        "criteria": criteria
+    }
+
+
 class RedeemCouponPayload(BaseModel):
     coupon_code: str
     purchase_reference: Optional[str] = None

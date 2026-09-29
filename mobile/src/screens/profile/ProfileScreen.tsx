@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View, Modal, ScrollView, SafeAreaView } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View, Modal, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { AppColors, MobileScreen, shared } from '../../components/MobileScreen';
-import mascotImage from '../../../assets/images/mascot_new.png';
+import mascotImage from '../../../assets/images/mascot_v3.png';
 
 export default function ProfileScreen({ onNavigate }: { onNavigate?: (screen: string) => void }) {
   const { user, logout } = useAuth();

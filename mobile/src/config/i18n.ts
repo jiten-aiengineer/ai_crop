@@ -597,9 +597,16 @@ const pa: LoginCopy = {
   requiredField: 'ਲੋੜੀਂਦਾ',
 };
 
+import worldTranslations from './world_translations.json';
+
 // Map languages explicitly to avoid Hermes Proxy crashes
 export const loginText = languages.reduce((acc, lang) => {
-  if (lang.code === 'hi') acc[lang.code] = hi;
+  // If the translation exists in our newly generated JSON file, use it
+  if (worldTranslations && (worldTranslations as any)[lang.code]) {
+    acc[lang.code] = (worldTranslations as any)[lang.code];
+  } 
+  // Otherwise, fallback to hardcoded ones, or English
+  else if (lang.code === 'hi') acc[lang.code] = hi;
   else if (lang.code === 'gu') acc[lang.code] = gu;
   else if (lang.code === 'mr') acc[lang.code] = mr;
   else if (lang.code === 'bn') acc[lang.code] = bn;

@@ -28,7 +28,7 @@ type Diagnosis = {
   declared_crop?: string | null; crop_source?: 'field_officer' | 'general_user' | 'ai_optional';
   confidence_level?: 'high' | 'medium' | 'low'; catalogue_source?: string;
 };
-type ChatMessage = { role: 'user' | 'assistant'; content: string; products?: CatalogProduct[]; contacts?: SalesContact[] };
+type ChatMessage = { role: 'user' | 'assistant'; content: string; products?: CatalogProduct[]; contacts?: SalesContact[]; time?: string };
 type StoredInspection = { id: string; createdAt: string; crop: string; issue: string; confidence: number; summary: string; result: Diagnosis; city?: string; };
 type Profile = { name: string; location: string; state: string; district?: string; village?: string; territory: string; city: string; language: LanguageCode; crop?: string; role?: string; };
 type SalesContact = { name: string; designation: string; state: string; territory: string; city: string; email: string; phone: string };
@@ -554,12 +554,35 @@ function Assistant({ openProduct, language, crops, t }: { openProduct: (product:
   const send = async (preset?: string) => {
     const question = (preset ?? input).trim(); if (!question || loading) return;
     const finalQuestion = chatCrop ? `[Crop: ${chatCrop}] ${question}` : question;
-    const next = [...messages, { role: 'user' as const, content: finalQuestion }]; setMessages(next); setInput(''); setLoading(true); setError('');
-    try { const response = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: finalQuestion, history: messages, language }) }); const data = await readApiResponse<{ answer?: string; products?: CatalogProduct[]; contacts?: SalesContact[] }>(response); if (!response.ok) throw new Error(data.error || 'Unable to answer.'); if (!data.answer?.trim()) throw new Error(t.assistantFormatError); setMessages([...next, { role: 'assistant', content: data.answer, products: data.products, contacts: data.contacts }]); }
+    const d = new Date(); const timeStr = `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+    const next: ChatMessage[] = [...messages, { role: 'user' as const, content: finalQuestion, time: timeStr }]; setMessages(next); setInput(''); setLoading(true); setError('');
+    try { const response = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: finalQuestion, history: messages, language }) }); const data = await readApiResponse<{ answer?: string; products?: CatalogProduct[]; contacts?: SalesContact[] }>(response); if (!response.ok) throw new Error(data.error || 'Unable to answer.'); if (!data.answer?.trim()) throw new Error(t.assistantFormatError); const rd = new Date(); const rTimeStr = `${rd.getHours().toString().padStart(2,'0')}:${rd.getMinutes().toString().padStart(2,'0')}`; setMessages([...next, { role: 'assistant', content: data.answer, products: data.products, contacts: data.contacts, time: rTimeStr }]); }
     catch (problem) { setError(problem instanceof Error ? problem.message : 'Unable to answer.'); }
     finally { setLoading(false); }
   };
-  return <section className="workspace"><PageTitle eyebrow="CLSL AI" title={t.askWords} text={t.assistantIntro} /><div className="chat-shell unified-chat"><div className="chat-head"><img className="assistant-mascot" src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><div><b>{t.mascotName}</b><small>CLSL AI</small></div><span className="online">{t.online}</span></div><div className="chat-body"><div className="ai-message">{t.assistantUnifiedGreeting}</div><div className="suggestions">{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => void send(prompt)} disabled={loading}>{prompt}</button>)}</div>{messages.map((message, index) => <div key={index} className={message.role === 'user' ? 'user-message' : 'ai-message'}><p>{message.content}</p>{message.products && message.products.length > 0 && <div className="chat-products">{message.products.map((product) => <button key={product.id} onClick={() => openProduct(product)}>{product.image && <img src={product.image} alt="" />}<span><b>{product.name}</b><small>{product.commonName}</small></span></button>)}</div>}{message.contacts && message.contacts.length > 0 && <div className="chat-contacts">{message.contacts.map((contact) => <article key={`${contact.email}-${contact.territory}`}><span className="contact-avatar">{initials(contact.name)}</span><div><small>{t.officialContact}</small><b>{contact.name}</b><p>{contact.designation} · {contact.city || contact.territory}</p></div><ContactButtons contact={contact} message={`${t.whatsappGreeting} ${contact.city || contact.territory}. ${t.whatsappHelp}`} t={t} /></article>)}</div>}</div>)}{loading && <div className="ai-message typing">{t.checking}<span>•••</span></div>}{error && <p className="chat-error">{error}</p>}</div>
+  return <section className="workspace"><PageTitle eyebrow="CLSL AI" title={t.askWords} text={t.assistantIntro} /><div className="chat-shell unified-chat"><div className="chat-head"><div style={{position:'relative'}}><img className="assistant-mascot" src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><div style={{width:10,height:10,backgroundColor:'#4CAF50',borderRadius:'50%',position:'absolute',bottom:0,right:0,border:'2px solid #FFF'}} /></div><div><b>{t.mascotName}</b><small>🟢 {t.online} - Live Support</small></div></div><div className="chat-body">
+      <style>{`
+        .message-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 12px; }
+        .user-row { justify-content: flex-end; }
+        .ai-row { justify-content: flex-start; }
+        .message-avatar { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); }
+        .ai-message, .user-message { position: relative; padding-bottom: 22px !important; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .ai-message { border-bottom-left-radius: 4px !important; }
+        .user-message { border-bottom-right-radius: 4px !important; }
+        .msg-time { position: absolute; bottom: 6px; right: 12px; font-size: 9px; opacity: 0.7; }
+        .user-message .msg-time { color: rgba(255,255,255,0.9); }
+        .ai-message .msg-time { color: #888; }
+        .typing-indicator { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+        .typing-indicator span { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+      `}</style>
+      <div className="message-row ai-row"><img className="message-avatar" src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><div className="ai-message">{t.assistantUnifiedGreeting}<span className="msg-time">{new Date().getHours().toString().padStart(2,'0')}:{new Date().getMinutes().toString().padStart(2,'0')}</span></div></div>
+      <div className="suggestions" style={{ paddingLeft: '40px', marginBottom: '16px' }}>{prompts.map((prompt) => <button type="button" key={prompt} onClick={() => void send(prompt)} disabled={loading}>{prompt}</button>)}</div>
+      {messages.map((message, index) => <div key={index} className={`message-row ${message.role === 'user' ? 'user-row' : 'ai-row'}`}>{message.role === 'assistant' && <img className="message-avatar" src="/crop-life-mitra-tomato-doctor.jpg" alt="" />}<div className={message.role === 'user' ? 'user-message' : 'ai-message'}><p>{message.content}</p>{message.products && message.products.length > 0 && <div className="chat-products">{message.products.map((product) => <button key={product.id} onClick={() => openProduct(product)}>{product.image && <img src={product.image} alt="" />}<span><b>{product.name}</b><small>{product.commonName}</small></span></button>)}</div>}{message.contacts && message.contacts.length > 0 && <div className="chat-contacts">{message.contacts.map((contact) => <article key={`${contact.email}-${contact.territory}`}><span className="contact-avatar">{initials(contact.name)}</span><div><small>{t.officialContact}</small><b>{contact.name}</b><p>{contact.designation} · {contact.city || contact.territory}</p></div><ContactButtons contact={contact} message={`${t.whatsappGreeting} ${contact.city || contact.territory}. ${t.whatsappHelp}`} t={t} /></article>)}</div>}{message.time && <span className="msg-time">{message.time}</span>}</div></div>)}
+      {loading && <div className="message-row ai-row"><img className="message-avatar" src="/crop-life-mitra-tomato-doctor.jpg" alt="" /><div className="ai-message typing"><div className="typing-indicator"><span/><span/><span/></div></div></div>}
+      {error && <p className="chat-error">{error}</p>}</div>
   <div className="chat-input chat-input-with-crop"><input list="chat-crops" className="chat-crop-select" placeholder={t.crop} value={chatCrop} onChange={(e) => setChatCrop(e.target.value)} /><datalist id="chat-crops">{cropOptions.map((item) => <option key={item} value={item} />)}</datalist>
   <input className="chat-main-input" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && void send()} placeholder={t.askPlaceholder} /><button className="send" onClick={() => void send()} disabled={!input.trim() || loading}>↑</button></div></div></section>;
 }

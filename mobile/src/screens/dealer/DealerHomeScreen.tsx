@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Image, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
+import { Image, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { getDealerDashboard, getDealerReferral } from '../../services/api';
 import { AppColors, MobileScreen, shared } from '../../components/MobileScreen';
+import { validateCoupon, redeemCoupon } from '../../services/api';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import mascotImage from '../../../assets/images/mascot_new.png';
+import QRCode from 'react-native-qrcode-svg';
+import mascotImage from '../../../assets/images/mascot_v3.png';
 
 type Dashboard={dealer:{name:string;dealer_code:string};targets:{monthly_referrals:number;total_referrals:number};redemptions:{monthly_count:number;monthly_amount:number}};
 type Referral={dealer_name:string;token:string;qr_data_url?:string|null};
@@ -35,47 +37,48 @@ export default function DealerHomeScreen({onNavigate}:{onNavigate:(s:string)=>vo
     setIsCameraOpen(true);
   };
 
-  const handleBarcodeScanned = ({ data }: { data: string }) => {
+  const handleBarcodeScanned = async ({ data }: { data: string }) => {
     setIsCameraOpen(false);
     
-    // Determine if it's a reward or a coupon based on prefix.
-    // E.g. REWARD-1-12345 or CLSL-COUPON-123
-    let criteria = "";
-    let offer = "";
-    let type = "";
-    
-    if (data.startsWith('REWARD')) {
-      type = "Loyalty Reward";
-      offer = "Free 250ml pack of Meso Power";
-      criteria = "Farmer must have purchased at least ₹1000 in the last 3 months.";
-    } else {
-      type = "Discount Coupon";
-      offer = "20% OFF";
-      criteria = "Valid only on minimum purchase of 3 bottles of Zyme 1L.";
-    }
+    if (!token) return;
 
-    setScannedData({
-      code: data,
-      type,
-      offer,
-      criteria
-    });
+    try {
+      // Validate the coupon on the backend
+      const response = await validateCoupon(token, data);
+      const type = response.campaign_name || "Discount Coupon";
+      const offer = response.discount_type === "percentage" ? `${response.discount_value}% OFF` : `₹${response.discount_value} OFF`;
+      
+      setScannedData({
+        code: data,
+        type,
+        offer,
+        criteria: response.criteria
+      });
+    } catch (e: any) {
+      Alert.alert("Invalid Coupon", e.message || "Failed to validate coupon.");
+    }
   };
 
   const processRedemption = () => {
     Alert.alert(
       "Confirm Redemption",
-      `Are you sure you want to redeem this ${scannedData?.type}? This action cannot be undone and will deduct points/use the coupon permanently.`,
+      `Are you sure you want to redeem this offer? This action cannot be undone.`,
       [
         { text: "Cancel", style: "cancel" },
         { 
           text: "Yes, Redeem", 
           style: "destructive",
-          onPress: () => {
-            // Here you would call backend API to redeem the coupon/reward
-            // e.g. await redeemItem(token, scannedData.code)
-            Alert.alert("Success", "Redemption logged successfully.");
-            setScannedData(null);
+          onPress: async () => {
+            if (!token || !scannedData) return;
+            try {
+              await redeemCoupon(token, scannedData.code);
+              Alert.alert("Success", "Redemption logged successfully.");
+              setScannedData(null);
+              // Refresh dashboard
+              getDealerDashboard(token).then(setDashboard).catch(()=>{});
+            } catch (e: any) {
+              Alert.alert("Redemption Failed", e.message || "Failed to redeem coupon.");
+            }
           }
         }
       ]
@@ -85,12 +88,30 @@ export default function DealerHomeScreen({onNavigate}:{onNavigate:(s:string)=>vo
   return <MobileScreen title="Dealer Partner" subtitle={dashboard?.dealer.name||user?.dealer_name||'CLSL network'}>
     <View style={styles.welcome}><View style={{flex:1}}><Text style={styles.hello}>Welcome, {user?.first_name}</Text><Text style={styles.welcomeSub}>Manage farmer referrals and coupon settlements.</Text></View><Image source={mascotImage} style={styles.mascot}/></View>
     <View style={styles.metrics}><Metric value={String(dashboard?.targets.total_referrals||0)} label="Farmers connected"/><Metric value={`₹${dashboard?.redemptions.monthly_amount||0}`} label="This month"/><Metric value={String(dashboard?.redemptions.monthly_count||0)} label="Coupons this month"/></View>
-    <TouchableOpacity style={styles.referral} onPress={openReferral}><View style={styles.qr}><Ionicons name="qr-code" size={34} color={AppColors.blue}/></View><View style={{flex:1}}><Text style={styles.refTitle}>Farmer referral</Text><Text style={shared.body}>Show your QR or share your 7-character code.</Text></View><Ionicons name="chevron-forward" size={22} color={AppColors.blue}/></TouchableOpacity>
-    <View style={shared.card}><Text style={shared.sectionTitle}>Quick actions</Text><View style={styles.actions}><Action icon="scan" label="Scan coupon" onPress={openCamera}/><Action icon="document-text-outline" label="Statements"/><Action icon="people-outline" label="Farmers"/><Action icon="gift-outline" label="Offers" onPress={()=>onNavigate('coupons')}/></View></View>
+    <TouchableOpacity style={styles.referral} onPress={openReferral}><View style={styles.qr}><Ionicons name="qr-code" size={34} color={AppColors.green}/></View><View style={{flex:1}}><Text style={styles.refTitle}>Farmer referral</Text><Text style={shared.body}>Show your QR or share your 7-character code.</Text></View><Ionicons name="chevron-forward" size={22} color={AppColors.green}/></TouchableOpacity>
+    <View style={shared.card}>
+      <Text style={shared.sectionTitle}>Quick actions</Text>
+      <View style={styles.actions}>
+        <Action icon="scan" label="Scan Code" onPress={openCamera} />
+        <Action icon="chatbubbles-outline" label="Ask Mitra" onPress={() => onNavigate('assistant')} />
+        <Action icon="leaf-outline" label="Crop Inspect" onPress={() => onNavigate('inspect')} />
+        <Action icon="calculator-outline" label="Spray Calc" onPress={() => onNavigate('calculator')} />
+      </View>
+    </View>
     <View style={shared.card}><Text style={shared.sectionTitle}>Monthly progress</Text><Text style={[shared.body,{marginTop:6}]}>{dashboard?.targets.monthly_referrals||0} farmers connected this month.</Text><View style={styles.progress}><View style={[styles.progressFill,{width:`${Math.min(100,(dashboard?.targets.monthly_referrals||0)*10)}%`}]}/></View></View>
     
     <Modal visible={showReferral} animationType="slide" onRequestClose={()=>setShowReferral(false)}>
-      <View style={styles.modal}><View style={styles.modalHead}><TouchableOpacity onPress={()=>setShowReferral(false)} style={styles.close}><Ionicons name="close" size={24} color={AppColors.blue}/></TouchableOpacity><Text style={styles.modalTitle}>Invite farmers</Text><View style={{width:44}}/></View><ScrollView contentContainerStyle={styles.modalBody}><Text style={styles.modalLead}>Farmers can scan this QR or enter the code manually in CLSL AI.</Text>{referral?.qr_data_url?<Image source={{uri:referral.qr_data_url}} style={styles.qrImage}/>:<View style={styles.qrLoading}><Ionicons name="qr-code" size={76} color="#9BB0BE"/><Text style={shared.body}>Loading secure QR…</Text></View>}<Text style={styles.codeLabel}>FARMER REFERRAL CODE</Text><Text selectable style={styles.code}>{referral?.token||'·······'}</Text><Text style={styles.dealerName}>{referral?.dealer_name||dashboard?.dealer.name}</Text><TouchableOpacity style={shared.primary} onPress={()=>referral&&Linking.openURL(`whatsapp://send?text=${encodeURIComponent(`Hi, use referral code ${referral.token} in the CLSL AI app to get rewards on CLSL products.`)}`)}><Ionicons name="logo-whatsapp" size={21} color="#FFF"/><Text style={shared.primaryText}>Share on WhatsApp</Text></TouchableOpacity></ScrollView></View>
+      <View style={styles.modal}><View style={styles.modalHead}><TouchableOpacity onPress={()=>setShowReferral(false)} style={styles.close}><Ionicons name="close" size={24} color={AppColors.green}/></TouchableOpacity><Text style={styles.modalTitle}>Invite farmers</Text><View style={{width:44}}/></View><ScrollView contentContainerStyle={styles.modalBody}><Text style={styles.modalLead}>Farmers can scan this QR or enter the code manually in CLSL AI.</Text>
+      
+      {referral?.token ? (
+        <View style={{ padding: 20, backgroundColor: '#fff', borderRadius: 16, marginVertical: 20, alignSelf: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 }}>
+          <QRCode value={`https://ai.croplifescience.com/?ref=${referral.token}`} size={200} />
+        </View>
+      ) : (
+        <View style={styles.qrLoading}><ActivityIndicator color={AppColors.green} size="large" /><Text style={[shared.body, {marginTop: 10}]}>Loading secure QR…</Text></View>
+      )}
+
+      <Text style={styles.codeLabel}>FARMER REFERRAL CODE</Text><Text selectable style={styles.code}>{referral?.token||'·······'}</Text><Text style={styles.dealerName}>{referral?.dealer_name||dashboard?.dealer.name}</Text><TouchableOpacity style={shared.primary} onPress={()=>referral&&Linking.openURL(`whatsapp://send?text=${encodeURIComponent(`Hi, use referral code ${referral.token} in the CLSL AI app to get rewards on CLSL products.`)}`)}><Ionicons name="logo-whatsapp" size={21} color="#FFF"/><Text style={shared.primaryText}>Share on WhatsApp</Text></TouchableOpacity></ScrollView></View>
     </Modal>
 
     {/* Camera Scanner Modal */}
@@ -102,7 +123,7 @@ export default function DealerHomeScreen({onNavigate}:{onNavigate:(s:string)=>vo
         <View style={styles.camFrame}>
           {isCameraOpen && (
             <CameraView
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               facing="back"
               onBarcodeScanned={handleBarcodeScanned}
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
@@ -114,23 +135,27 @@ export default function DealerHomeScreen({onNavigate}:{onNavigate:(s:string)=>vo
     </Modal>
 
     {/* Scanned Data Confirmation Modal */}
-    <Modal visible={!!scannedData} animationType="slide" transparent>
+    <Modal visible={!!scannedData} animationType="fade" transparent statusBarTranslucent>
       <View style={styles.modalOverlay}>
         <View style={styles.scannedCard}>
           <View style={styles.scannedHeader}>
-            <Ionicons name="scan-outline" size={32} color={AppColors.blue} />
-            <Text style={styles.scannedTitle}>{scannedData?.type} Scanned</Text>
+            <View style={styles.scannedIconWrapper}>
+              <Ionicons name="ticket-outline" size={28} color="#FFF" />
+            </View>
+            <Text style={styles.scannedTitle}>{scannedData?.type || 'Coupon'} Scanned</Text>
           </View>
           
           <View style={styles.scannedBody}>
-            <Text style={styles.scannedLabel}>Code:</Text>
+            <Text style={styles.scannedLabel}>COUPON CODE</Text>
             <Text style={styles.scannedValue}>{scannedData?.code}</Text>
             
-            <Text style={[styles.scannedLabel, {marginTop: 12}]}>Dealer action (Offer to give):</Text>
+            <View style={styles.divider} />
+            
+            <Text style={styles.scannedLabel}>DEALER ACTION (OFFER TO GIVE)</Text>
             <Text style={styles.scannedOffer}>{scannedData?.offer}</Text>
             
             <View style={styles.criteriaBox}>
-              <Ionicons name="warning-outline" size={20} color="#B9770E" />
+              <Ionicons name="information-circle" size={22} color="#064878" />
               <View style={{flex:1}}>
                 <Text style={styles.criteriaTitle}>Verification Criteria</Text>
                 <Text style={styles.criteriaText}>{scannedData?.criteria}</Text>
@@ -154,10 +179,10 @@ export default function DealerHomeScreen({onNavigate}:{onNavigate:(s:string)=>vo
 }
 
 function Metric({value,label}:{value:string;label:string}){return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>}
-function Action({icon,label,onPress}:{icon:'scan'|'document-text-outline'|'people-outline'|'gift-outline';label:string;onPress?:()=>void}){return <TouchableOpacity style={styles.action} onPress={onPress}><View style={styles.actionIcon}><Ionicons name={icon} size={23} color={AppColors.blue}/></View><Text style={styles.actionLabel}>{label}</Text></TouchableOpacity>}
+function Action({icon,label,onPress}:{icon:any;label:string;onPress?:()=>void}){return <TouchableOpacity style={styles.action} onPress={onPress}><View style={styles.actionIcon}><Ionicons name={icon} size={23} color={AppColors.green}/></View><Text style={styles.actionLabel}>{label}</Text></TouchableOpacity>}
 
 const styles=StyleSheet.create({
-  welcome:{backgroundColor:AppColors.blue,borderRadius:24,padding:20,flexDirection:'row',alignItems:'center'},
+  welcome:{backgroundColor:AppColors.green,borderRadius:24,padding:20,flexDirection:'row',alignItems:'center'},
   hello:{color:'#FFF',fontSize:23,fontWeight:'900'},
   welcomeSub:{color:'#CDE0EC',lineHeight:20,marginTop:5},
   mascot:{width:74,height:74,borderRadius:22,marginLeft:12},
@@ -183,7 +208,7 @@ const styles=StyleSheet.create({
   qrImage:{width:240,height:240,borderRadius:22,backgroundColor:'#FFF'},
   qrLoading:{width:240,height:240,borderRadius:22,backgroundColor:'#FFF',alignItems:'center',justifyContent:'center',gap:12},
   codeLabel:{color:AppColors.muted,fontSize:11,fontWeight:'900',letterSpacing:1.3},
-  code:{fontSize:34,fontWeight:'900',letterSpacing:5,color:AppColors.blue},
+  code:{fontSize:34,fontWeight:'900',letterSpacing:5,color:AppColors.green},
   dealerName:{color:AppColors.ink,fontWeight:'800',marginBottom:8},
 
   camOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
@@ -191,21 +216,23 @@ const styles=StyleSheet.create({
   camFrame: { width: 250, height: 250, borderWidth: 3, borderColor: AppColors.green, borderRadius: 20, overflow: 'hidden' },
   camHint: { color: '#fff', marginTop: 24, fontSize: 14, fontWeight: '600' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 16 },
-  scannedCard: { backgroundColor: '#FFF', borderRadius: 24, overflow: 'hidden' },
-  scannedHeader: { backgroundColor: AppColors.pale, padding: 24, alignItems: 'center', gap: 10 },
-  scannedTitle: { fontSize: 20, fontWeight: '900', color: AppColors.ink },
-  scannedBody: { padding: 24 },
-  scannedLabel: { fontSize: 12, color: AppColors.muted, fontWeight: '700', textTransform: 'uppercase' },
-  scannedValue: { fontSize: 16, color: AppColors.ink, fontWeight: '800', marginTop: 4 },
-  scannedOffer: { fontSize: 22, color: AppColors.green, fontWeight: '900', marginTop: 4 },
-  criteriaBox: { backgroundColor: '#FFF9E6', padding: 16, borderRadius: 12, marginTop: 24, flexDirection: 'row', gap: 12, borderWidth: 1, borderColor: '#FDEBD0' },
-  criteriaTitle: { color: '#B9770E', fontWeight: '800', fontSize: 14 },
-  criteriaText: { color: '#935116', fontSize: 13, marginTop: 4, lineHeight: 18 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 20 },
+  scannedCard: { backgroundColor: '#FFF', borderRadius: 24, overflow: 'hidden', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 },
+  scannedHeader: { backgroundColor: AppColors.green, padding: 24, alignItems: 'center', gap: 10 },
+  scannedIconWrapper: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  scannedTitle: { fontSize: 20, fontWeight: '900', color: '#FFF' },
+  scannedBody: { padding: 28 },
+  scannedLabel: { fontSize: 11, color: AppColors.muted, fontWeight: '800', letterSpacing: 0.8 },
+  scannedValue: { fontSize: 22, color: AppColors.ink, fontWeight: '900', marginTop: 4, letterSpacing: 2 },
+  divider: { height: 1, backgroundColor: AppColors.line, marginVertical: 18 },
+  scannedOffer: { fontSize: 26, color: AppColors.green, fontWeight: '900', marginTop: 4 },
+  criteriaBox: { backgroundColor: '#F0F7FB', padding: 16, borderRadius: 14, marginTop: 24, flexDirection: 'row', gap: 12, borderWidth: 1, borderColor: '#DCECF5' },
+  criteriaTitle: { color: '#064878', fontWeight: '800', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 },
+  criteriaText: { color: '#0A62A3', fontSize: 14, marginTop: 6, lineHeight: 20, fontWeight: '500' },
   
-  scannedActions: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: AppColors.line },
+  scannedActions: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: AppColors.line, backgroundColor: '#FAFAFA' },
   scannedBtnCancel: { flex: 1, padding: 20, alignItems: 'center', borderRightWidth: 1, borderRightColor: AppColors.line },
   scannedBtnCancelText: { color: AppColors.muted, fontWeight: '800', fontSize: 16 },
-  scannedBtnRedeem: { flex: 1, padding: 20, alignItems: 'center', backgroundColor: AppColors.greenLight },
+  scannedBtnRedeem: { flex: 1, padding: 20, alignItems: 'center', backgroundColor: '#FFF' },
   scannedBtnRedeemText: { color: AppColors.green, fontWeight: '900', fontSize: 16 }
 });

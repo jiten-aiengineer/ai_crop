@@ -5,15 +5,16 @@
  * - 2-column quick-action grid, featured products strip
  * - True mobile-native feel: no web-like aesthetics
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  StatusBar, Image, Dimensions, Platform, ActivityIndicator,
+  StatusBar, Image, Dimensions, Platform, ActivityIndicator, FlatList, ImageBackground, Modal
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCatalogue, getHomeStats, CatalogProduct } from '../../services/api';
+import { FARMING_FACTS, FarmingFact } from '../../constants/FarmingFacts';
 
 const { width: W } = Dimensions.get('window');
 const H_PAD = 16;
@@ -55,8 +56,8 @@ const CAT_COLOR: Record<string, { bg: string; color: string }> = {
   'Plant Growth Regulator':   { bg: C.tealPale, color: C.teal },
   'Bio Stimulant':            { bg: '#d4edda', color: '#155724' },
   'Micro Fertilizers':        { bg: '#cce5ff', color: '#004085' },
-  'Sticking Agent':           { bg: '#f8d7da', color: '#721c24' },
-  'Antibiotic / Bactericide': { bg: '#f5c6cb', color: '#721c24' },
+  'Sticking Agent':           { bg: '#ccfbf1', color: '#134e4a' },
+  'Antibiotic / Bactericide': { bg: '#e0e7ff', color: '#312e81' },
 };
 const getCatStyle = (cat: string) =>
   CAT_COLOR[cat] || { bg: C.limePale, color: C.green };
@@ -64,11 +65,9 @@ const getCatStyle = (cat: string) =>
 // ── Quick actions ────────────────────────────────────────────────────────────
 const QUICK_ACTIONS = [
   { id: 'inspect',    icon: 'leaf',                      lib: 'mci', color: C.green,    bg: C.limePale,  label: 'AI Crop Doctor', sub: 'Identify problems'   },
-  { id: 'products',   icon: 'bottle-tonic-outline',      lib: 'mci', color: C.greenDark,bg: C.pale,      label: 'Products',       sub: 'Browse solutions'    },
-  { id: 'weather',    icon: 'partly-sunny-outline',      lib: 'ion', color: C.amber,    bg: C.amberPale, label: 'Weather',        sub: 'Live farm weather'   },
   { id: 'coupons',    icon: 'tag-outline',               lib: 'mci', color: C.red,      bg: C.redPale,   label: 'My Coupons',     sub: 'View your offers'    },
   { id: 'calculator', icon: 'calculator-variant-outline',lib: 'mci', color: C.teal,     bg: C.tealPale,  label: 'Spray Calc',     sub: 'Get right dosage'    },
-  { id: 'assistant',  icon: 'chat-outline',              lib: 'mci', color: C.purple,   bg: C.purplePale,label: 'Ask Mitra',      sub: 'Your farming friend' },
+  { id: 'assistant',  icon: 'chat-processing-outline',   lib: 'mci', color: C.purple,   bg: C.purplePale,label: 'Ask Mitra',      sub: 'Your farming friend' },
 ] as const;
 
 type QuickAction = typeof QUICK_ACTIONS[number];
@@ -94,6 +93,33 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (screen: strin
   const [featured, setFeatured]   = useState<CatalogProduct[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
 
+  // Daily insights state
+  const flatListRef = useRef<FlatList>(null);
+  const [facts, setFacts] = useState<FarmingFact[]>([]);
+  const [currentFactIndex, setCurrentFactIndex] = useState(0);
+  const scrollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [selectedFact, setSelectedFact] = useState<FarmingFact | null>(null);
+
+  useEffect(() => {
+    // Shuffle and pick 10 facts to show in this session
+    const shuffled = [...FARMING_FACTS].sort(() => 0.5 - Math.random());
+    setFacts(shuffled.slice(0, 10));
+  }, []);
+
+  useEffect(() => {
+    if (facts.length === 0) return;
+    scrollTimerRef.current = setInterval(() => {
+      let nextIndex = currentFactIndex + 1;
+      if (nextIndex >= facts.length) nextIndex = 0;
+      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+      setCurrentFactIndex(nextIndex);
+    }, 6000);
+    return () => {
+      if (scrollTimerRef.current) clearInterval(scrollTimerRef.current);
+    };
+  }, [currentFactIndex, facts.length]);
+
   useEffect(() => {
     let mounted = true;
     Promise.all([getHomeStats(), getCatalogue()])
@@ -108,142 +134,107 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (screen: strin
     return () => { mounted = false; };
   }, []);
 
-  const renderIcon = (action: QuickAction) =>
-    action.lib === 'mci'
+  const renderIcon = (action: QuickAction) => {
+    return action.lib === 'mci'
       ? <MaterialCommunityIcons name={action.icon as any} size={28} color={action.color} />
       : <Ionicons name={action.icon as any} size={28} color={action.color} />;
+  };
 
   return (
     <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.greenDark} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ── Top bar ──────────────────────────────────────────────── */}
       <View style={s.topBar}>
-        <View style={s.topBarLeft}>
-          <Image
-            source={require('../../../assets/images/clsl-logo.png')}
-            style={s.topBarLogo}
-            resizeMode="contain"
-          />
-          <View>
-            <Text style={s.topBarBrand}>CLSL AI</Text>
-            <Text style={s.topBarTagline}>Crop care, made smarter.</Text>
+        <View style={s.topBarHeader}>
+          <View style={s.topBarLeft}>
+            <Image
+              source={require('../../../assets/images/clsl-logo-leaf.png')}
+              style={s.topBarLogo}
+              resizeMode="contain"
+            />
+            <View>
+              <Text style={s.topBarBrand}>CLSL</Text>
+              <Text style={s.topBarTagline}>Crop care, made smarter.</Text>
+            </View>
+          </View>
+          <View style={s.topBarRight}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.05)', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 20 }}>
+              <Text style={{ color: C.ink, fontSize: 12, fontWeight: '800', marginRight: 4 }}>28°C</Text>
+              <Ionicons name="partly-sunny" size={14} color={C.green} />
+            </View>
+            <TouchableOpacity style={s.topBarBtn} onPress={() => setShowNotifications(!showNotifications)}>
+              <Ionicons name="notifications-outline" size={20} color={C.ink} />
+              <View style={s.notifDot} />
+            </TouchableOpacity>
           </View>
         </View>
-        <View style={s.topBarRight}>
-          <TouchableOpacity style={s.topBarBtn}>
-            <Ionicons name="notifications-outline" size={22} color="rgba(255,255,255,0.85)" />
-            <View style={s.notifDot} />
+
+      </View>
+
+      {showNotifications && (
+        <View style={{ position: 'absolute', top: Platform.OS === 'ios' ? 100 : 90, right: 16, backgroundColor: '#fff', borderRadius: 16, width: 280, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 10, zIndex: 100, padding: 12, borderWidth: 1, borderColor: '#e5e7eb' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: 4 }}>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: C.ink }}>Notifications</Text>
+            <TouchableOpacity onPress={() => setShowNotifications(false)}>
+              <Ionicons name="close" size={16} color={C.muted} />
+            </TouchableOpacity>
+          </View>
+          
+          <TouchableOpacity style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }} onPress={() => { setShowNotifications(false); onNavigate?.('coupons'); }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: C.ink }}>New Coupon Added! 🎁</Text>
+            <Text style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>You unlocked 10% off on your next purchase.</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={logout}>
-            <View style={s.avatar}>
-              <Text style={s.avatarText}>{(user?.first_name || 'U')[0].toUpperCase()}</Text>
-            </View>
+          
+          <TouchableOpacity style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }} onPress={() => { setShowNotifications(false); onNavigate?.('products'); }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: C.ink }}>New CLSL Product 🚀</Text>
+            <Text style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>AMBUCROP is now available for your apple crops.</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={{ padding: 10 }} onPress={() => { setShowNotifications(false); onNavigate?.('assistant'); }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#e11d48' }}>Weather Advisory ⚠️</Text>
+            <Text style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>High humidity detected. Increased risk of blight.</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      )}
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* ── Greeting ─────────────────────────────────────────────── */}
-        <View style={s.greetRow}>
-          <Text style={s.greetSub}>{greeting()},</Text>
-          <Text style={s.greetName}>{user?.first_name || 'Farmer'} 👋</Text>
-          {user?.district ? (
-            <View style={s.locationPill}>
-              <Ionicons name="location-outline" size={12} color={C.green} />
-              <Text style={s.locationText}>{user.district} district</Text>
-            </View>
-          ) : null}
-        </View>
-
-        {/* ── Hero banner ──────────────────────────────────────────── */}
-        <View style={s.heroBanner}>
-          <LinearGradient
-            colors={[C.greenDark, '#2a5510', C.green]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={s.heroGrad}
-          >
-            {/* Decorative bubbles */}
+        {/* ── Hero banner ────────────────────────────────────────────── */}
+        <TouchableOpacity style={s.heroBanner} onPress={() => onNavigate?.('inspect')} activeOpacity={0.9}>
+          <LinearGradient colors={[C.greenDark, '#1f4726']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.heroGrad}>
             <View style={s.heroBubble1} />
             <View style={s.heroBubble2} />
-
-            {/* Left content — fixed 56% width */}
             <View style={s.heroContent}>
-              <View style={s.heroBadge}>
-                <MaterialCommunityIcons name="leaf" size={10} color={C.lime} />
-                <Text style={s.heroBadgeText}>AI-POWERED</Text>
-              </View>
-              <Text style={s.heroTitle}>How can we{'\n'}help your farm?</Text>
-              <Text style={s.heroBody}>Crop protection & product discovery, all in one place.</Text>
-              <TouchableOpacity
-                style={s.heroBtn}
-                onPress={() => onNavigate?.('inspect')}
-                activeOpacity={0.88}
-              >
-                <MaterialCommunityIcons name="camera-plus-outline" size={15} color={C.ink} />
-                <Text style={s.heroBtnText}>Scan your crop</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Mascot */}
-            <View style={s.heroMascotBox}>
-              <Image
-                source={require('../../../assets/images/mascot_new.png')}
-                style={s.heroMascot}
-                resizeMode="contain"
-              />
-            </View>
-          </LinearGradient>
-
-          {/* Live stats bar */}
-          <View style={s.statsBar}>
-            <View style={s.statItem}>
-              {statsLoading
-                ? <ActivityIndicator size="small" color={C.lime} />
-                : <Text style={s.statVal}>{stats.productCount}+</Text>}
-              <Text style={s.statLabel}>Products</Text>
-            </View>
-            <View style={s.statDivider} />
-            <View style={s.statItem}>
-              {statsLoading
-                ? <ActivityIndicator size="small" color={C.lime} />
-                : <Text style={s.statVal}>{stats.cropCount}+</Text>}
-              <Text style={s.statLabel}>Crops covered</Text>
-            </View>
-            <View style={s.statDivider} />
-            <View style={s.statItem}>
-              <Text style={s.statVal}>AI</Text>
-              <Text style={s.statLabel}>Smart diagnosis</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ── Quick actions — 2 × 3 grid ───────────────────────────── */}
-        <Text style={s.sectionTitle}>Quick actions</Text>
-        <View style={s.quickGrid}>
-          {QUICK_ACTIONS.map(action => (
-            <TouchableOpacity
-              key={action.id}
-              style={s.quickCard}
-              onPress={() => onNavigate?.(action.id)}
-              activeOpacity={0.76}
-            >
-              <View style={s.quickTop}>
-                <View style={[s.quickIconBox, { backgroundColor: action.bg }]}>
-                  {renderIcon(action)}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                <View style={[s.heroBadge, { marginBottom: 0 }]}>
+                  <Ionicons name="leaf" size={10} color={C.lime} />
+                  <Text style={s.heroBadgeText}>AI-POWERED</Text>
                 </View>
-                <Ionicons name="arrow-forward-circle-outline" size={18} color={action.color} />
+                {user?.district && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 999 }}>
+                    <Ionicons name="location-outline" size={10} color={C.lime} />
+                    <Text style={{ fontSize: 8.5, color: '#fff', marginLeft: 2, fontWeight: '700' }}>{user.district}</Text>
+                  </View>
+                )}
               </View>
-              <Text style={s.quickLabel}>{action.label}</Text>
-              <Text style={s.quickSub}>{action.sub}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+              
+              <Text style={{ fontSize: 11, color: C.lime, fontWeight: '700', marginBottom: 2 }}>{greeting()}, {user?.first_name || 'Farmer'} 👋</Text>
+              <Text style={s.heroTitle}>How can we{'\n'}help your farm?</Text>
+              <Text style={s.heroBody}>Crop protection & discovery.</Text>
+              
+              <View style={s.heroBtn}>
+                <Ionicons name="scan" size={14} color={C.greenDark} />
+                <Text style={s.heroBtnText}>Scan your crop</Text>
+              </View>
+            </View>
+            <Image source={require('../../../assets/images/mascot_v3.png')} style={{ position: 'absolute', right: 5, bottom: -5, width: 130, height: 130, aspectRatio: 1 }} resizeMode="contain" />
+          </LinearGradient>
+        </TouchableOpacity>
 
         {/* ── Featured products ─────────────────────────────────────── */}
         <View style={s.sectionRow}>
-          <Text style={s.sectionTitle}>Our products</Text>
+          <Text style={s.sectionTitle}>Recommended products</Text>
           <TouchableOpacity onPress={() => onNavigate?.('products')}>
             <Text style={s.seeAll}>See all {stats.productCount}+ →</Text>
           </TouchableOpacity>
@@ -307,32 +298,89 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (screen: strin
               })}
         </ScrollView>
 
-        {/* ── Crop advisory ─────────────────────────────────────────── */}
-        <View style={s.sectionRow}>
-          <Text style={s.sectionTitle}>Crop advisory</Text>
-          <TouchableOpacity>
-            <Text style={s.seeAll}>See all ›</Text>
-          </TouchableOpacity>
+        {/* ── Quick actions — 2 × 2 grid ───────────────────────────── */}
+        <Text style={s.sectionTitle}>Quick actions</Text>
+        <View style={s.quickGrid}>
+          {QUICK_ACTIONS.map(action => (
+            <TouchableOpacity
+              key={action.id}
+              style={s.quickCard}
+              onPress={() => onNavigate?.(action.id)}
+              activeOpacity={0.76}
+            >
+              <View style={s.quickTop}>
+                <View style={[s.quickIconBox, { backgroundColor: action.bg }]}>
+                  {renderIcon(action)}
+                </View>
+                <Ionicons name="arrow-forward-circle-outline" size={18} color={action.color} />
+              </View>
+              <Text style={s.quickLabel}>{action.label}</Text>
+              <Text style={s.quickSub}>{action.sub}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        <TouchableOpacity style={s.advisoryCard} activeOpacity={0.85}>
-          <Image
-            source={require('../../../assets/images/field_only.png')}
-            style={s.advisoryImg}
-            resizeMode="cover"
+        {/* ── Daily Insights ─────────────────────────────────────────── */}
+        <View style={s.sectionRow}>
+          <Text style={s.sectionTitle}>Daily Insights</Text>
+        </View>
+
+        <View style={{ marginHorizontal: -H_PAD, marginBottom: 20 }}>
+          <FlatList
+            ref={flatListRef}
+            data={facts}
+            keyExtractor={item => item.id}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(e) => {
+              const index = Math.round(e.nativeEvent.contentOffset.x / W);
+              setCurrentFactIndex(index);
+            }}
+            renderItem={({ item }) => {
+              let bg = C.card;
+              let border = C.line;
+              let icon = 'bulb-outline';
+              let iconColor = C.amber;
+              let iconBg = C.amberPale;
+              
+              if (item.type === 'offer') {
+                bg = '#faf5ff'; border = '#e9d5ff'; icon = 'gift-outline'; iconColor = '#9333ea'; iconBg = '#f3e8ff';
+              } else if (item.type === 'clsl') {
+                bg = '#f2fdf5'; border = '#bbf7d0'; icon = 'leaf-outline'; iconColor = '#16a34a'; iconBg = '#dcfce7';
+              } else if (item.type === 'tip') {
+                bg = '#f0f9ff'; border = '#bae6fd'; icon = 'water-outline'; iconColor = '#0369a1'; iconBg = '#e0f2fe';
+              }
+
+              return (
+                <View style={{ width: W, paddingHorizontal: H_PAD }}>
+                  <TouchableOpacity
+                    style={[s.advisoryCard, { backgroundColor: bg, borderColor: border, marginBottom: 0, minHeight: 120 }]}
+                    activeOpacity={0.85}
+                    onPress={() => setSelectedFact(item)}
+                  >
+                    <View style={[s.advisoryIconBox, { backgroundColor: iconBg }]}>
+                      <Ionicons name={icon as any} size={18} color={iconColor} />
+                    </View>
+                    <View style={s.advisoryBody}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: iconColor, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          {item.type === 'clsl' ? 'CLSL Insight' : item.type.toUpperCase()}
+                        </Text>
+                      </View>
+                      <Text style={[s.advisoryTitle, { color: iconColor }]} numberOfLines={1}>{item.title}</Text>
+                      <Text style={[s.advisoryText, { color: '#374151' }]} numberOfLines={2}>{item.text}</Text>
+                      <View style={s.advisoryActionRow}>
+                        <Text style={[s.advisoryLink, { color: iconColor }]}>Read full insight</Text>
+                        <Ionicons name="arrow-forward" size={12} color={iconColor} />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              );
+            }}
           />
-          <View style={s.advisoryBody}>
-            <View style={s.advisoryBadge}>
-              <MaterialCommunityIcons name="leaf" size={10} color={C.green} />
-              <Text style={s.advisoryBadgeText}>Crop Advisory</Text>
-            </View>
-            <Text style={s.advisoryTitle}>Protect tomato from early blight</Text>
-            <Text style={s.advisoryText}>
-              Warm and humid conditions can increase early blight risk. Take preventive measures now.
-            </Text>
-            <Text style={s.advisoryLink}>Read advisory →</Text>
-          </View>
-        </TouchableOpacity>
+        </View>
 
         {/* ── Weather strip ─────────────────────────────────────────── */}
         <TouchableOpacity
@@ -341,40 +389,71 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (screen: strin
           activeOpacity={0.8}
         >
           <View style={s.weatherIconBox}>
-            <Ionicons name="partly-sunny" size={32} color={C.amber} />
+            <Ionicons name="partly-sunny" size={24} color={C.amber} />
           </View>
           <View style={s.weatherCenter}>
             <Text style={s.weatherTemp}>28°C <Text style={s.weatherCond}>· Partly cloudy</Text></Text>
             <Text style={s.weatherHint}>Good spraying window until 11:30 AM</Text>
           </View>
-          <View style={s.weatherRight}>
-            <Text style={s.weatherStat}>💧 46%</Text>
-            <Text style={s.weatherStat}>🌬 12 km/h</Text>
-          </View>
+          <Ionicons name="chevron-forward" size={20} color={C.muted} />
         </TouchableOpacity>
 
-        {/* ── Ask Mitra promo banner ────────────────────────────────── */}
-        <TouchableOpacity
-          style={s.mitraBanner}
-          onPress={() => onNavigate?.('assistant')}
-          activeOpacity={0.84}
-        >
-          <Image
-            source={require('../../../assets/images/mascot_new.png')}
-            style={s.mitraMascot}
-            resizeMode="contain"
-          />
-          <View style={s.mitraContent}>
-            <Text style={s.mitraTitle}>Ask Mitra</Text>
-            <Text style={s.mitraSub}>Your 24/7 farming AI — ask about crops, diseases, dosages & more</Text>
-            <View style={s.mitraBtn}>
-              <Text style={s.mitraBtnText}>Start chatting →</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-
-        <View style={{ height: 110 }} />
+        <View style={{ height: 30 }} />
       </ScrollView>
+
+      {/* ── Daily Insight Modal ─────────────────────────────────────── */}
+      <Modal
+        visible={!!selectedFact}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedFact(null)}
+      >
+        <View style={s.modalOverlay}>
+          <View style={s.modalContent}>
+            <View style={s.modalHeader}>
+              <View style={[s.modalIconBox, { 
+                backgroundColor: selectedFact?.type === 'offer' ? '#f3e8ff' : 
+                                 selectedFact?.type === 'clsl' ? '#dcfce7' : 
+                                 selectedFact?.type === 'tip' ? '#e0f2fe' : C.amberPale
+              }]}>
+                <Ionicons 
+                  name={selectedFact?.type === 'offer' ? 'gift-outline' : 
+                        selectedFact?.type === 'clsl' ? 'leaf-outline' : 
+                        selectedFact?.type === 'tip' ? 'water-outline' : 'bulb-outline'} 
+                  size={24} 
+                  color={selectedFact?.type === 'offer' ? '#9333ea' : 
+                         selectedFact?.type === 'clsl' ? '#16a34a' : 
+                         selectedFact?.type === 'tip' ? '#0369a1' : C.amber} 
+                />
+              </View>
+              <TouchableOpacity onPress={() => setSelectedFact(null)} style={s.modalClose}>
+                <Ionicons name="close" size={24} color={C.muted} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={{ fontSize: 10, fontWeight: '800', color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+              {selectedFact?.type === 'clsl' ? 'CLSL Insight' : selectedFact?.type?.toUpperCase()}
+            </Text>
+            <Text style={s.modalTitle}>{selectedFact?.title}</Text>
+            <Text style={s.modalText}>{selectedFact?.text}</Text>
+
+            {selectedFact?.actionText && (
+              <TouchableOpacity 
+                style={s.modalActionBtn}
+                onPress={() => {
+                  const route = selectedFact.actionRoute;
+                  setSelectedFact(null);
+                  if (route) onNavigate?.(route);
+                }}
+              >
+                <Text style={s.modalActionText}>{selectedFact.actionText}</Text>
+                <Ionicons name="arrow-forward" size={16} color="#fff" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -385,16 +464,20 @@ const s = StyleSheet.create({
 
   // Top bar
   topBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: C.greenDark,
-    paddingHorizontal: 18,
-    paddingTop: Platform.OS === 'ios' ? 52 : 38,
-    paddingBottom: 14,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 48 : 34,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.line,
   },
-  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  topBarLogo: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#fff' },
-  topBarBrand: { fontSize: 17, fontWeight: '900', color: '#fff', letterSpacing: -0.3 },
-  topBarTagline: { fontSize: 10, color: 'rgba(255,255,255,0.55)', marginTop: 1 },
+  topBarHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  topBarLogo: { width: 34, height: 34, borderRadius: 8 },
+  topBarBrand: { fontSize: 16, fontWeight: '900', color: '#0B4783', letterSpacing: -0.3 },
+  topBarTagline: { fontSize: 10, color: '#0B4783', marginTop: 1 },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   topBarBtn: { position: 'relative', padding: 4 },
   notifDot: {
@@ -409,66 +492,65 @@ const s = StyleSheet.create({
   },
   avatarText: { color: C.greenDark, fontWeight: '900', fontSize: 15 },
 
-  scroll: { paddingHorizontal: H_PAD, paddingTop: 20 },
+  scroll: { paddingHorizontal: H_PAD, paddingTop: 24 },
 
   // Greeting
-  greetRow: { marginBottom: 20 },
-  greetSub: { fontSize: 13, fontWeight: '500', color: C.muted },
-  greetName: { fontSize: 26, fontWeight: '900', color: C.ink, letterSpacing: -0.5, marginTop: 1 },
+  greetRow: { paddingHorizontal: 4 },
+  greetSub: { fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.85)' },
+  greetName: { fontSize: 24, fontWeight: '900', color: '#fff', letterSpacing: -0.5, marginTop: 2 },
   locationPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: C.limePale, borderWidth: 1, borderColor: C.line,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 999, alignSelf: 'flex-start', marginTop: 10,
+    borderRadius: 999, alignSelf: 'flex-start', marginTop: 12,
   },
-  locationText: { fontSize: 12, fontWeight: '700', color: C.green },
+  locationText: { fontSize: 11, fontWeight: '700', color: '#fff' },
 
   // Hero banner
   heroBanner: {
-    borderRadius: 22, overflow: 'hidden', marginBottom: 28,
-    shadowColor: C.greenDark, shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3, shadowRadius: 22, elevation: 10,
+    borderRadius: 18, overflow: 'hidden', marginBottom: 24,
+    shadowColor: C.greenDark, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2, shadowRadius: 16, elevation: 6,
   },
   heroGrad: {
     flexDirection: 'row', alignItems: 'flex-end',
-    paddingLeft: 20, paddingTop: 24, paddingBottom: 0,
-    minHeight: 195, overflow: 'hidden',
+    paddingLeft: 16, paddingTop: 18, paddingBottom: 0,
+    minHeight: 120, overflow: 'hidden',
   },
   heroBubble1: {
-    position: 'absolute', top: -70, right: -60,
-    width: 190, height: 190, borderRadius: 95,
-    borderWidth: 45, borderColor: 'rgba(203,233,104,0.13)',
+    position: 'absolute', top: -50, right: -40,
+    width: 140, height: 140, borderRadius: 70,
+    borderWidth: 30, borderColor: 'rgba(203,233,104,0.13)',
   },
   heroBubble2: {
-    position: 'absolute', bottom: 30, left: -40,
-    width: 110, height: 110, borderRadius: 55,
-    borderWidth: 22, borderColor: 'rgba(255,255,255,0.08)',
+    position: 'absolute', bottom: 20, left: -30,
+    width: 80, height: 80, borderRadius: 40,
+    borderWidth: 16, borderColor: 'rgba(255,255,255,0.08)',
   },
-  heroContent: { width: W * 0.56, paddingBottom: 22 },
+  heroContent: { width: W * 0.54, paddingBottom: 16 },
   heroBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: 'rgba(203,233,104,0.2)',
-    paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: 999, alignSelf: 'flex-start', marginBottom: 10,
+    paddingHorizontal: 6, paddingVertical: 3,
+    borderRadius: 999, alignSelf: 'flex-start', marginBottom: 8,
   },
-  heroBadgeText: { fontSize: 8.5, fontWeight: '800', color: C.lime, letterSpacing: 1.3 },
+  heroBadgeText: { fontSize: 8, fontWeight: '800', color: C.lime, letterSpacing: 1 },
   heroTitle: {
-    fontSize: 21, fontWeight: '900', color: '#fff',
-    lineHeight: 27, letterSpacing: -0.4, marginBottom: 9,
+    fontSize: 17, fontWeight: '900', color: '#fff',
+    lineHeight: 22, letterSpacing: -0.4, marginBottom: 6,
   },
   heroBody: {
-    fontSize: 11, color: 'rgba(255,255,255,0.68)',
-    lineHeight: 17, marginBottom: 16,
+    fontSize: 10, color: 'rgba(255,255,255,0.8)',
+    lineHeight: 14, marginBottom: 12,
   },
   heroBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: C.lime, borderRadius: 10,
-    paddingHorizontal: 13, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: C.lime, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 8,
     alignSelf: 'flex-start',
   },
-  heroBtnText: { fontSize: 12, fontWeight: '800', color: C.ink },
-  heroMascotBox: { width: W * 0.42, alignItems: 'center', justifyContent: 'flex-end' },
-  heroMascot: { width: W * 0.42, height: W * 0.54 },
+  heroBtnText: { fontSize: 11, fontWeight: '800', color: C.ink },
+  heroBtnText: { fontSize: 11, fontWeight: '800', color: C.ink },
 
   // Live stats bar
   statsBar: {
@@ -482,68 +564,68 @@ const s = StyleSheet.create({
   statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginVertical: 4 },
 
   // Section headers
-  sectionTitle: { fontSize: 18, fontWeight: '900', color: C.ink, letterSpacing: -0.3, marginBottom: 14 },
-  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  seeAll: { fontSize: 13, fontWeight: '700', color: C.green },
+  sectionTitle: { fontSize: 17, fontWeight: '900', color: C.ink, letterSpacing: -0.3, marginBottom: 12 },
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  seeAll: { fontSize: 12, fontWeight: '700', color: C.green },
 
   // Quick actions grid
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP, marginBottom: 30 },
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP, marginBottom: 24 },
   quickCard: {
-    width: CARD_W, backgroundColor: C.card, borderRadius: 18,
-    padding: 16, borderWidth: 1, borderColor: C.line,
+    width: CARD_W, backgroundColor: C.card, borderRadius: 16,
+    padding: 14, borderWidth: 1, borderColor: C.line,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+    minHeight: 110,
   },
   quickTop: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: 12,
   },
-  quickIconBox: { width: 50, height: 50, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
-  quickLabel: { fontSize: 14, fontWeight: '800', color: C.ink, marginBottom: 3 },
-  quickSub: { fontSize: 12, color: C.muted, fontWeight: '500' },
+  quickIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  quickLabel: { fontSize: 13, fontWeight: '900', color: C.ink, marginBottom: 2 },
+  quickSub: { fontSize: 11, color: C.muted, fontWeight: '500', lineHeight: 14 },
 
   // Featured products strip
-  productStrip: { paddingRight: H_PAD, paddingBottom: 6, gap: 12, marginBottom: 28 },
+  productStrip: { paddingRight: H_PAD, paddingBottom: 6, gap: 12, marginBottom: 24 },
   productCard: {
     width: PRODUCT_CARD_W, backgroundColor: C.card,
-    borderRadius: 18, padding: 14, borderWidth: 1, borderColor: C.line,
+    borderRadius: 14, padding: 12, borderWidth: 1, borderColor: C.line,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
   },
-  productCardSkeleton: { height: 200, opacity: 0.4, backgroundColor: C.line },
+  productCardSkeleton: { height: 180, opacity: 0.4, backgroundColor: C.line },
   productImgBox: {
-    width: '100%', height: 110, backgroundColor: C.bg,
-    borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 10,
+    width: '100%', height: 90, backgroundColor: C.bg,
+    borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 8,
     overflow: 'hidden',
   },
   productImg: { width: '100%', height: '100%' },
-  catPill: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, alignSelf: 'flex-start', marginBottom: 8 },
-  catPillText: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.3 },
-  productName: { fontSize: 13, fontWeight: '800', color: C.ink, lineHeight: 18, marginBottom: 4 },
-  productCommon: { fontSize: 10.5, color: C.muted, marginBottom: 8 },
+  catPill: { borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-start', marginBottom: 6 },
+  catPillText: { fontSize: 8.5, fontWeight: '800', letterSpacing: 0.3 },
+  productName: { fontSize: 12, fontWeight: '800', color: C.ink, lineHeight: 16, marginBottom: 3 },
+  productCommon: { fontSize: 10, color: C.muted, marginBottom: 6 },
   cropPillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  cropPill: { backgroundColor: C.limePale, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  cropPillText: { fontSize: 9.5, fontWeight: '600', color: C.green },
-  cropMore: { fontSize: 9.5, fontWeight: '700', color: C.muted, alignSelf: 'center' },
+  cropPill: { backgroundColor: C.limePale, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
+  cropPillText: { fontSize: 8.5, fontWeight: '600', color: C.green },
+  cropMore: { fontSize: 8.5, fontWeight: '700', color: C.muted, alignSelf: 'center' },
 
   // Advisory card
   advisoryCard: {
-    backgroundColor: C.card, borderRadius: 20, overflow: 'hidden',
-    flexDirection: 'row', marginBottom: 20, borderWidth: 1, borderColor: C.line,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05, shadowRadius: 10, elevation: 2, minHeight: 130,
+    backgroundColor: '#fffbeb', borderRadius: 16, overflow: 'hidden',
+    flexDirection: 'row', marginBottom: 20, borderWidth: 1, borderColor: '#fde68a',
+    padding: 16, gap: 14,
+    shadowColor: '#d97706', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1, shadowRadius: 10, elevation: 2,
   },
-  advisoryImg: { width: 110 },
-  advisoryBody: { flex: 1, padding: 14 },
-  advisoryBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.limePale,
-    borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3,
-    alignSelf: 'flex-start', marginBottom: 8,
+  advisoryIconBox: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: '#fef3c7',
+    justifyContent: 'center', alignItems: 'center', marginTop: 2,
   },
-  advisoryBadgeText: { fontSize: 10, fontWeight: '800', color: C.green },
-  advisoryTitle: { fontSize: 14, fontWeight: '800', color: C.ink, lineHeight: 19, marginBottom: 6 },
-  advisoryText: { fontSize: 11.5, color: C.muted, lineHeight: 17, marginBottom: 8 },
-  advisoryLink: { fontSize: 12.5, fontWeight: '700', color: C.green },
+  advisoryBody: { flex: 1 },
+  advisoryTitle: { fontSize: 14, fontWeight: '800', color: '#92400e', marginBottom: 4 },
+  advisoryText: { fontSize: 12, color: '#b45309', lineHeight: 18, marginBottom: 10, fontWeight: '500' },
+  advisoryActionRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  advisoryLink: { fontSize: 12, fontWeight: '800', color: '#b45309' },
 
   // Weather
   weatherStrip: {
@@ -582,4 +664,15 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 8, alignSelf: 'flex-start',
   },
   mitraBtnText: { fontSize: 12, fontWeight: '800', color: C.ink },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { width: '100%', backgroundColor: '#fff', borderRadius: 20, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+  modalIconBox: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  modalClose: { padding: 4, backgroundColor: C.bg, borderRadius: 20 },
+  modalTitle: { fontSize: 20, fontWeight: '900', color: C.ink, marginBottom: 12, lineHeight: 26 },
+  modalText: { fontSize: 14, color: '#374151', lineHeight: 22, fontWeight: '500', marginBottom: 20 },
+  modalActionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: C.green, borderRadius: 12, paddingVertical: 14, gap: 8 },
+  modalActionText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 });

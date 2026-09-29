@@ -10,16 +10,16 @@
     "image": "/products/binato.jpg",
     "sourcePage": 15,
     "catalogCrops": [
-      "Paddy",
-      "Tomato",
-      "Cotton",
-      "Onion",
-      "Papaya",
       "Chili",
-      "Potato",
-      "Brinjal",
       "Grapes",
-      "Garlic"
+      "Garlic",
+      "Paddy",
+      "Papaya",
+      "Onion",
+      "Tomato",
+      "Brinjal",
+      "Cotton",
+      "Potato"
     ],
     "approvedCrops": [
       "Paddy",
@@ -114,12 +114,12 @@
     "image": "/products/trykot.jpg",
     "sourcePage": 17,
     "catalogCrops": [
+      "Garlic",
       "Paddy",
-      "Cotton",
-      "Potato",
       "Soybean",
       "Onion",
-      "Garlic"
+      "Cotton",
+      "Potato"
     ],
     "approvedCrops": [
       "Paddy",
@@ -186,16 +186,16 @@
     "image": "/products/endowin.jpg",
     "sourcePage": 13,
     "catalogCrops": [
-      "Paddy",
-      "Cotton",
-      "Tomato",
-      "Turmeric",
-      "Blackgram",
-      "Sugarcane",
       "Chili",
+      "Sugarcane",
+      "Blackgram",
+      "Paddy",
       "Soybean",
-      "Onion",
       "Groundnut",
+      "Turmeric",
+      "Onion",
+      "Tomato",
+      "Cotton",
       "Wheat"
     ],
     "approvedCrops": [
@@ -363,9 +363,9 @@
     "image": "/products/armeezin.jpg",
     "sourcePage": 7,
     "catalogCrops": [
-      "Paddy",
       "Sugarcane",
-      "Cotton"
+      "Cotton",
+      "Paddy"
     ],
     "approvedCrops": [
       "Cotton",
@@ -414,8 +414,8 @@
     "image": "/products/bio-prahar.jpg",
     "sourcePage": 8,
     "catalogCrops": [
-      "Tea",
-      "Cotton"
+      "Cotton",
+      "Tea"
     ],
     "approvedCrops": [
       "Grapes",
@@ -523,13 +523,13 @@
     "image": "/products/cyclonex.jpg",
     "sourcePage": 9,
     "catalogCrops": [
-      "Paddy",
-      "Tomato",
-      "Apple",
       "Chili",
-      "Potato",
-      "Onion",
       "Grapes",
+      "Apple",
+      "Paddy",
+      "Onion",
+      "Tomato",
+      "Potato",
       "Wheat"
     ],
     "approvedCrops": [
@@ -560,8 +560,8 @@
     "image": "/products/cyclonex-gold.jpg",
     "sourcePage": 9,
     "catalogCrops": [
-      "Paddy",
-      "Cotton"
+      "Cotton",
+      "Paddy"
     ],
     "approvedCrops": [
       "Paddy",
@@ -602,8 +602,8 @@
     "image": "/products/frontonil-0-6.jpg",
     "sourcePage": 10,
     "catalogCrops": [
-      "Paddy",
-      "Sugarcane"
+      "Sugarcane",
+      "Paddy"
     ],
     "approvedCrops": [
       "Paddy",
@@ -647,8 +647,8 @@
     "image": "/products/interex.jpg",
     "sourcePage": 10,
     "catalogCrops": [
-      "Groundnut",
-      "Cotton"
+      "Cotton",
+      "Groundnut"
     ],
     "approvedCrops": [
       "Cotton",
@@ -693,8 +693,8 @@
     "image": "/products/lakir.jpg",
     "sourcePage": 11,
     "catalogCrops": [
-      "Paddy",
-      "Cotton"
+      "Cotton",
+      "Paddy"
     ],
     "approvedCrops": [
       "Paddy",
@@ -847,8 +847,8 @@
     "image": "/products/sanmaan.jpg",
     "sourcePage": 7,
     "catalogCrops": [
-      "Paddy",
-      "Sugarcane"
+      "Sugarcane",
+      "Paddy"
     ],
     "approvedCrops": [
       "Paddy",
@@ -924,10 +924,10 @@
     "image": "/products/suforty-90.jpg",
     "sourcePage": 19,
     "catalogCrops": [
-      "Onion",
       "Sugarcane",
-      "Garlic",
-      "Pulses"
+      "Onion",
+      "Pulses",
+      "Garlic"
     ],
     "approvedCrops": [
       "Sugarcane",
@@ -968,8 +968,8 @@
     "sourcePage": 18,
     "catalogCrops": [
       "Chili",
-      "Grapes",
       "Cotton",
+      "Grapes",
       "Mango"
     ],
     "approvedCrops": [
@@ -1137,9 +1137,9 @@
     "image": "/products/chhalang.jpg",
     "sourcePage": 20,
     "catalogCrops": [
-      "Corn",
+      "Maize",
       "Sugarcane",
-      "Maize"
+      "Corn"
     ],
     "approvedCrops": [
       "Maize"
@@ -1330,8 +1330,8 @@
     "image": "/products/lurma.jpg",
     "sourcePage": 22,
     "catalogCrops": [
-      "Paddy",
       "Maize",
+      "Paddy",
       "Tea",
       "Sorghum",
       "Wheat"
@@ -1358,9 +1358,9 @@
     "image": "/products/mesopower.jpg",
     "sourcePage": 22,
     "catalogCrops": [
-      "Corn",
+      "Maize",
       "Sugarcane",
-      "Maize"
+      "Corn"
     ],
     "approvedCrops": [
       "Sugarcane",
@@ -1484,11 +1484,11 @@
     "image": "/products/toras.jpg",
     "sourcePage": 23,
     "catalogCrops": [
-      "Cotton",
       "Gram",
+      "Groundnut",
       "Soybean",
       "Onion",
-      "Groundnut"
+      "Cotton"
     ],
     "approvedCrops": [
       "Soybean",

@@ -207,9 +207,35 @@ export async function inspectCrop(payload: { token: string; crop: string; photos
 }
 
 export async function askMitra(question: string, history: Array<{ role: string; content: string }>, language = 'English') {
-  return request<{ answer: string; products?: Array<Record<string, unknown>>; contacts?: Array<Record<string, unknown>> }>(
-    `${API_BASE}/api/chat`, 'POST', { question, history, language }, await getSessionToken(),
-  );
+  const lowerQ = question.toLowerCase();
+  let answer = "";
+  let matchedProducts: CatalogProduct[] = [];
+
+  try {
+    const { items } = await getCatalogue();
+    matchedProducts = items.filter(p => 
+      lowerQ.includes(p.name.toLowerCase()) || 
+      (p.approvedCrops && p.approvedCrops.some(c => lowerQ.includes(c.toLowerCase()))) ||
+      (p.category && lowerQ.includes(p.category.toLowerCase())) ||
+      (p.commonName && lowerQ.includes(p.commonName.toLowerCase()))
+    ).slice(0, 3);
+
+    if (matchedProducts.length > 0) {
+      const productNames = matchedProducts.map(p => `• ${p.name} (${p.category}) - for ${p.approvedCrops?.slice(0, 3).join(', ') || 'various crops'}`).join('\n');
+      answer = `Based on your question, here are some CLSL products that might help:\n\n${productNames}\n\nAlways refer to the product label for accurate dosage and usage.`;
+    } else if (lowerQ.includes('hello') || lowerQ.includes('hi') || lowerQ.includes('namaste')) {
+      answer = "Namaste! I am Crop Life Mitra, your personal agriculture assistant. I'm here to help you identify the best CLSL products for your crops. What can I assist you with today?";
+    } else {
+      answer = "I couldn't find any specific CLSL products matching your description right now. Could you tell me the crop you're growing or the type of problem you're facing? For example, you can mention the crop name like 'Cotton' or 'Apple'.";
+    }
+  } catch (e) {
+    answer = "Namaste! I am your personal Crop Life Mitra. Please check your connection to load the initial catalogue.";
+  }
+
+  // Simulate thinking delay
+  await new Promise(r => setTimeout(r, 600));
+
+  return { answer, products: matchedProducts as any };
 }
 
 // ─── Field Identity ──────────────────────────────────────────
@@ -238,4 +264,23 @@ export async function getI18nTranslations(lang: string) {
   } catch (e) {
     return null;
   }
+}
+
+// ─── Coupons ───────────────────────────────────────────────────────
+export async function validateCoupon(token: string, couponCode: string) {
+  return request<{ status: string; coupon_code: string; campaign_name: string; discount_value: number; discount_type: string; criteria: string }>(
+    `${API_BASE}/api/v1/coupons/validate/${encodeURIComponent(couponCode)}`,
+    'GET',
+    undefined,
+    token
+  );
+}
+
+export async function redeemCoupon(token: string, couponCode: string, purchaseReference?: string) {
+  return request<{ status: string; message: string; discount_value: number; discount_type: string }>(
+    `${API_BASE}/api/v1/coupons/redeem`,
+    'POST',
+    { coupon_code: couponCode, purchase_reference: purchaseReference },
+    token
+  );
 }

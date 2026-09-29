@@ -15,6 +15,8 @@ export const companyAssistantKnowledge = {
     offices: 'Official CLSL documents list an administrative office at 6th Floor, ABS Tower, Old Padra Road, Vadodara, Gujarat. Office addresses should be confirmed on the official CLSL website before a visit or correspondence.',
     manufacturing: 'Official CLSL documents identify its manufacturing operations in the GIDC Estate at Ankleshwar, Gujarat.',
     productScope: 'The supplied product catalogue covers crop-protection and crop-support categories including insecticides, fungicides, herbicides/weedicides, seed treatment, bio-stimulants, plant growth regulators and micronutrient products.',
+    exportOperations: 'CLSL has an active international presence, exporting its high-value branded agrochemical formulations since 2012 to various global markets including Bangladesh, Brazil, China, Egypt, Ethiopia, Gabon, Indonesia, Kenya, Lebanon, Malaysia, Morocco, Nepal, Oman, Saudi Arabia, Sudan, Thailand, and Vietnam.',
+    exportContacts: 'For international partnerships and export inquiries, users can contact Mr. Rakesh Rattan (+91 95120 12106 | rakesh.ratan@croplifescience.com) or Mr. Mihir Shah (+91 63582 37187 | mihir.shah@croplifescience.com).'
   },
   sources: [
     'CLSL Final Prospectus dated 09 August 2023, published on croplifescience.com.',
@@ -39,7 +41,7 @@ export const companyAssistantKnowledge = {
     mappingSource: 'CIB&RC approved crop map supplied by CLSL',
   },
   boundaries: [
-    'Only state company profile facts that appear in this knowledge base. Do not infer current ownership, leadership, financial performance, share price, market capitalisation, employee count, exports, registrations, certifications or corporate commitments.',
+    'Only state company profile facts that appear in this knowledge base. Do not infer current ownership, leadership, financial performance, share price, market capitalisation, employee count, registrations, certifications or corporate commitments.',
     'Do not promise dealer stock, product price, delivery, or a retailer location. The sales directory can only connect a user with a CLSL representative.',
     'For a product, always confirm the approved label, crop registration, dose and local expert guidance before use.',
   ],

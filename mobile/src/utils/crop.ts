@@ -22,7 +22,7 @@ export const ALIAS_GROUPS: Record<string, string[]> = {
   'Black Pepper': ['black pepper', 'black paper'],
   'Cardamom': ['cardamom', 'cardomom'],
   'Mulberry': ['mulbery', 'mulberry'],
-  'Apple': ['apple', 'and apples'],
+  'Apple': ['apple', 'and apples', 'apples'],
   'Rose': ['rose', 'roses']
 };
 

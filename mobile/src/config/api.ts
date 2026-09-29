@@ -2,7 +2,7 @@
 // Points to the live cloud server for all API calls
 
 const PRODUCTION_API_BASE = 'https://ai.croplifescience.com';
-const DEV_API_BASE = 'http://10.0.2.2:8000'; // Android emulator localhost
+const DEV_API_BASE = 'http://192.168.29.91:8000'; // Local backend
 
 // Toggle this to switch between dev and production
 const USE_PRODUCTION = true;

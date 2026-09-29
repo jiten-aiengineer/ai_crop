@@ -12,10 +12,11 @@ import {
 import * as Location from 'expo-location';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { languages, loginText, type LanguageCode } from '../../config/i18n';
 import { getI18nTranslations } from '../../services/api';
 import { COUNTRIES } from '../../config/countries';
-import { sendOtp, verifyOtp, dealerMobileStatus, updateProfile, referralLookup } from '../../services/api';
+import { sendOtp, verifyOtp, dealerMobileStatus, updateProfile, referralLookup, dealerLookup } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 const { width: W } = Dimensions.get('window');
@@ -92,7 +93,21 @@ export default function LoginScreen() {
   const [lastName, setLastName] = useState('');
   const [mobile, setMobile] = useState('');
   const [dob, setDob] = useState('');
+  const [dobDate, setDobDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [countryCode, setCountryCode] = useState('+91');
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setDobDate(selectedDate);
+      const d = String(selectedDate.getDate()).padStart(2, '0');
+      const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const y = selectedDate.getFullYear();
+      setDob(`${d}/${m}/${y}`);
+      setError('');
+    }
+  };
 
   // Details
   const [place, setPlace] = useState<Place | null>(null);
@@ -196,7 +211,7 @@ export default function LoginScreen() {
   const doLookupDealer = async () => {
     setLoading(true); setDealerError(''); setDealer(null); setDealerConfirmed(false);
     try {
-      const data = await (await import('../../services/api')).dealerLookup(
+      const data = await dealerLookup(
         dealerCode.trim(),
         countryCode + mobile.replace(/\D/g, ''),
       );
@@ -257,8 +272,8 @@ export default function LoginScreen() {
       });
       await login(verified.session_token, {
         id: verified.user.id,
-        first_name: firstName,
-        last_name: lastName,
+        first_name: data?.user?.first_name || firstName,
+        last_name: data?.user?.last_name || lastName,
         mobile_number: verified.user.mobile_number,
         role,
         preferred_language: language,
@@ -315,7 +330,7 @@ export default function LoginScreen() {
           <Text style={s.welcomeTitle}>{t.welcomeTitle || 'Welcome!'}</Text>
           <Text style={s.welcomeSub}>{t.welcomeSub || "I'm your smart crop doctor, ready to help."}</Text>
         </View>
-        <Image source={require('../../../assets/images/mascot_new.png')} style={s.mascotImgSmall} resizeMode="contain" />
+        <Image source={require('../../../assets/images/mascot_v3.png')} style={[s.mascotImgSmall, { aspectRatio: 1 }]} resizeMode="contain" />
       </View>
     </View>
   );
@@ -326,15 +341,53 @@ export default function LoginScreen() {
       {renderHeader(t.account || 'Join CLSL AI', t.intro || 'Unlock AI crop care, weather, products, rewards, and offers.')}
       <View style={s.field}>
         <Text style={s.fieldLabel}>{t.firstName || 'First name'}</Text>
-        <TextInput style={s.input} value={firstName} onChangeText={t => { setFirstName(t); setError(''); }} placeholder="Ex. Rajesh" autoCapitalize="words" autoComplete="given-name" />
+        <TextInput style={s.input} value={firstName} onChangeText={t => { setFirstName(t); setError(''); }} placeholder="Ex. Rahul" autoCapitalize="words" autoComplete="given-name" />
       </View>
       <View style={s.field}>
         <Text style={s.fieldLabel}>{t.lastName || 'Last name'}</Text>
-        <TextInput style={s.input} value={lastName} onChangeText={t => { setLastName(t); setError(''); }} placeholder="Ex. Kumar" autoCapitalize="words" autoComplete="family-name" />
+        <TextInput style={s.input} value={lastName} onChangeText={t => { setLastName(t); setError(''); }} placeholder="Ex. Sharma" autoCapitalize="words" autoComplete="family-name" />
       </View>
       <View style={s.field}>
         <Text style={s.fieldLabel}>Date of Birth <Text style={{fontSize: 10, color: '#8294A0'}}>(get rewards on your birthday)</Text></Text>
-        <TextInput style={s.input} value={dob} onChangeText={t => { setDob(t); setError(''); }} placeholder="DD/MM/YYYY" keyboardType="numeric" />
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TextInput 
+            style={[s.input, { flex: 1, paddingRight: 45 }]} 
+            value={dob} 
+            onChangeText={t => { 
+              let cleaned = t.replace(/\D/g, '');
+              if (cleaned.length > 2) {
+                let m = parseInt(cleaned.slice(2, 4));
+                if (m > 12) cleaned = cleaned.slice(0, 2) + '12' + cleaned.slice(4);
+                if (cleaned.slice(2, 4) === '00') cleaned = cleaned.slice(0, 2) + '01' + cleaned.slice(4);
+              }
+              if (cleaned.length >= 2) {
+                let d = parseInt(cleaned.slice(0, 2));
+                if (d > 31) cleaned = '31' + cleaned.slice(2);
+                if (cleaned.slice(0, 2) === '00') cleaned = '01' + cleaned.slice(2);
+              }
+              let formatted = cleaned;
+              if (cleaned.length > 2) formatted = cleaned.slice(0,2) + '/' + cleaned.slice(2);
+              if (cleaned.length > 4) formatted = formatted.slice(0,5) + '/' + cleaned.slice(4,8);
+              setDob(formatted);
+              setError('');
+            }} 
+            placeholder="DD/MM/YYYY" 
+            keyboardType="numeric" 
+            maxLength={10} 
+          />
+          <TouchableOpacity onPress={() => setShowDatePicker(true)} style={{ position: 'absolute', right: 15, height: '100%', justifyContent: 'center' }}>
+            <Ionicons name="calendar-outline" size={22} color={T.primary} />
+          </TouchableOpacity>
+        </View>
+        {showDatePicker && (
+          <DateTimePicker
+            value={dobDate || new Date()}
+            mode="date"
+            display="default"
+            onValueChange={handleDateChange}
+            maximumDate={new Date()}
+          />
+        )}
       </View>
       <View style={s.field}>
         <Text style={s.fieldLabel}>{t.mobile || 'Mobile number'}</Text>
@@ -500,7 +553,6 @@ export default function LoginScreen() {
         </View>
       )}
 
-      <Text style={s.testNote}>{t.test || 'TEST MODE · OTP: 123456'}</Text>
     </View>
   );
 
@@ -531,11 +583,11 @@ export default function LoginScreen() {
   // ─── Main render ──────────────────────────────────────────────────────────
   return (
     <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor="#173b1b" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Top brand bar */}
       <View style={s.brandBar}>
-        <Image source={require('../../../assets/images/clsl-logo.png')} style={s.brandLogo} resizeMode="contain" />
+        <Image source={require('../../../assets/images/clsl-logo-leaf.png')} style={s.brandLogo} resizeMode="contain" />
         <View style={s.brandTextWrap}>
           <Text style={s.brandName}>CLSL AI</Text>
           <Text style={s.brandTagline}>Crop care, made smarter.</Text>
@@ -567,29 +619,27 @@ export default function LoginScreen() {
             {step === 'otp' && renderOtp()}
           </View>
 
-          <View style={{ height: 20 }} />
-
           {/* Inline CTA Button */}
           {step === 'details' && (
-            <View style={{marginTop: 16, marginBottom: 10, gap: 10}}>
-              <View style={s.checkCard}>
-                <TouchableOpacity onPress={() => setTermsAccepted(!termsAccepted)} style={{padding: 4}}>
-                  <View style={[s.checkbox, termsAccepted && s.checkboxActive]}>
-                    {termsAccepted && <Ionicons name="checkmark" size={12} color="#FFF" />}
-                  </View>
-                </TouchableOpacity>
-                <View style={{flex: 1, paddingVertical: 4}}>
-                  <Text style={s.checkLabel}>I agree to the <Text style={{color: '#1C402B', fontWeight: '700', textDecorationLine: 'underline'}} onPress={() => setShowTermsModal(true)}>Terms and Conditions</Text> <Text style={s.requiredBadge}>*</Text></Text>
+            <View style={{marginBottom: 10, gap: 10}}>
+              <TouchableOpacity activeOpacity={0.8} style={[s.checkCard, { alignItems: 'center', paddingVertical: 18, marginBottom: 0 }]} onPress={() => setTermsAccepted(!termsAccepted)}>
+                <View style={[s.checkbox, termsAccepted && s.checkboxActive]}>
+                  {termsAccepted && <Ionicons name="checkmark" size={12} color="#FFF" />}
                 </View>
-              </View>
+                <View style={{flex: 1, marginLeft: 12}}>
+                  <Text style={[s.checkCardTitle, { fontSize: 13 }]}>
+                    I agree to the <Text style={{color: T.primary, textDecorationLine: 'underline'}} onPress={(e) => { e.stopPropagation(); setShowTermsModal(true); }}>Terms and Conditions</Text> <Text style={s.requiredBadge}>*</Text>
+                  </Text>
+                </View>
+              </TouchableOpacity>
               
               {isFarmer && (
-                <TouchableOpacity style={s.checkCard} onPress={() => setPromosAccepted(!promosAccepted)}>
+                <TouchableOpacity activeOpacity={0.8} style={[s.checkCard, { alignItems: 'center', paddingVertical: 18 }]} onPress={() => setPromosAccepted(!promosAccepted)}>
                   <View style={[s.checkbox, promosAccepted && s.checkboxActive]}>
                     {promosAccepted && <Ionicons name="checkmark" size={12} color="#FFF" />}
                   </View>
-                  <View style={{flex: 1}}>
-                    <Text style={s.checkLabel}>I agree to receive rewards and promotional messages <Text style={s.requiredBadge}>*</Text></Text>
+                  <View style={{flex: 1, marginLeft: 12}}>
+                    <Text style={[s.checkCardTitle, { fontSize: 13 }]}>I agree to receive rewards and promotional messages <Text style={s.requiredBadge}>*</Text></Text>
                   </View>
                 </TouchableOpacity>
               )}
@@ -705,20 +755,21 @@ export default function LoginScreen() {
       {/* Camera Modal for QR */}
       <Modal visible={isCameraOpen} animationType="slide">
         {isCameraOpen && (
-          <CameraView style={{ flex: 1 }} onBarcodeScanned={async ({ data }) => {
-            setIsCameraOpen(false);
-            const code = data.trim().toUpperCase().slice(-7);
-            setReferral(code);
-            setReferralName('');
-          }}>
-            <View style={s.camOverlay}>
+          <View style={{ flex: 1 }}>
+            <CameraView style={StyleSheet.absoluteFill} onBarcodeScanned={async ({ data }) => {
+              setIsCameraOpen(false);
+              const code = data.trim().toUpperCase().slice(-7);
+              setReferral(code);
+              setReferralName('');
+            }} />
+            <View style={[s.camOverlay, StyleSheet.absoluteFill]}>
               <TouchableOpacity style={s.camCloseBtn} onPress={() => setIsCameraOpen(false)}>
                 <Text style={{ color: '#fff', fontWeight: '700' }}>Cancel</Text>
               </TouchableOpacity>
               <View style={s.camFrame} />
               <Text style={s.camHint}>Point at the dealer referral QR code</Text>
             </View>
-          </CameraView>
+          </View>
         )}
       </Modal>
 
@@ -751,164 +802,164 @@ export default function LoginScreen() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
 
-  // Brand bar (top) — matches website's .auth-visual green gradient
+  // Brand bar (top)
   brandBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#173b1b',   // greenDark — matches auth-visual gradient start
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 52 : 36,
-    paddingBottom: 14,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 48 : 32,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(203,233,104,0.15)',
+    borderBottomColor: T.border,
   },
-  brandLogo: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', padding: 3 },
-  brandTextWrap: { marginLeft: 12 },
-  brandName: { fontSize: 18, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.5 },
-  brandTagline: { fontSize: 10, color: '#cce989', fontWeight: '500', marginTop: 1 },
+  brandLogo: { width: 36, height: 36 },
+  brandTextWrap: { marginLeft: 8 },
+  brandName: { fontSize: 18, fontWeight: '900', color: '#0B4783', letterSpacing: 0.5 },
+  brandTagline: { fontSize: 10, color: '#0B4783', fontWeight: '600', marginTop: 1 },
 
-  scroll: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 0, flexGrow: 1 },
+  scroll: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, flexGrow: 1, justifyContent: 'flex-start' },
 
   // Progress — green segments matching website's .auth-progress
-  progressWrap: { marginBottom: 16 },
+  progressWrap: { marginBottom: 12 },
   progressBarRow: { flexDirection: 'row', gap: 6, marginBottom: 8 },
-  progressSeg: { flex: 1, height: 5, borderRadius: 3, backgroundColor: T.border },
+  progressSeg: { flex: 1, height: 4, borderRadius: 2, backgroundColor: T.border },
   progressSegActive: { backgroundColor: T.primary },
-  progressText: { fontSize: 10, fontWeight: '600', color: T.muted, letterSpacing: 0.5 },
+  progressText: { fontSize: 9, fontWeight: '600', color: T.muted, letterSpacing: 0.5 },
 
   // Back
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 16, alignSelf: 'flex-start' },
-  backBtnText: { fontSize: 12, color: T.primary, fontWeight: '600' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12, alignSelf: 'flex-start' },
+  backBtnText: { fontSize: 11, color: T.primary, fontWeight: '600' },
 
   // Error
-  errorBox: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: T.errorBg, borderRadius: 10, padding: 12, marginBottom: 16, gap: 8, borderLeftWidth: 3, borderLeftColor: T.error },
-  errorText: { flex: 1, fontSize: 12, color: T.error, fontWeight: '500', lineHeight: 20 },
+  errorBox: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: T.errorBg, borderRadius: 8, padding: 10, marginBottom: 12, gap: 8, borderLeftWidth: 3, borderLeftColor: T.error },
+  errorText: { flex: 1, fontSize: 11, color: T.error, fontWeight: '500', lineHeight: 18 },
 
   // Step Content
   stepContent: { paddingTop: 0, paddingBottom: 0 },
-  stepHeader: { marginBottom: 22 },
-  stepTitle: { fontSize: 22, fontWeight: '900', color: T.text, lineHeight: 30, marginBottom: 6 },
-  stepSubtitle: { fontSize: 12, color: T.muted, lineHeight: 21, fontWeight: '500' },
+  stepHeader: { marginBottom: 16 },
+  stepTitle: { fontSize: 24, fontWeight: '900', color: T.text, lineHeight: 30, marginBottom: 6 },
+  stepSubtitle: { fontSize: 13, color: T.muted, lineHeight: 20, fontWeight: '500' },
 
   // Form fields
   field: { marginBottom: 16 },
-  fieldLabel: { fontSize: 12, fontWeight: '700', color: T.textSub, marginBottom: 8, letterSpacing: 0.3 },
-  input: { height: 48, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: T.border, borderRadius: 12, paddingHorizontal: 16, fontSize: 14, color: T.text, fontWeight: '600', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 3, elevation: 1 },
+  fieldLabel: { fontSize: 13, fontWeight: '800', color: T.textSub, marginBottom: 8, letterSpacing: 0.3 },
+  input: { height: 48, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: T.border, borderRadius: 12, paddingHorizontal: 14, fontSize: 15, color: T.text, fontWeight: '600', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 2, elevation: 1 },
   inputError: { borderColor: T.error },
   phoneRow: { flexDirection: 'row', alignItems: 'stretch', gap: 0 },
   phonePrefix: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: T.border, borderRightWidth: 0, borderTopLeftRadius: 12, borderBottomLeftRadius: 12, paddingHorizontal: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 3, elevation: 1 },
-  phonePrefixText: { fontSize: 14, fontWeight: '700', color: T.text },
+  phonePrefixText: { fontSize: 15, fontWeight: '700', color: T.text },
   phoneInput: { flex: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, shadowOpacity: 0, elevation: 0 },
   fieldError: { fontSize: 11, color: T.error, fontWeight: '500', marginTop: 5 },
 
   // Language grid
-  langGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 4, justifyContent: 'space-between' },
-  langBtn: { width: '48%', paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1.5, borderColor: 'transparent', borderRadius: 12, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 3, elevation: 1, position: 'relative' },
+  langGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8, justifyContent: 'space-between' },
+  langBtn: { width: '48%', paddingHorizontal: 14, paddingVertical: 14, borderWidth: 1, borderColor: 'transparent', borderRadius: 12, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 2, elevation: 1, position: 'relative' },
   langBtnActive: { borderColor: T.primary, backgroundColor: T.primaryLight },
-  langBtnName: { fontSize: 13, fontWeight: '700', color: T.textSub },
+  langBtnName: { fontSize: 14, fontWeight: '700', color: T.textSub },
   langBtnNameActive: { color: T.primary },
-  langBtnCode: { fontSize: 10, color: T.muted, marginTop: 2 },
+  langBtnCode: { fontSize: 11, color: T.muted, marginTop: 2 },
   langBtnCodeActive: { color: T.primary },
-  langCheck: { position: 'absolute', top: 8, right: 8, width: 18, height: 18, borderRadius: 9, backgroundColor: T.primary, justifyContent: 'center', alignItems: 'center' },
-  moreLangBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, marginTop: 8, borderWidth: 1.5, borderColor: 'transparent', borderRadius: 12, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 3, elevation: 1 },
-  moreLangBtnText: { fontSize: 12, fontWeight: '700', color: T.primary },
-  langSearchInput: { height: 44, backgroundColor: T.bg, borderWidth: 1, borderColor: T.border, borderRadius: 10, paddingHorizontal: 14, fontSize: 13, color: T.text, marginBottom: 12 },
+  langCheck: { position: 'absolute', top: 8, right: 8, width: 20, height: 20, borderRadius: 10, backgroundColor: T.primary, justifyContent: 'center', alignItems: 'center' },
+  moreLangBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, marginTop: 8, borderWidth: 1, borderColor: 'transparent', borderRadius: 12, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 2, elevation: 1 },
+  moreLangBtnText: { fontSize: 13, fontWeight: '700', color: T.primary },
+  langSearchInput: { height: 40, backgroundColor: T.bg, borderWidth: 1, borderColor: T.border, borderRadius: 8, paddingHorizontal: 12, fontSize: 12, color: T.text, marginBottom: 12 },
 
   // Modal specific
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: T.bg, borderRadius: 10, paddingHorizontal: 12, marginBottom: 12, borderWidth: 1, borderColor: T.border },
   searchInput: { flex: 1, height: 44, paddingHorizontal: 10, fontSize: 13, color: T.text },
 
   // Location card
-  locationCard: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: T.border, borderRadius: 12, padding: 14, marginBottom: 16, backgroundColor: T.bg, gap: 12 },
+  locationCard: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: T.border, borderRadius: 12, padding: 14, marginBottom: 16, backgroundColor: T.bg, gap: 12 },
   locationCardReady: { borderColor: T.green, backgroundColor: T.greenLight },
-  locationIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: T.primaryLight, justifyContent: 'center', alignItems: 'center' },
+  locationIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: T.primaryLight, justifyContent: 'center', alignItems: 'center' },
   locationIconReady: { backgroundColor: T.greenLight },
-  locationText: { fontSize: 13, fontWeight: '700', color: T.primary },
+  locationText: { fontSize: 14, fontWeight: '800', color: T.primary },
   locationTextReady: { color: T.green },
-  locationSub: { fontSize: 11, color: T.green, fontWeight: '500', marginTop: 2 },
+  locationSub: { fontSize: 12, color: T.green, fontWeight: '600', marginTop: 2 },
 
   // Fieldset card
-  fieldsetCard: { backgroundColor: T.bg, borderWidth: 1.5, borderColor: T.border, borderRadius: 12, padding: 14, marginBottom: 14 },
-  fieldsetTitle: { fontSize: 12, fontWeight: '700', color: T.textSub, marginBottom: 14, letterSpacing: 0.3 },
+  fieldsetCard: { backgroundColor: T.bg, borderWidth: 1, borderColor: T.border, borderRadius: 12, padding: 16, marginBottom: 16 },
+  fieldsetTitle: { fontSize: 13, fontWeight: '800', color: T.textSub, marginBottom: 12, letterSpacing: 0.3 },
 
   // Checkboxes
-  checkGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between' },
-  checkItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8, borderRadius: 8, borderWidth: 1.5, borderColor: T.border, backgroundColor: T.card, gap: 6, width: '48%' },
+  checkGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
+  checkItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 6, borderRadius: 6, borderWidth: 1, borderColor: T.border, backgroundColor: T.card, gap: 6, width: '48%' },
   checkItemActive: { borderColor: T.primary, backgroundColor: T.primaryLight },
-  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: T.border, justifyContent: 'center', alignItems: 'center', backgroundColor: T.card },
+  checkbox: { width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: T.border, justifyContent: 'center', alignItems: 'center', backgroundColor: T.card },
   checkboxActive: { backgroundColor: T.primary, borderColor: T.primary },
-  checkLabel: { fontSize: 12, fontWeight: '600', color: T.textSub, flexShrink: 1 },
+  checkLabel: { fontSize: 11, fontWeight: '600', color: T.textSub, flexShrink: 1 },
   checkLabelActive: { color: T.primary },
   requiredBadge: { color: T.error, fontWeight: '700' },
 
   // Select button
-  selectBtn: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: T.border, borderRadius: 12, paddingHorizontal: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 3, elevation: 1 },
+  selectBtn: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: T.border, borderRadius: 12, paddingHorizontal: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 2, elevation: 1 },
   selectBtnEmpty: { borderColor: T.border },
-  selectBtnText: { fontSize: 14, fontWeight: '500', color: T.text },
+  selectBtnText: { fontSize: 15, fontWeight: '600', color: T.text },
   selectBtnPlaceholder: { color: T.muted },
 
   // Farmer checkbox card
-  checkCard: { flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1.5, borderColor: T.border, borderRadius: 12, padding: 14, marginBottom: 14, backgroundColor: T.card },
-  checkCardTitle: { fontSize: 13, fontWeight: '700', color: T.text },
-  checkCardSub: { fontSize: 11, color: T.muted, marginTop: 2, lineHeight: 19 },
+  checkCard: { flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1, borderColor: T.border, borderRadius: 12, padding: 16, marginBottom: 16, backgroundColor: T.card },
+  checkCardTitle: { fontSize: 14, fontWeight: '800', color: T.text },
+  checkCardSub: { fontSize: 12, color: T.muted, marginTop: 4, lineHeight: 18 },
 
   // Info banner
-  infoBanner: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: T.primaryLight, borderRadius: 12, padding: 14, marginBottom: 14, gap: 10, borderLeftWidth: 3, borderLeftColor: T.primary },
-  infoBannerTitle: { fontSize: 12, fontWeight: '700', color: T.primary, marginBottom: 3 },
-  infoBannerSub: { fontSize: 11, color: T.textSub, lineHeight: 19 },
+  infoBanner: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: T.primaryLight, borderRadius: 10, padding: 12, marginBottom: 12, gap: 8, borderLeftWidth: 3, borderLeftColor: T.primary },
+  infoBannerTitle: { fontSize: 11, fontWeight: '700', color: T.primary, marginBottom: 2 },
+  infoBannerSub: { fontSize: 10, color: T.textSub, lineHeight: 16 },
 
   // QR scan
-  qrScanBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: T.primary, backgroundColor: T.primaryLight, borderRadius: 12, padding: 14, gap: 8, marginBottom: 12 },
-  qrScanText: { fontSize: 13, fontWeight: '700', color: T.primary },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  qrScanBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: T.primary, backgroundColor: T.primaryLight, borderRadius: 10, padding: 12, gap: 6, marginBottom: 10 },
+  qrScanText: { fontSize: 12, fontWeight: '700', color: T.primary },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   dividerLine: { flex: 1, height: 1, backgroundColor: T.border },
-  dividerText: { fontSize: 10, color: T.muted, fontWeight: '500' },
+  dividerText: { fontSize: 9, color: T.muted, fontWeight: '500' },
 
   // Dealer row
-  dealerRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  dealerRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   dealerInput: { flex: 1 },
-  verifyBtn: { backgroundColor: T.primary, borderRadius: 10, paddingHorizontal: 18, justifyContent: 'center' },
+  verifyBtn: { backgroundColor: T.primary, borderRadius: 8, paddingHorizontal: 16, justifyContent: 'center' },
   verifyBtnDisabled: { opacity: 0.4 },
-  verifyBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  dealerCard: { backgroundColor: T.card, borderRadius: 10, borderWidth: 1, borderColor: T.border, padding: 14, marginTop: 4 },
-  dealerName: { fontSize: 15, fontWeight: '800', color: T.text, marginBottom: 10 },
-  dealerDetailRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  dealerDetailLabel: { fontSize: 11, color: T.muted, fontWeight: '500' },
-  dealerDetailVal: { fontSize: 11, fontWeight: '700', color: T.textSub },
-  dealerWarning: { fontSize: 11, color: T.error, marginTop: 8, lineHeight: 19 },
-  confirmBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: T.border, borderRadius: 8, padding: 12, marginTop: 10 },
+  verifyBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  dealerCard: { backgroundColor: T.card, borderRadius: 8, borderWidth: 1, borderColor: T.border, padding: 12, marginTop: 4 },
+  dealerName: { fontSize: 14, fontWeight: '800', color: T.text, marginBottom: 8 },
+  dealerDetailRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  dealerDetailLabel: { fontSize: 10, color: T.muted, fontWeight: '500' },
+  dealerDetailVal: { fontSize: 10, fontWeight: '700', color: T.textSub },
+  dealerWarning: { fontSize: 10, color: T.error, marginTop: 6, lineHeight: 16 },
+  confirmBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: T.border, borderRadius: 6, padding: 10, marginTop: 8 },
   confirmBtnDone: { borderColor: T.green, backgroundColor: T.greenLight },
-  confirmBtnText: { fontSize: 12, fontWeight: '700', color: T.textSub },
+  confirmBtnText: { fontSize: 11, fontWeight: '700', color: T.textSub },
 
   // Verified
-  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  verifiedText: { fontSize: 12, fontWeight: '700', color: T.green },
-  statusChecking: { fontSize: 11, color: T.muted, marginTop: 6 },
+  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  verifiedText: { fontSize: 11, fontWeight: '700', color: T.green },
+  statusChecking: { fontSize: 10, color: T.muted, marginTop: 4 },
 
   // Test note
-  testNote: { fontSize: 10, color: T.muted, textAlign: 'center', marginTop: 10, fontWeight: '500' },
+  testNote: { fontSize: 9, color: T.muted, textAlign: 'center', marginTop: 8, fontWeight: '500' },
 
   // OTP
-  otpNumberRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
-  otpNumber: { fontSize: 18, fontWeight: '800', color: T.text },
-  otpInput: { fontSize: 26, letterSpacing: 12, textAlign: 'center', fontWeight: '700', height: 64 },
+  otpNumberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  otpNumber: { fontSize: 16, fontWeight: '800', color: T.text },
+  otpInput: { fontSize: 22, letterSpacing: 10, textAlign: 'center', fontWeight: '700', height: 56 },
 
   // Bottom CTA
-  bottomCtaWrap: { paddingBottom: Platform.OS === 'ios' ? 34 : 24, paddingTop: 12, backgroundColor: 'transparent' },
+  bottomCtaWrap: { paddingBottom: Platform.OS === 'ios' ? 24 : 16, paddingTop: 8, backgroundColor: 'transparent' },
   
   // Primary button — green with lime-tinted shadow like website
   primaryBtn: {
     backgroundColor: T.primary,
-    borderRadius: 12, height: 54,
+    borderRadius: 10, height: 48,
     justifyContent: 'center', alignItems: 'center',
     shadowColor: T.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.38,
-    shadowRadius: 16,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 3,
   },
   primaryBtnDisabled: { opacity: 0.5 },
-  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '800', letterSpacing: 0.3 },
+  primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: 0.3 },
 
   // Source modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
@@ -929,9 +980,9 @@ const s = StyleSheet.create({
   camHint: { color: '#fff', marginTop: 20, fontSize: 13, fontWeight: '600' },
 
   // Mascot & Welcome Row
-  welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 4, marginTop: 20, marginBottom: -4, zIndex: 10 },
-  welcomeTextWrap: { flex: 1, paddingBottom: 36, paddingRight: 10 },
-  welcomeTitle: { fontSize: 26, fontWeight: '900', color: T.primary, marginBottom: 6 },
-  welcomeSub: { fontSize: 15, color: T.textSub, fontWeight: '700', lineHeight: 22 },
-  mascotImgSmall: { width: 165, height: 165 },
+  welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 4, marginTop: 24, marginBottom: -4, zIndex: 10 },
+  welcomeTextWrap: { flex: 1, paddingBottom: 24, paddingRight: 8 },
+  welcomeTitle: { fontSize: 26, fontWeight: '900', color: T.primary, marginBottom: 4 },
+  welcomeSub: { fontSize: 14, color: T.textSub, fontWeight: '700', lineHeight: 20 },
+  mascotImgSmall: { width: 170, height: 170 },
 });

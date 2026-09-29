@@ -2,117 +2,94 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppColors, MobileScreen, shared } from '../../components/MobileScreen';
-import { getCatalogue, CatalogProduct } from '../../services/api';
-import mascotImage from '../../../assets/images/mascot_new.png'; // This asset might not exist, but let's assume it does since it was in the original code. Wait, the original code had: import mascotImage from '../../../assets/images/mascot_new.png';
+import { askMitra } from '../../services/api';
+import mascotImage from '../../../assets/images/mascot_v3.png';
 
-type Message = { role: 'user' | 'assistant'; content: string };
+type Message = { role: 'user' | 'assistant'; content: string; time: string };
+
+const getTime = () => {
+  const d = new Date();
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+};
 
 export default function AssistantScreen({ onBack }: { onBack: () => void }) {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Namaste! I’m Crop Life Mitra. Ask me about crop symptoms, which product to use, how to order, or weather.' }
+    { role: 'assistant', content: 'Namaste! I’m Crop Life Mitra. Ask me about crop symptoms, which product to use, how to order, or weather.', time: getTime() }
   ]);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const scroll = useRef<ScrollView>(null);
   
-  // Local catalog for offline answers
-  const [products, setProducts] = useState<CatalogProduct[]>([]);
-  useEffect(() => {
-    getCatalogue().then(setProducts).catch(console.error);
-  }, []);
-
-  const getLocalAnswer = (q: string): string => {
-    const query = q.toLowerCase();
-    
-    if (query.includes('call') || query.includes('order') || query.includes('contact') || query.includes('buy') || query.includes('number')) {
-      return "To place an order or for any product doubts, please contact your local sales representative or call our National Support Line at +91-1800-123-4567. You can also email us at sales@croplifescience.com.";
-    }
-    
-    if (query.includes('weather') || query.includes('rain')) {
-      return "For live weather updates and spraying advice, please check the 'Field Weather' tab on the home screen. It will tell you if it's safe to spray right now.";
-    }
-
-    if (query.includes('coupon') || query.includes('reward')) {
-      return "Registered farmers can access promotional coupons in the 'Rewards' section. Make sure your profile is upgraded to a Farmer account!";
-    }
-
-    if (query.includes('hi ') || query.includes('hello') || query.includes('namaste')) {
-      return "Hello! How can I help you with your crops today?";
-    }
-
-    // Try to find a matching product by crop or pest name
-    const matches = products.filter(p => {
-      const inName = Boolean(p.name?.toLowerCase()?.includes(query)) || Boolean(p.commonName?.toLowerCase()?.includes(query));
-      const inCrops = (p.approvedCrops || []).some((c: string) => Boolean(c?.toLowerCase()?.includes(query)));
-      const inDesc = Boolean(p.useBenefits?.toLowerCase()?.includes(query));
-      return inName || inCrops || inDesc;
-    });
-
-    if (matches.length > 0) {
-      const top = matches.slice(0, 3);
-      const names = top.map(p => `• ${p.name} (${p.category || 'Product'}): ${p.dose || 'Check label'}`).join('\n');
-      return `Based on your question, here are some CLSL products that might help:\n\n${names}\n\nPlease check the product catalog for detailed packing and safety information.`;
-    }
-
-    return "I'm still learning! Could you provide a specific crop name or pest name? Or ask me about 'how to order' or 'weather'.";
-  };
-
-  const send = () => {
+  const send = async () => {
     const q = text.trim();
     if (!q || busy) return;
-    const next = [...messages, { role: 'user' as const, content: q }];
+    const next: Message[] = [...messages, { role: 'user', content: q, time: getTime() }];
     setMessages(next);
     setText('');
     setBusy(true);
+    setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
     
-    // Simulate thinking delay for better UX (so the user sees the mascot typing)
-    setTimeout(() => {
-      const answer = getLocalAnswer(q);
-      setMessages([...next, { role: 'assistant', content: answer }]);
+    try {
+      const historyPayload = messages.map(m => ({ role: m.role, content: m.content }));
+      const response = await askMitra(q, historyPayload, 'English');
+      setMessages([...next, { role: 'assistant', content: response.answer || "I'm not sure, could you rephrase?", time: getTime() }]);
+    } catch (err) {
+      console.error(err);
+      setMessages([...next, { role: 'assistant', content: "Sorry, I am having trouble connecting right now. Please check your network and try again.", time: getTime() }]);
+    } finally {
       setBusy(false);
       setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
-    }, 1200);
+    }
     
     setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
   };
 
   return (
-    <MobileScreen title="Crop Life Mitra" subtitle="Instant Local Support" onBack={onBack} scroll={false}>
+    <MobileScreen title="Crop Life Mitra" subtitle={busy ? "🟢 Online - typing..." : "🟢 Online"} onBack={onBack} scroll={false} headerAvatar={mascotImage}>
       <KeyboardAvoidingView style={styles.wrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView ref={scroll} contentContainerStyle={styles.messages} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}>
           
           {messages.map((m, i) => (
             <View key={i} style={[styles.row, m.role === 'user' ? styles.rowUser : styles.rowBot]}>
               {m.role === 'assistant' && (
-                <Image source={mascotImage} style={styles.avatar} />
+                <View style={styles.avatarContainer}>
+                  <Image source={mascotImage} style={styles.avatar} />
+                  <View style={styles.onlineDot} />
+                </View>
               )}
               <View style={[styles.bubble, m.role === 'user' ? styles.user : styles.bot]}>
                 <Text style={[styles.message, m.role === 'user' && styles.userText]}>{m.content}</Text>
+                <Text style={[styles.time, m.role === 'user' ? styles.userTime : styles.botTime]}>{m.time}</Text>
               </View>
             </View>
           ))}
           
           {busy && (
             <View style={[styles.row, styles.rowBot]}>
-              <Image source={mascotImage} style={styles.avatar} />
+              <View style={styles.avatarContainer}>
+                <Image source={mascotImage} style={styles.avatar} />
+                <View style={styles.onlineDot} />
+              </View>
               <View style={[styles.bubble, styles.bot, styles.typing]}>
                 <ActivityIndicator color={AppColors.green} size="small" />
-                <Text style={[shared.body, {marginLeft: 6, color: AppColors.green, fontWeight: '700'}]}>Mitra is typing...</Text>
+                <Text style={{marginLeft: 6, color: AppColors.green, fontWeight: '600', fontSize: 13}}>typing...</Text>
               </View>
             </View>
           )}
         </ScrollView>
-        <View style={styles.composer}>
-          <TextInput 
-            value={text} 
-            onChangeText={setText} 
-            onSubmitEditing={send} 
-            placeholder="E.g. What should I spray for tomato?" 
-            multiline 
-            style={styles.input} 
-          />
-          <TouchableOpacity onPress={send} style={styles.send}>
-            <Ionicons name="send" size={20} color="#FFF" />
+        <View style={styles.composerWrapper}>
+          <View style={styles.composer}>
+            <TextInput 
+              value={text} 
+              onChangeText={setText} 
+              onSubmitEditing={send} 
+              placeholder="Message..." 
+              multiline 
+              style={styles.input} 
+            />
+          </View>
+          <TouchableOpacity onPress={send} style={styles.send} disabled={!text.trim() || busy}>
+            <Ionicons name="send" size={20} color="#FFF" style={{ marginLeft: 3 }} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -121,25 +98,42 @@ export default function AssistantScreen({ onBack }: { onBack: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, marginHorizontal: -16, marginVertical: -14, backgroundColor: '#F8F9FA' },
-  messages: { padding: 16, gap: 16, paddingBottom: 24, paddingTop: 24 },
+  wrap: { flex: 1, backgroundColor: '#EFEAE2' },
+  messages: { padding: 12, gap: 12, paddingBottom: 24, paddingTop: 16 },
   
-  row: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 4 },
+  row: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 2 },
   rowBot: { justifyContent: 'flex-start' },
   rowUser: { justifyContent: 'flex-end' },
   
-  avatar: { width: 36, height: 36, borderRadius: 18, marginRight: 8, backgroundColor: '#FFF', borderWidth: 1, borderColor: AppColors.lineLight },
+  avatarContainer: { marginRight: 8, position: 'relative' },
+  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#D7E4CF' },
+  onlineDot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: '#4CAF50', position: 'absolute', bottom: 0, right: -2, borderWidth: 1.5, borderColor: '#EFEAE2' },
   
-  bubble: { maxWidth: '80%', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 20 },
-  bot: { alignSelf: 'flex-start', backgroundColor: '#FFF', borderWidth: 1, borderColor: AppColors.lineLight, borderBottomLeftRadius: 6 },
-  user: { alignSelf: 'flex-end', backgroundColor: AppColors.green, borderBottomRightRadius: 6 },
+  bubble: { 
+    maxWidth: '82%', 
+    paddingHorizontal: 12, 
+    paddingVertical: 8, 
+    borderRadius: 12, 
+    elevation: 1, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 1 }, 
+    shadowOpacity: 0.1, 
+    shadowRadius: 1 
+  },
+  bot: { alignSelf: 'flex-start', backgroundColor: '#FFF', borderTopLeftRadius: 2 },
+  user: { alignSelf: 'flex-end', backgroundColor: '#DCF8C6', borderTopRightRadius: 2 },
   
-  message: { fontSize: 15, lineHeight: 22, color: AppColors.ink },
-  userText: { color: '#FFF' },
+  message: { fontSize: 15, lineHeight: 20, color: '#111B21', marginBottom: 8 },
+  userText: { color: '#111B21' },
   
-  typing: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16 },
+  time: { fontSize: 10, alignSelf: 'flex-end', marginTop: -8, color: '#667781' },
+  userTime: { color: '#54656F' },
+  botTime: { color: '#667781' },
   
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 9, padding: 12, paddingBottom: Platform.OS === 'ios' ? 24 : 12, borderTopWidth: 1, borderTopColor: AppColors.line, backgroundColor: '#FFF' },
-  input: { flex: 1, maxHeight: 108, minHeight: 48, borderRadius: 24, backgroundColor: '#F0F4F8', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 14, color: AppColors.ink, fontSize: 15 },
-  send: { width: 48, height: 48, borderRadius: 24, backgroundColor: AppColors.green, alignItems: 'center', justifyContent: 'center' }
+  typing: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14 },
+  
+  composerWrapper: { flexDirection: 'row', alignItems: 'flex-end', padding: 8, paddingBottom: Platform.OS === 'ios' ? 24 : 8, backgroundColor: '#F0F2F5', gap: 8 },
+  composer: { flex: 1, minHeight: 44, maxHeight: 120, backgroundColor: '#FFF', borderRadius: 22, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 10, elevation: 1 },
+  input: { flex: 1, color: '#111B21', fontSize: 16, padding: 0 },
+  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: AppColors.green, alignItems: 'center', justifyContent: 'center', elevation: 1 }
 });

@@ -4,10 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppColors, MobileScreen, shared } from '../../components/MobileScreen';
 import { getCatalogue, CatalogProduct } from '../../services/api';
 
-const CATEGORIES = ['All', 'Fruit', 'Vegetable', 'Cereal', 'Cotton'];
+// Removed categories
 
 export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
   const [area, setArea] = useState('1');
+  const [areaUnit, setAreaUnit] = useState('Acre');
+  const [showUnitDrop, setShowUnitDrop] = useState(false);
   const [water, setWater] = useState('150');
   const [dose, setDose] = useState('0');
   const [tank, setTank] = useState('15');
@@ -15,12 +17,18 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
 
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState('All');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<CatalogProduct | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+
+  const categories = useMemo(() => {
+    const cats = new Set(products.map(p => p.category).filter(Boolean));
+    return ['All', ...Array.from(cats)] as string[];
+  }, [products]);
 
   useEffect(() => {
-    getCatalogue().then(setProducts).finally(() => setLoading(false));
+    getCatalogue().then(res => setProducts(res.items || [])).finally(() => setLoading(false));
   }, []);
 
   const selectProduct = (p: CatalogProduct) => {
@@ -33,21 +41,23 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
 
   const filteredProducts = useMemo(() => {
     let list = products;
-    if (activeCategory !== 'All') {
-      const catLower = activeCategory.toLowerCase();
-      list = list.filter(p => (p.approvedCrops || []).some((c: string) => Boolean(c?.toLowerCase().includes(catLower))));
+    if (!search.trim() && !isDropdownOpen) return [];
+    
+    if (selectedCategory !== 'All') {
+      list = list.filter(p => p.category === selectedCategory);
     }
-    if (!search.trim() && activeCategory === 'All') return [];
     
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(p => Boolean(p.name?.toLowerCase()?.includes(q)) || (p.approvedCrops || []).some((c: string) => Boolean(c?.toLowerCase()?.includes(q))));
     }
-    return list.slice(0, 5);
-  }, [search, products, activeCategory]);
+    return list.slice(0, 20);
+  }, [search, products, isDropdownOpen, selectedCategory]);
 
   const result = useMemo(() => {
-    const a = Number(area) || 0;
+    let a = Number(area) || 0;
+    if (areaUnit === 'Hectare') a = a * 2.47105;
+    if (areaUnit === 'Bigha') a = a * 0.4;
     const w = Number(water) || 0;
     const d = Number(dose) || 0;
     const t = Number(tank) || 1;
@@ -86,68 +96,100 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
   }, [area, water, dose, tank, packSize]);
 
   return (
-    <MobileScreen title="Spray Calculator" subtitle="Accurate field mixing" onBack={onBack}>
+    <MobileScreen title="Spray Calculator (Updated)" subtitle="Accurate field mixing" onBack={onBack}>
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         
         {/* INPUTS */}
         <View style={styles.card}>
-          <View style={styles.row}>
+          <View style={[styles.row, { zIndex: 20 }]}>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Area to treat</Text>
               <TextInput value={area} onChangeText={setArea} style={styles.inputBox} keyboardType="decimal-pad" />
             </View>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Area unit</Text>
-              <View style={styles.unitBox}>
-                <Text style={styles.unitText}>Acre</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={[styles.inputGroup, { marginTop: 20 }]}>
-            <Text style={styles.label}>CLSL product</Text>
-            
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll}>
-              {CATEGORIES.map(cat => (
-                <TouchableOpacity 
-                  key={cat} 
-                  style={[styles.catBtn, activeCategory === cat && styles.catBtnActive]}
-                  onPress={() => setActiveCategory(cat)}
-                >
-                  <Text style={[styles.catText, activeCategory === cat && styles.catTextActive]}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <TextInput 
-              value={search} 
-              onChangeText={setSearch} 
-              placeholder={selectedProduct ? selectedProduct.name : "Choose a catalogue product..."} 
-              placeholderTextColor={selectedProduct ? AppColors.ink : AppColors.muted}
-              style={[styles.inputBox, { marginTop: 8 }]} 
-            />
-
-            {loading ? <ActivityIndicator color={AppColors.green} style={{ marginTop: 10 }} /> : (
-              filteredProducts.length > 0 && (
-                <View style={styles.searchResults}>
-                  {filteredProducts.map(p => (
-                    <TouchableOpacity 
-                      key={p.id} 
-                      style={styles.searchItem} 
-                      onPress={() => {
-                        selectProduct(p);
-                        setSearch('');
-                        setActiveCategory('All');
-                      }}
-                    >
-                      <Text style={styles.searchItemTitle}>{p.name} {p.category && `(${p.category})`}</Text>
-                      <Text style={styles.searchItemSub}>Crops: {(p.approvedCrops||[]).slice(0,3).join(', ')}</Text>
+              <TouchableOpacity style={[styles.inputBox, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]} onPress={() => setShowUnitDrop(!showUnitDrop)}>
+                <Text style={{ fontSize: 16, color: '#102A43', fontWeight: '600' }}>{areaUnit}</Text>
+                <Ionicons name="chevron-down" size={18} color="#8294A0" />
+              </TouchableOpacity>
+              {showUnitDrop && (
+                <View style={styles.unitDrop}>
+                  {['Acre', 'Hectare', 'Bigha'].map(u => (
+                    <TouchableOpacity key={u} style={styles.unitDropItem} onPress={() => { setAreaUnit(u); setShowUnitDrop(false); }}>
+                      <Text style={[styles.searchItemTitle, areaUnit === u && { color: AppColors.green }]}>{u}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
+              )}
+            </View>
+          </View>
+
+          </View>
+
+          <View style={styles.card}>
+            <View style={[styles.inputGroup, { zIndex: 10 }]}>
+              <Text style={styles.label}>CLSL product</Text>
+
+            <View style={[styles.searchBoxWrapper, isDropdownOpen && styles.searchBoxWrapperActive]}>
+              <Ionicons name="search" size={18} color={AppColors.muted} style={{ marginLeft: 16 }} />
+              <TextInput 
+                value={search} 
+                onChangeText={(t) => { setSearch(t); setIsDropdownOpen(true); }} 
+                onFocus={() => setIsDropdownOpen(true)}
+                placeholder={selectedProduct ? selectedProduct.name : "Search products or crops..."} 
+                placeholderTextColor={selectedProduct ? AppColors.ink : AppColors.muted}
+                style={styles.searchInput} 
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => setSearch('')} style={{ padding: 10 }}>
+                  <Ionicons name="close-circle" size={18} color={AppColors.muted} />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => setIsDropdownOpen(!isDropdownOpen)} style={{ padding: 10, paddingRight: 16 }}>
+                <Ionicons name={isDropdownOpen ? "chevron-up" : "chevron-down"} size={20} color={AppColors.muted} />
+              </TouchableOpacity>
+            </View>
+
+            {loading ? <ActivityIndicator color={AppColors.green} style={{ marginTop: 10 }} /> : (
+              (isDropdownOpen || search.length > 0) && (
+                <View style={styles.searchResults}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 12 }} style={{ borderBottomWidth: 1, borderBottomColor: '#F0F4F8' }}>
+                    {categories.map(c => (
+                      <TouchableOpacity 
+                        key={c} 
+                        onPress={() => setSelectedCategory(c)}
+                        style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 24, backgroundColor: selectedCategory === c ? AppColors.green : '#F0F4F8', marginRight: 10 }}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: selectedCategory === c ? '#FFF' : '#8294A0' }}>{c}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  
+                  {filteredProducts.length === 0 ? (
+                    <Text style={{ padding: 16, color: '#8294A0', textAlign: 'center', fontSize: 13, fontWeight: '700' }}>No products found in this category.</Text>
+                  ) : (
+                    filteredProducts.map(p => (
+                      <TouchableOpacity 
+                        key={p.id} 
+                        style={styles.searchItem} 
+                        onPress={() => {
+                          selectProduct(p);
+                          setSearch('');
+                          setIsDropdownOpen(false);
+                          setSelectedCategory('All');
+                        }}
+                      >
+                        <Text style={styles.searchItemTitle}>
+                          {p.name} {p.category && <Text style={{fontWeight: 'normal', color: AppColors.muted}}>({p.category})</Text>}
+                        </Text>
+                        <Text style={styles.searchItemSub}>Crops: {(p.approvedCrops||[]).slice(0,3).join(', ')}</Text>
+                      </TouchableOpacity>
+                    ))
+                  )}
+                </View>
               )
             )}
-          </View>
+            </View>
 
           <View style={styles.row}>
             <View style={styles.inputGroup}>
@@ -239,39 +281,38 @@ function SummaryRow({ label, value, isLast }: { label: string, value: string, is
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: '#E8EEF2' },
+  card: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
   row: { flexDirection: 'row', gap: 16, marginTop: 20 },
   inputGroup: { flex: 1 },
   label: { fontSize: 13, fontWeight: '700', color: '#102A43', marginBottom: 8 },
-  inputBox: { backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#D9E2EC', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16, color: '#102A43', fontWeight: '600' },
-  unitBox: { backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#D9E2EC', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'flex-end' },
-  unitText: { fontSize: 16, color: '#486581', fontWeight: '600' },
+  inputBox: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E8EEF2', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 16, fontSize: 16, color: '#102A43', fontWeight: '800' },
   
-  inputWithUnit: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#D9E2EC', borderRadius: 8, paddingHorizontal: 16 },
-  inputFlex: { flex: 1, paddingVertical: 12, fontSize: 16, color: '#102A43', fontWeight: '600' },
+  unitDrop: { position: 'absolute', top: 90, left: 0, right: 0, backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#D9E2EC', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 10, zIndex: 30 },
+  unitDropItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#F0F4F8' },
+  
+  inputWithUnit: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E8EEF2', borderRadius: 12, paddingHorizontal: 16 },
+  inputFlex: { flex: 1, paddingVertical: 16, fontSize: 16, color: '#102A43', fontWeight: '800' },
   inputUnit: { fontSize: 14, color: '#8294A0', fontWeight: '700' },
 
   helpText: { fontSize: 12, color: '#8294A0', lineHeight: 18, marginTop: 24 },
 
-  catScroll: { marginBottom: 8 },
-  catBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: '#F0F4F8', marginRight: 8 },
-  catBtnActive: { backgroundColor: AppColors.greenLight },
-  catText: { fontSize: 12, fontWeight: '600', color: AppColors.muted },
-  catTextActive: { color: AppColors.green, fontWeight: '800' },
+  searchBoxWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E8EEF2', borderRadius: 12, marginTop: 8 },
+  searchBoxWrapperActive: { borderWidth: 2, borderColor: AppColors.green },
+  searchInput: { flex: 1, paddingVertical: 16, paddingHorizontal: 12, fontSize: 16, color: '#102A43', fontWeight: '800' },
 
-  searchResults: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E8EEF2', borderRadius: 8, marginTop: 4, maxHeight: 150 },
-  searchItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#F0F4F8' },
+  searchResults: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E8EEF2', borderRadius: 12, marginTop: 12, overflow: 'hidden' },
+  searchItem: { padding: 14, borderBottomWidth: 1, borderBottomColor: '#F0F4F8' },
   searchItemTitle: { fontWeight: '700', color: '#102A43', fontSize: 14 },
-  searchItemSub: { fontSize: 11, color: '#8294A0', marginTop: 2 },
+  searchItemSub: { fontSize: 11, color: '#8294A0', marginTop: 4 },
 
-  resultCard: { backgroundColor: '#FFF', borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: '#E8EEF2' },
+  resultCard: { backgroundColor: '#FFF', borderRadius: 16, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
   tankList: { padding: 20 },
   tankItem: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
   tankNum: { fontSize: 24, fontWeight: '900', color: '#BCCCDC' },
   tankLabel: { fontSize: 12, fontWeight: '700', color: '#8294A0', textTransform: 'uppercase', letterSpacing: 1 },
   tankMix: { fontSize: 22, fontWeight: '900', color: '#102A43', marginTop: 2 },
 
-  summaryCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#E8EEF2' },
+  summaryCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14 },
   summaryBorder: { borderBottomWidth: 1, borderBottomColor: '#F0F4F8' },
   summaryLabel: { fontSize: 14, color: '#486581', fontWeight: '600' },

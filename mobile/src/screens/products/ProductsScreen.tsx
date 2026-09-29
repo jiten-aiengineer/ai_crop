@@ -37,8 +37,8 @@ const CAT_COLOR: Record<string, { bg: string; text: string; dot: string }> = {
   'Plant Growth Regulator':   { bg: '#e6f7f5', text: '#0d7d72', dot: '#0d7d72' },
   'Bio Stimulant':            { bg: '#d4edda', text: '#155724', dot: '#20c997' },
   'Micro Fertilizers':        { bg: '#cce5ff', text: '#004085', dot: '#007bff' },
-  'Sticking Agent':           { bg: '#f8d7da', text: '#721c24', dot: '#dc3545' },
-  'Antibiotic / Bactericide': { bg: '#f5c6cb', text: '#721c24', dot: '#e74c3c' },
+  'Sticking Agent':           { bg: '#ccfbf1', text: '#134e4a', dot: '#0d9488' },
+  'Antibiotic / Bactericide': { bg: '#e0e7ff', text: '#312e81', dot: '#4f46e5' },
 };
 const catStyle = (cat: string) => CAT_COLOR[cat] || { bg: C.limePale, text: C.green, dot: C.green };
 

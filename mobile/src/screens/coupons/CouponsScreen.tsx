@@ -180,29 +180,74 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
 
   const shown = coupons.filter(c => tab === 'used' ? c.status === 'used' : c.status === 'available');
   return <MobileScreen title="Rewards" subtitle="CLSL product offers" onBack={onBack}>
-    <View style={styles.balance}><View><Text style={styles.balanceLabel}>Available rewards</Text><Text style={styles.balanceValue}>{coupons.filter(c => c.status === 'available').length}</Text></View><View style={styles.gift}><Ionicons name="gift" size={32} color="#FFF" /></View></View>
+    <View style={styles.balance}><View><Text style={styles.balanceLabel}>Available rewards</Text><Text style={styles.balanceValue}>{coupons.filter(c => c.status === 'available').length}</Text></View><View style={styles.gift}><Ionicons name="gift" size={24} color="#FFF" /></View></View>
     <View style={styles.tabs}><Tab label="Available" active={tab === 'available'} onPress={() => setTab('available')} /><Tab label="Used" active={tab === 'used'} onPress={() => setTab('used')} /></View>
-    {loading ? <ActivityIndicator size="large" color={AppColors.blue} style={{ marginTop: 40 }} /> : shown.length ? shown.map(c => <View key={c.code} style={styles.coupon}><View style={styles.cut} /><View style={{ flex: 1 }}><Text style={styles.discount}>{c.discount}</Text><Text style={styles.couponTitle}>{c.title}</Text><Text style={styles.expiry}>Valid until {c.expires}</Text></View><View style={styles.codeBox}><QRCode value={c.code} size={64} /><Text style={styles.code}>{c.code}</Text></View></View>) : <View style={styles.empty}><Ionicons name="ticket-outline" size={48} color="#91A6B3" /><Text style={shared.sectionTitle}>No {tab} rewards</Text><Text style={[shared.body, { textAlign: 'center' }]}>Eligible offers will appear here automatically.</Text></View>}
+    {loading ? <ActivityIndicator size="large" color={AppColors.blue} style={{ marginTop: 40 }} /> : shown.length ? shown.map(c => <CouponItem key={c.code} coupon={c} />) : <View style={styles.empty}><Ionicons name="ticket-outline" size={48} color="#91A6B3" /><Text style={shared.sectionTitle}>No {tab} rewards</Text><Text style={[shared.body, { textAlign: 'center' }]}>Eligible offers will appear here automatically.</Text></View>}
   </MobileScreen>;
 }
 function Tab({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) { return <TouchableOpacity style={[styles.tab, active && styles.tabOn]} onPress={onPress}><Text style={[styles.tabText, active && styles.tabTextOn]}>{label}</Text></TouchableOpacity> }
+
+function CouponItem({ coupon: c }: { coupon: any }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <View style={styles.coupon}>
+      <View style={styles.cut} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.discount}>{c.discount}</Text>
+        <Text style={styles.couponTitle}>{c.title}</Text>
+        <Text style={styles.expiry}>Valid until {c.expires}</Text>
+      </View>
+      <View style={styles.codeBox}>
+        <TouchableOpacity style={styles.revealBtn} onPress={() => setRevealed(true)}>
+          <Text style={styles.revealBtnText}>Generate Coupon</Text>
+        </TouchableOpacity>
+      </View>
+      <Modal visible={revealed} transparent animationType="fade">
+        <View style={styles.qrModalOverlay}>
+          <View style={styles.qrModalBox}>
+            <TouchableOpacity style={styles.qrCloseBtn} onPress={() => setRevealed(false)}>
+              <Ionicons name="close" size={24} color={AppColors.muted} />
+            </TouchableOpacity>
+            <Text style={styles.qrModalTitle}>{c.discount}</Text>
+            <Text style={styles.qrModalSub}>{c.title}</Text>
+            <View style={{ padding: 20, backgroundColor: '#fff', borderRadius: 16 }}>
+              <QRCode value={c.code} size={200} />
+            </View>
+            <Text style={styles.qrModalCode}>{c.code}</Text>
+            <Text style={styles.qrModalHint}>Show this QR code to the dealer</Text>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
 const styles = StyleSheet.create({ 
-  balance: { backgroundColor: AppColors.blue, borderRadius: 24, padding: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, 
-  balanceLabel: { color: '#CCE1EE', fontWeight: '700' }, 
-  balanceValue: { fontSize: 42, color: '#FFF', fontWeight: '900' }, 
-  gift: { width: 62, height: 62, borderRadius: 20, backgroundColor: 'rgba(255,255,255,.14)', alignItems: 'center', justifyContent: 'center' }, 
+  balance: { backgroundColor: AppColors.blue, borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, 
+  balanceLabel: { color: '#CCE1EE', fontWeight: '700', fontSize: 13 }, 
+  balanceValue: { fontSize: 36, color: '#FFF', fontWeight: '900' }, 
+  gift: { width: 48, height: 48, borderRadius: 16, backgroundColor: 'rgba(255,255,255,.14)', alignItems: 'center', justifyContent: 'center' }, 
   tabs: { flexDirection: 'row', backgroundColor: '#E3EBF0', padding: 4, borderRadius: 15, marginVertical: 16 }, 
   tab: { flex: 1, padding: 12, alignItems: 'center', borderRadius: 12 }, 
   tabOn: { backgroundColor: '#FFF' }, 
   tabText: { color: AppColors.muted, fontWeight: '800' }, 
   tabTextOn: { color: AppColors.blue }, 
-  coupon: { backgroundColor: '#FFF', borderRadius: 20, borderWidth: 1, borderColor: AppColors.line, padding: 18, flexDirection: 'row', gap: 12, alignItems: 'center', overflow: 'hidden', marginBottom: 12 }, 
+  coupon: { backgroundColor: '#FFF', borderRadius: 16, borderWidth: 1, borderColor: AppColors.line, padding: 14, flexDirection: 'row', gap: 10, alignItems: 'center', overflow: 'hidden', marginBottom: 12 }, 
   cut: { position: 'absolute', left: -9, width: 18, height: 18, borderRadius: 9, backgroundColor: AppColors.bg }, 
-  discount: { color: AppColors.green, fontSize: 24, fontWeight: '900' }, 
-  couponTitle: { color: AppColors.ink, fontWeight: '800', marginTop: 3 }, 
-  expiry: { color: AppColors.muted, fontSize: 11, marginTop: 6 }, 
-  codeBox: { borderLeftWidth: 1, borderStyle: 'dashed', borderColor: '#B8C8D2', paddingLeft: 12, alignItems: 'center', gap: 6 }, 
-  code: { color: AppColors.blue, fontWeight: '900', fontSize: 13 }, 
+  discount: { color: AppColors.green, fontSize: 18, fontWeight: '900' }, 
+  couponTitle: { color: AppColors.ink, fontWeight: '800', marginTop: 2, fontSize: 13 }, 
+  expiry: { color: AppColors.muted, fontSize: 10, marginTop: 4 }, 
+  codeBox: { borderLeftWidth: 1, borderStyle: 'dashed', borderColor: '#B8C8D2', paddingLeft: 10, alignItems: 'center', justifyContent: 'center', minWidth: 80, gap: 4 }, 
+  code: { color: AppColors.blue, fontWeight: '900', fontSize: 12 }, 
+  revealBtn: { backgroundColor: AppColors.blue, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
+  revealBtnText: { color: '#FFF', fontSize: 10, fontWeight: '800', textAlign: 'center' },
+  
+  qrModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  qrModalBox: { backgroundColor: '#F8FBF3', borderRadius: 24, padding: 24, alignItems: 'center', width: '100%' },
+  qrCloseBtn: { position: 'absolute', top: 16, right: 16, padding: 4 },
+  qrModalTitle: { fontSize: 28, fontWeight: '900', color: AppColors.green, marginBottom: 4, marginTop: 12 },
+  qrModalSub: { fontSize: 16, fontWeight: '700', color: AppColors.ink, textAlign: 'center', marginBottom: 24 },
+  qrModalCode: { fontSize: 22, fontWeight: '900', color: AppColors.blue, marginTop: 20, letterSpacing: 2 },
+  qrModalHint: { fontSize: 13, color: AppColors.muted, marginTop: 8, fontWeight: '600' },
   empty: { ...shared.card, alignItems: 'center', gap: 8, paddingVertical: 42 },
   
   checkCard: { flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1.5, borderColor: AppColors.line, borderRadius: 12, padding: 14, backgroundColor: '#FFF' },

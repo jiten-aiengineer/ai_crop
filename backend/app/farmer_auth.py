@@ -387,7 +387,7 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
                 raise HTTPException(400, "Referral code not found or expired.")
             referral_dealer_id = referral["dealer_id"]
         if payload.role == "dealer":
-            dealer = conn.execute("SELECT id,portal_mobile_number,contact_number,status FROM dealers WHERE lower(dealer_code)=lower(%s) LIMIT 1", (payload.dealer_code.strip(),)).fetchone()
+            dealer = conn.execute("SELECT id,portal_mobile_number,contact_number,status,name,owner_name FROM dealers WHERE lower(dealer_code)=lower(%s) LIMIT 1", (payload.dealer_code.strip(),)).fetchone()
             if not dealer or dealer["status"] != "active":
                 raise HTTPException(400, "Active dealer code not found.")
             if dealer["portal_mobile_number"] and dealer["portal_mobile_number"] != user["mobile_number"]:
@@ -405,6 +405,16 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
             conn.execute("UPDATE dealers SET portal_mobile_number=%s,updated_at=now() WHERE id=%s", (user["mobile_number"], dealer["id"]))
             verified_dealer_id = dealer["id"]
         metadata = {"dealer_code": payload.dealer_code, "referral_code": payload.referral_code, "profile_completed_at": datetime.now(timezone.utc).isoformat()}
+        # If they are a dealer, override the name they typed with the official DB name
+        final_first_name = payload.first_name.strip()
+        final_last_name = payload.last_name.strip()
+        if payload.role == "dealer" and dealer:
+            official_name = dealer.get("owner_name") or dealer.get("name") or final_first_name
+            # Split the official name into first and last name if possible, or just put it all in first_name
+            name_parts = official_name.strip().split(" ", 1)
+            final_first_name = name_parts[0]
+            final_last_name = name_parts[1] if len(name_parts) > 1 else ""
+
         updated = conn.execute(
             """UPDATE farmers SET role=%s,name=%s,last_name=%s,date_of_birth=%s,preferred_language=%s,email=%s,city=%s,district=%s,
                  village=%s,state=%s,social_media_used=%s::jsonb,acquisition_source=%s,
@@ -415,8 +425,8 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
                  verified_dealer_id=%s,profile_metadata=profile_metadata || %s::jsonb,updated_at=now()
                WHERE id=%s RETURNING *""",
             (payload.role,
-             _to_english(payload.first_name.strip()),
-             _to_english(payload.last_name.strip()),
+             _to_english(final_first_name),
+             _to_english(final_last_name),
              payload.date_of_birth,
              payload.preferred_language,
              payload.email,

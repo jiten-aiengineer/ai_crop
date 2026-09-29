@@ -24,9 +24,10 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#064878",
-          "image": "./assets/images/clsl-logo.png",
-          "imageWidth": 120
+          "backgroundColor": "#ffffff",
+          "image": "./assets/images/splash.jpg",
+          "imageWidth": 200,
+          "resizeMode": "contain"
         }
       ],
       [

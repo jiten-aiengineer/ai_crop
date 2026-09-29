@@ -1,5 +1,6 @@
 import React, { useState, type ComponentProps } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, BackHandler, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -32,8 +33,9 @@ const TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: IoniconName
 ];
 
 function BottomTabBar({ active, onPress }: { active: Tab; onPress: (tab: Tab) => void }) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.tabBar}>
+    <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {TABS.map(tab => {
         const isActive = active === tab.id;
         return (
@@ -69,6 +71,36 @@ function AppContent() {
       SplashScreen.hideAsync().catch(() => {});
     }
   }, [isLoading]);
+
+  React.useEffect(() => {
+    if (!isLoggedIn) {
+      setActiveTab('home');
+      setSubScreen(null);
+    }
+  }, [isLoggedIn]);
+
+  React.useEffect(() => {
+    if (!isLoggedIn) return;
+    
+    const backAction = () => {
+      if (subScreen) {
+        setSubScreen(null);
+        return true;
+      }
+      if (activeTab !== 'home') {
+        setActiveTab('home');
+        return true;
+      }
+      Alert.alert('Hold on!', 'Are you sure you want to close this app?', [
+        { text: 'Cancel', onPress: () => null, style: 'cancel' },
+        { text: 'Sure', onPress: () => BackHandler.exitApp() },
+      ]);
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => backHandler.remove();
+  }, [subScreen, activeTab, isLoggedIn]);
 
   if (isLoading) {
     return (
@@ -136,10 +168,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#d7e4cf',   // green-tinted border like website
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+    borderTopColor: '#d7e4cf',
     paddingTop: 8,
-    shadowColor: '#173b1b',       // deep green shadow
+    shadowColor: '#173b1b',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.06,
     shadowRadius: 10,

@@ -204,15 +204,15 @@ function RecRow({ icon, label, status, statusColor, desc, isLast }: { icon: any,
 }
 
 const styles = StyleSheet.create({
-  mainBox: { backgroundColor: '#1C402B', borderRadius: 24, padding: 24, marginBottom: 16 },
-  placeText: { color: '#C1F0C1', fontWeight: '800', fontSize: 15 },
-  temp: { fontSize: 64, color: '#FFF', fontWeight: '300', letterSpacing: -2, includeFontPadding: false },
-  cond: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+  mainBox: { backgroundColor: '#3e7025', borderRadius: 20, padding: 20, marginBottom: 12 },
+  placeText: { color: '#C1F0C1', fontWeight: '800', fontSize: 14 },
+  temp: { fontSize: 56, color: '#FFF', fontWeight: '300', letterSpacing: -2, includeFontPadding: false },
+  cond: { color: '#FFF', fontWeight: '700', fontSize: 14 },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
-  cell: { flex: 1, minWidth: '45%', backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: AppColors.line },
-  cellVal: { fontSize: 20, fontWeight: '900', color: AppColors.ink, marginTop: 8 },
-  cellLabel: { fontSize: 12, color: AppColors.muted, marginTop: 4 },
+  cell: { flex: 1, minWidth: '45%', backgroundColor: '#FFF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: AppColors.line },
+  cellVal: { fontSize: 18, fontWeight: '900', color: AppColors.ink, marginTop: 6 },
+  cellLabel: { fontSize: 11, color: AppColors.muted, marginTop: 4 },
 
   recList: { marginTop: 12 },
   recRow: { paddingVertical: 16 },

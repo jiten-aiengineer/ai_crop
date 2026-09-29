@@ -1,5 +1,5 @@
-// Secure token storage using expo-secure-store (or AsyncStorage fallback)
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 const SESSION_KEY = 'clsl_session_token';
 const USER_KEY = 'clsl_user_data';
@@ -23,21 +23,41 @@ export type StoredUser = {
 const memoryStorage = new Map<string, string>();
 
 async function safeSetItem(key: string, value: string): Promise<void> {
-  try { await AsyncStorage.setItem(key, value); }
-  catch (e) { memoryStorage.set(key, value); }
+  try {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.localStorage.setItem(key, value);
+      return;
+    }
+    await SecureStore.setItemAsync(key, value);
+  } catch (e) {
+    console.warn('Storage set error:', e);
+    memoryStorage.set(key, value);
+  }
 }
 
 async function safeGetItem(key: string): Promise<string | null> {
   try {
-    const val = await AsyncStorage.getItem(key);
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      return window.localStorage.getItem(key) || null;
+    }
+    const val = await SecureStore.getItemAsync(key);
     if (val !== null) return val;
-  } catch (e) {}
+  } catch (e) {
+    console.warn('Storage get error:', e);
+  }
   return memoryStorage.get(key) || null;
 }
 
 async function safeRemoveItem(key: string): Promise<void> {
-  try { await AsyncStorage.removeItem(key); }
-  catch (e) {}
+  try {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.localStorage.removeItem(key);
+      return;
+    }
+    await SecureStore.deleteItemAsync(key);
+  } catch (e) {
+    console.warn('Storage remove error:', e);
+  }
   memoryStorage.delete(key);
 }
 
