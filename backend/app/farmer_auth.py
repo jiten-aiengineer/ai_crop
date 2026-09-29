@@ -75,6 +75,11 @@ def _issue_campaign_coupon(conn, campaign: dict, farmer_id) -> bool:
     if existing:
         return False
     rules = campaign.get("rules") or {}
+    coupon_limit = int(rules.get("coupon_limit") or 0)
+    if coupon_limit:
+        total = conn.execute("SELECT COUNT(*) AS count FROM coupons WHERE campaign_id=%s", (campaign["id"],)).fetchone()["count"]
+        if total >= coupon_limit:
+            return False
     budget = float(rules.get("budget") or 0)
     if budget:
         spent = conn.execute(
@@ -98,14 +103,6 @@ def _issue_campaign_coupon(conn, campaign: dict, farmer_id) -> bool:
     ).fetchone()
     if claimed:
         return True
-    # The campaign limit caps the total number of codes, not the number of
-    # assignments.  Pre-generated inventory is already part of that total and
-    # must be claimable even when the inventory count has reached the limit.
-    coupon_limit = int(rules.get("coupon_limit") or 0)
-    if coupon_limit:
-        total = conn.execute("SELECT COUNT(*) AS count FROM coupons WHERE campaign_id=%s", (campaign["id"],)).fetchone()["count"]
-        if total >= coupon_limit:
-            return False
     for _ in range(12):
         inserted = conn.execute(
             """INSERT INTO coupons(code,campaign_id,farmer_id,status,issued_at,expires_at)

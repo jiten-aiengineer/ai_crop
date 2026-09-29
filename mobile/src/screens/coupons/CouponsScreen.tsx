@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, TextInput, ScrollView, Alert, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
@@ -14,7 +14,6 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<'available' | 'used'>('available');
   const [loading, setLoading] = useState(true);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [loadError, setLoadError] = useState('');
 
   // Upgrade state
   const [isUpgrading, setIsUpgrading] = useState(false);
@@ -27,15 +26,12 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
-  const loadCoupons = useCallback(async () => {
+  useEffect(() => {
     if (!token || user?.role !== 'farmer') {
       setLoading(false);
       return;
     }
-    setLoading(true);
-    setLoadError('');
-    try {
-      const r = await getMyCoupons(token);
+    getMyCoupons(token).then(r => {
       const available = r.coupons.map((x, i) => ({
         code: String(x.code || `CLSL${i + 1}`),
         title: String(x.campaign_name || x.title || 'CLSL product reward'),
@@ -51,15 +47,8 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
         status: 'used' as const,
       }));
       setCoupons([...available, ...used]);
-    } catch (reason) {
-      setCoupons([]);
-      setLoadError(reason instanceof Error ? reason.message : 'Rewards could not be loaded.');
-    } finally {
-      setLoading(false);
-    }
+    }).catch(() => setCoupons([])).finally(() => setLoading(false));
   }, [token, user?.role]);
-
-  useEffect(() => { void loadCoupons(); }, [loadCoupons]);
 
   const doUpgrade = () => {
     if (!upgradeTerms || !upgradePromos) {
@@ -201,14 +190,14 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
 
   const shown = coupons.filter(c => tab === 'used' ? c.status === 'used' : c.status === 'available');
   return <MobileScreen title="Rewards" subtitle="CLSL product offers" onBack={onBack}>
-    <View style={styles.balance}><View><Text style={styles.balanceLabel}>Available rewards</Text><Text style={styles.balanceValue}>{coupons.filter(c => c.status === 'available').length}</Text></View><TouchableOpacity style={styles.gift} onPress={() => void loadCoupons()} disabled={loading} accessibilityLabel="Refresh rewards"><Ionicons name={loading?'hourglass-outline':'refresh'} size={24} color="#FFF" /></TouchableOpacity></View>
+    <View style={styles.balance}><View><Text style={styles.balanceLabel}>Available rewards</Text><Text style={styles.balanceValue}>{coupons.filter(c => c.status === 'available').length}</Text></View><View style={styles.gift}><Ionicons name="gift" size={24} color="#FFF" /></View></View>
     <View style={styles.tabs}><Tab label="Available" active={tab === 'available'} onPress={() => setTab('available')} /><Tab label="Used" active={tab === 'used'} onPress={() => setTab('used')} /></View>
-    {loading ? <ActivityIndicator size="large" color={AppColors.blue} style={{ marginTop: 40 }} /> : loadError ? <View style={styles.empty}><Ionicons name="cloud-offline-outline" size={48} color="#B45309" /><Text style={shared.sectionTitle}>Rewards could not refresh</Text><Text style={[shared.body, { textAlign: 'center' }]}>{loadError}</Text><TouchableOpacity style={shared.primary} onPress={() => void loadCoupons()}><Text style={shared.primaryText}>Try again</Text></TouchableOpacity></View> : shown.length ? shown.map(c => <CouponItem key={c.code} coupon={c} />) : <View style={styles.empty}><Ionicons name="ticket-outline" size={48} color="#91A6B3" /><Text style={shared.sectionTitle}>No {tab} rewards</Text><Text style={[shared.body, { textAlign: 'center' }]}>Eligible offers will appear here automatically.</Text><TouchableOpacity style={styles.refreshEmpty} onPress={() => void loadCoupons()}><Ionicons name="refresh" size={17} color={AppColors.blue}/><Text style={styles.refreshEmptyText}>Refresh rewards</Text></TouchableOpacity></View>}
+    {loading ? <ActivityIndicator size="large" color={AppColors.blue} style={{ marginTop: 40 }} /> : shown.length ? shown.map(c => <CouponItem key={c.code} coupon={c} />) : <View style={styles.empty}><Ionicons name="ticket-outline" size={48} color="#91A6B3" /><Text style={shared.sectionTitle}>No {tab} rewards</Text><Text style={[shared.body, { textAlign: 'center' }]}>Eligible offers will appear here automatically.</Text></View>}
   </MobileScreen>;
 }
 function Tab({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) { return <TouchableOpacity style={[styles.tab, active && styles.tabOn]} onPress={onPress}><Text style={[styles.tabText, active && styles.tabTextOn]}>{label}</Text></TouchableOpacity> }
 
-function CouponItem({ coupon: c }: { coupon: Coupon }) {
+function CouponItem({ coupon: c }: { coupon: any }) {
   const [revealed, setRevealed] = useState(false);
   return (
     <View style={styles.coupon}>
@@ -270,8 +259,6 @@ const styles = StyleSheet.create({
   qrModalCode: { fontSize: 22, fontWeight: '900', color: AppColors.blue, marginTop: 20, letterSpacing: 2 },
   qrModalHint: { fontSize: 13, color: AppColors.muted, marginTop: 8, fontWeight: '600' },
   empty: { ...shared.card, alignItems: 'center', gap: 8, paddingVertical: 42 },
-  refreshEmpty: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: AppColors.line },
-  refreshEmptyText: { color: AppColors.blue, fontWeight: '800', fontSize: 13 },
   
   checkCard: { flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1.5, borderColor: AppColors.line, borderRadius: 12, padding: 14, backgroundColor: '#FFF' },
   checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: AppColors.line, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF', marginRight: 10 },

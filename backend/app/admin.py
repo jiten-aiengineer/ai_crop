@@ -1310,32 +1310,6 @@ class CampaignInput(BaseModel):
     random_percentage: int = Field(default=10, ge=1, le=100)
     expiry_days: int = Field(default=30, ge=1, le=365)
 
-
-def _generate_coupon_inventory(conn, campaign_id: UUID, count: int, coupon_limit: int = 0) -> int:
-    """Create secure inventory codes without exceeding the campaign limit."""
-    requested = max(0, min(int(count), 5000))
-    if not requested:
-        return 0
-    existing_count = conn.execute(
-        "SELECT COUNT(*) AS count FROM coupons WHERE campaign_id=%s",
-        (campaign_id,),
-    ).fetchone()["count"]
-    target_count = min(requested, max(0, coupon_limit - existing_count)) if coupon_limit else requested
-    inserted = 0
-    attempts = 0
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-    while inserted < target_count and attempts < max(4, target_count * 4):
-        attempts += 1
-        code = "".join(secrets.choice(alphabet) for _ in range(7))
-        row = conn.execute(
-            """INSERT INTO coupons(code,campaign_id,status) VALUES(%s,%s,'available')
-               ON CONFLICT(code) DO NOTHING RETURNING id""",
-            (code, campaign_id),
-        ).fetchone()
-        if row:
-            inserted += 1
-    return inserted
-
 @router.get("/analytics/farmers")
 def admin_analytics_farmers(identity: AdminIdentity = Depends(_identity)):
     _require(identity, ADMIN_READ_ROLES)
@@ -1398,27 +1372,8 @@ def create_campaign(payload: CampaignInput, identity: AdminIdentity = Depends(_i
             """,
             (payload.name, payload.discount_type, payload.discount_value, payload.start_date, payload.end_date, payload.status, json.dumps(rules))
         ).fetchone()
-        # A published campaign is operational immediately.  Seed its initial
-        # pool in the same transaction so the dashboard and farmer wallet do
-        # not depend on a second manual action.  Very large campaigns can be
-        # replenished in batches from the management screen.
-        generated_count = _generate_coupon_inventory(
-            conn,
-            row["id"],
-            min(payload.coupon_limit, 5000),
-            payload.coupon_limit,
-        )
-        _audit(
-            conn,
-            identity,
-            "create",
-            "campaign",
-            str(row["id"]),
-            None,
-            {"name": payload.name, "status": payload.status, "generated_count": generated_count},
-        )
         conn.commit()
-    return {"status": "success", "campaign_id": str(row["id"]), "generated_count": generated_count}
+    return {"status": "success", "campaign_id": str(row["id"])}
 
 class CampaignStatusInput(BaseModel):
     status: Literal["active", "paused", "completed"]
@@ -1437,13 +1392,28 @@ class BulkCouponInput(BaseModel):
 @router.post("/campaigns/{campaign_id}/bulk-generate")
 def bulk_generate_coupons(campaign_id: UUID, payload: BulkCouponInput, identity: AdminIdentity = Depends(_identity)):
     _require(identity, CATALOGUE_MANAGER_ROLES)
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    
     with connection() as conn:
         # verify campaign exists
         cam = conn.execute("SELECT id,rules FROM campaigns WHERE id = %s", (campaign_id,)).fetchone()
         if not cam:
             raise HTTPException(status_code=404, detail="Campaign not found")
         limit = int((cam.get("rules") or {}).get("coupon_limit") or 0)
-        inserted = _generate_coupon_inventory(conn, campaign_id, payload.count, limit)
+        existing_count = conn.execute("SELECT COUNT(*) AS count FROM coupons WHERE campaign_id=%s", (campaign_id,)).fetchone()["count"]
+        target_count = min(payload.count, max(0, limit-existing_count)) if limit else payload.count
+        inserted = 0
+        attempts = 0
+        while inserted < target_count and attempts < max(4, target_count * 4):
+            attempts += 1
+            code = ''.join(secrets.choice(alphabet) for _ in range(7))
+            row = conn.execute(
+                """INSERT INTO coupons(code,campaign_id,status) VALUES(%s,%s,'available')
+                   ON CONFLICT(code) DO NOTHING RETURNING id""",
+                (code, campaign_id),
+            ).fetchone()
+            if row:
+                inserted += 1
         conn.commit()
         
     return {"status": "success", "generated_count": inserted}
@@ -1561,8 +1531,7 @@ def list_dealers(
         COALESCE((SELECT SUM(cr.amount_redeemed) FROM coupon_redemptions cr WHERE cr.dealer_id=dealers.id),0) redeemed_amount,
         COALESCE((SELECT SUM(cr.amount_redeemed) FROM coupon_redemptions cr WHERE cr.dealer_id=dealers.id AND cr.credit_note_id IS NULL),0) outstanding_amount,
         COALESCE((SELECT SUM(total_amount) FROM dealer_credit_notes cn WHERE cn.dealer_id=dealers.id AND cn.status='settled'),0) settled_amount
-        FROM dealers {where_clause}
-        ORDER BY account_generated_at DESC NULLS LAST, updated_at DESC, is_test DESC, name"""
+        FROM dealers {where_clause} ORDER BY is_test DESC, name"""
     count_sql = f"SELECT COUNT(*) as c FROM dealers {where_clause}"
     
     with connection() as conn:
