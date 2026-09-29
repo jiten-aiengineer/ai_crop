@@ -314,6 +314,21 @@ def referral_lookup(payload: ReferralLookupPayload):
                  AND d.status='active' LIMIT 1""",
             (payload.referral_code.strip(),),
         ).fetchone()
+        
+        if not row:
+            # Check employee referrals
+            so_row = conn.execute(
+                """SELECT e.full_name AS name, t.state, t.territory AS sales_territory 
+                   FROM employee_referrals er
+                   JOIN employees e ON e.id = er.employee_id
+                   LEFT JOIN sales_officer_territories t ON t.employee_id = e.id
+                   WHERE lower(er.referral_token)=lower(%s)
+                     AND e.status='active' LIMIT 1""",
+                (payload.referral_code.strip(),),
+            ).fetchone()
+            if so_row:
+                row = so_row
+
     if not row:
         raise HTTPException(404, "This referral code is not valid. Check the code and try again.")
     return {"status": "success", "dealer": row}
@@ -400,6 +415,7 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
     with connection() as conn:
         user = _session_user(conn, authorization)
         referral_dealer_id = None
+        referral_employee_id = None
         verified_dealer_id = None
         if payload.referral_code:
             referral = conn.execute(
@@ -407,9 +423,17 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
                    WHERE lower(dr.referral_token)=lower(%s) AND (dr.expires_at IS NULL OR dr.expires_at>now())
                      AND d.status='active' LIMIT 1""", (payload.referral_code.strip(),),
             ).fetchone()
-            if not referral:
-                raise HTTPException(400, "Referral code not found or expired.")
-            referral_dealer_id = referral["dealer_id"]
+            if referral:
+                referral_dealer_id = referral["dealer_id"]
+            else:
+                emp_referral = conn.execute(
+                    """SELECT er.employee_id FROM employee_referrals er JOIN employees e ON e.id = er.employee_id
+                       WHERE lower(er.referral_token)=lower(%s) AND e.status='active' LIMIT 1""", (payload.referral_code.strip(),),
+                ).fetchone()
+                if emp_referral:
+                    referral_employee_id = emp_referral["employee_id"]
+                else:
+                    raise HTTPException(400, "Referral code not found or expired.")
         if payload.role == "dealer":
             dealer = conn.execute("SELECT id,portal_mobile_number,contact_number,status,name,owner_name FROM dealers WHERE lower(dealer_code)=lower(%s) LIMIT 1", (payload.dealer_code.strip(),)).fetchone()
             if not dealer or dealer["status"] != "active":
@@ -446,6 +470,7 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
                  location_postcode=%s,location_country=%s,location_accuracy_meters=%s,location_metadata=%s::jsonb,
                  location_consent_at=CASE WHEN %s THEN COALESCE(location_consent_at,now()) ELSE location_consent_at END,
                  acquisition_dealer_id=COALESCE(acquisition_dealer_id,%s),preferred_dealer_id=COALESCE(%s,preferred_dealer_id),
+                 acquisition_employee_id=COALESCE(acquisition_employee_id,%s),
                  verified_dealer_id=%s,profile_metadata=profile_metadata || %s::jsonb,updated_at=now()
                WHERE id=%s RETURNING *""",
             (payload.role,
@@ -463,7 +488,7 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
              payload.location_latitude,payload.location_longitude,payload.location_label,
              payload.location_postcode,payload.location_country,payload.location_accuracy_meters,
              json.dumps(payload.location_metadata),payload.location_consent,
-             referral_dealer_id,referral_dealer_id,verified_dealer_id,json.dumps(metadata),user["id"]),
+             referral_dealer_id,referral_dealer_id,referral_employee_id,verified_dealer_id,json.dumps(metadata),user["id"]),
         ).fetchone()
         if payload.role == "farmer":
             _sync_farmer_campaign_coupons(conn, updated)
