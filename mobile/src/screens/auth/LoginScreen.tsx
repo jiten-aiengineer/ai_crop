@@ -115,6 +115,7 @@ export default function LoginScreen() {
   const [source, setSource] = useState('');
   const [isFarmer, setIsFarmer] = useState(false);
   const [isDealerUI, setIsDealerUI] = useState(false);
+  const [isSalesOfficer, setIsSalesOfficer] = useState(false);
 
   // Dealer / referral
   const [dealerCode, setDealerCode] = useState('');
@@ -200,6 +201,7 @@ export default function LoginScreen() {
     try {
       const status = await dealerMobileStatus(countryCode + mobile.replace(/\D/g, ''));
       setIsDealerUI(status.is_registered_dealer);
+      setIsSalesOfficer(status.is_sales_officer);
       setIsFarmer(false);
       setReferral(''); setReferralName('');
       setDealerCode(''); setDealer(null); setDealerConfirmed(false);
@@ -259,7 +261,7 @@ export default function LoginScreen() {
     try {
       const m = countryCode + mobile.replace(/\D/g, '');
       const verified = await verifyOtp(m, otp);
-      const role = isDealerUI ? 'dealer' : (isFarmer ? 'farmer' : 'general_user');
+      const role = isSalesOfficer ? 'sales_officer' : (isDealerUI ? 'dealer' : (isFarmer ? 'farmer' : 'general_user'));
       const data = await updateProfile(verified.session_token, {
         role, first_name: firstName, last_name: lastName, preferred_language: language, date_of_birth: dob || null,
         district: place.district, state: place.state, city: place.city || null,
@@ -399,7 +401,7 @@ export default function LoginScreen() {
           <TextInput
             style={[s.input, s.phoneInput]}
             value={mobile}
-            onChangeText={t => { setMobile(t.replace(/\D/g, '').slice(0, 10)); setError(''); setIsDealerUI(false); }}
+            onChangeText={t => { setMobile(t.replace(/\D/g, '').slice(0, 10)); setError(''); setIsDealerUI(false); setIsSalesOfficer(false); }}
             placeholder={`Enter number without ${countryCode}`}
             keyboardType="number-pad"
             autoComplete="tel"
@@ -462,7 +464,7 @@ export default function LoginScreen() {
       </View>
 
       {/* Farmer toggle */}
-      {!isDealerUI && (
+      {!isDealerUI && !isSalesOfficer && (
         <TouchableOpacity style={s.checkCard} onPress={() => { setIsFarmer(!isFarmer); setError(''); }} activeOpacity={0.8}>
           <View style={[s.checkbox, isFarmer && s.checkboxActive]}>
             {isFarmer && <Ionicons name="checkmark" size={12} color="#fff" />}
@@ -475,7 +477,7 @@ export default function LoginScreen() {
       )}
 
       {/* Dealer banner */}
-      {isDealerUI && (
+      {isDealerUI && !isSalesOfficer && (
         <View style={s.infoBanner}>
           <MaterialCommunityIcons name="shield-check-outline" size={20} color={T.primary} />
           <View style={{ flex: 1, marginLeft: 10 }}>
@@ -486,7 +488,7 @@ export default function LoginScreen() {
       )}
 
       {/* Farmer referral */}
-      {isFarmer && !isDealerUI && (
+      {isFarmer && !isDealerUI && !isSalesOfficer && (
         <View style={s.fieldsetCard}>
           <Text style={s.fieldsetTitle}>{t.referralCode || 'Dealer referral code'} (optional)</Text>
           <Text style={[s.stepSubtitle, { marginBottom: 12, fontSize: 11, color: T.text }]}>Get a referral code from your nearest CLSL dealer to unlock special offers.</Text>
@@ -518,7 +520,7 @@ export default function LoginScreen() {
       )}
 
       {/* Dealer code entry */}
-      {isDealerUI && !isFarmer && (
+      {isDealerUI && !isFarmer && !isSalesOfficer && (
         <View style={s.fieldsetCard}>
           <Text style={s.fieldsetTitle}>{t.dealerCode || 'Dealer code'}</Text>
           <View style={s.dealerRow}>
@@ -550,6 +552,17 @@ export default function LoginScreen() {
               )}
             </View>
           )}
+        </View>
+      )}
+
+      {/* Sales Officer banner */}
+      {isSalesOfficer && (
+        <View style={s.infoBanner}>
+          <MaterialCommunityIcons name="badge-account" size={20} color={T.primary} />
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={s.infoBannerTitle}>Sales Officer Verified</Text>
+            <Text style={s.infoBannerSub}>You are logging in as a CLSL Sales Officer.</Text>
+          </View>
         </View>
       )}
 

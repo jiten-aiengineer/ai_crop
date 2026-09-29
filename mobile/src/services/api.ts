@@ -100,7 +100,7 @@ async function request<T>(
 
 // ─── Auth Endpoints ──────────────────────────────────────────
 export async function dealerMobileStatus(mobileNumber: string) {
-  return request<{ is_registered_dealer: boolean }>(
+  return request<{ is_registered_dealer: boolean; is_sales_officer: boolean }>(
     `${AUTH_API}/dealer-mobile-status`,
     'POST',
     { mobile_number: mobileNumber },

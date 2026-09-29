@@ -21,7 +21,7 @@ from indic_transliteration import detect
 from indic_transliteration.sanscript import transliterate, ITRANS
 
 router = APIRouter(prefix="/api/v1/public/auth", tags=["public_auth"])
-PublicRole = Literal["general_user", "farmer", "dealer", "other"]
+PublicRole = Literal["general_user", "farmer", "dealer", "sales_officer", "other"]
 _REFERRAL_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 def _to_english(text: str | None) -> str | None:
@@ -286,7 +286,21 @@ def dealer_mobile_status(payload: DealerMobileStatusPayload):
                LIMIT 1""",
             (digits,),
         ).fetchone()
-    return {"status": "success", "is_registered_dealer": bool(row)}
+        
+        # Check if the number belongs to a Sales Officer (employee with field_employee role)
+        so_row = conn.execute(
+            """SELECT e.id FROM employees e
+               JOIN employee_roles r ON r.employee_id = e.id
+               WHERE e.status='active' AND r.role_code='field_employee'
+                 AND (
+                   right(regexp_replace(COALESCE(e.office_mobile, ''), '[^0-9]', '', 'g'), 10)=%s OR
+                   right(regexp_replace(COALESCE(e.personal_mobile, ''), '[^0-9]', '', 'g'), 10)=%s
+                 )
+               LIMIT 1""",
+            (digits, digits),
+        ).fetchone()
+        
+    return {"status": "success", "is_registered_dealer": bool(row), "is_sales_officer": bool(so_row)}
 
 
 @router.post("/referral-lookup")
