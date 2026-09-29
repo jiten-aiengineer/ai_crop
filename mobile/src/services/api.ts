@@ -354,6 +354,11 @@ export async function settleAllRedemptions(token: string) {
   return request<{ status: string; message: string }>(`${DEALER_API}/me/settle-all`, 'POST', undefined, token);
 }
 
+export async function getDealerFarmers(token: string) {
+  return request<{ items: any[] }>(`${DEALER_API}/me/farmers`, 'GET', undefined, token);
+}
+
+
 // ─── i18n ─────────────────────────────────────────────────────────
 export async function getI18nTranslations(lang: string) {
   try {
