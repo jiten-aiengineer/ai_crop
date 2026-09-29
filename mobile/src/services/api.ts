@@ -301,55 +301,6 @@ export async function getDealerReferral(token: string) {
   return request<{ dealer_name: string; token: string; qr_data_url?: string | null }>(`${DEALER_API}/me/referral`, 'GET', undefined, token);
 }
 
-export type DealerRedemption = {
-  id: string;
-  redeemed_at: string;
-  coupon_code: string;
-  campaign_name: string;
-  discount_type: string;
-  discount_value: number;
-  amount_redeemed: number;
-  purchase_reference?: string | null;
-  settled: boolean;
-};
-
-export type DealerRedemptionSummary = {
-  summary: {
-    today_count: number;
-    today_amount: number;
-    month_count: number;
-    month_amount: number;
-    all_count: number;
-    all_amount: number;
-    outstanding_count: number;
-    outstanding_amount: number;
-  };
-  daily: Array<{ day: string; count: number; amount: number }>;
-  monthly: Array<{ month: string; count: number; amount: number }>;
-  credit_notes: Array<{
-    id: string;
-    note_number: string;
-    total_amount: number;
-    status: string;
-    generated_at: string;
-    settled_at?: string | null;
-    settlement_reference?: string | null;
-  }>;
-};
-
-export async function getDealerRedemptions(token: string, period: 'today' | 'month' | 'all' = 'month') {
-  return request<{ status: string; items: DealerRedemption[]; total: number; total_amount: number }>(
-    `${DEALER_API}/me/redemptions?period=${period}`,
-    'GET',
-    undefined,
-    token,
-  );
-}
-
-export async function getDealerRedemptionSummary(token: string) {
-  return request<DealerRedemptionSummary>(`${DEALER_API}/me/redemption-summary`, 'GET', undefined, token);
-}
-
 // ─── i18n ─────────────────────────────────────────────────────────
 export async function getI18nTranslations(lang: string) {
   try {
