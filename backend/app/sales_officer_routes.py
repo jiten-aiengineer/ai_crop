@@ -200,7 +200,7 @@ def list_sales_officer_farmers(authorization: str = Header(...)):
             mob = mob[:-6] + "xxxx" + mob[-2:]
         farmers.append({
             "name": f"{r['name'] or ''} {r['last_name'] or ''}".strip() or "Unnamed Farmer",
-            "mobile_number": mob,
+            "phone": mob,
             "location": f"{r['city'] or r['district'] or ''}, {r['state'] or ''}".strip(", "),
             "joined_at": r["created_at"].isoformat()
         })
