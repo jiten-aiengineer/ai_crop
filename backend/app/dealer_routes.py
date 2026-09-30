@@ -546,7 +546,7 @@ def dealer_farmers(authorization: str = Header(...)):
         dealer = _resolve_dealer(conn, authorization)
         
         rows = conn.execute("""
-            SELECT id, name, mobile_number AS phone, location_consent_at, location_district, location_state 
+            SELECT id, name, mobile_number AS phone, location_consent_at, district, state 
             FROM farmers 
             WHERE verified_dealer_id = %s 
             ORDER BY location_consent_at DESC NULLS LAST
@@ -559,8 +559,8 @@ def dealer_farmers(authorization: str = Header(...)):
                 "name": r["name"] or "Unknown Farmer",
                 "phone": r["phone"] or "",
                 "joined_at": r["location_consent_at"].isoformat() if r["location_consent_at"] else None,
-                "district": r["location_district"] or "",
-                "state": r["location_state"] or "",
+                "district": r["district"] or "",
+                "state": r["state"] or "",
             })
             
         return {"items": farmers}
