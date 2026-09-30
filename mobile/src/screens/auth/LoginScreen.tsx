@@ -408,7 +408,11 @@ export default function LoginScreen() {
       <Text style={s.stepTitle}>{t.mobileLabel || 'Mobile Number'}</Text>
       <Text style={s.stepSubtitle}>Enter your phone number to login or sign up.</Text>
       <View style={s.mobileInputContainer}>
-        <View style={s.countryCodeBox}><Text style={s.countryCodeText}>{countryCode}</Text></View>
+        <TouchableOpacity style={s.countryCodeBox} onPress={() => setShowCountryModal(true)}>
+            <Text style={s.countryCodeText}>
+              {COUNTRIES.find(c => c.code === countryCode)?.flag || '????'} {countryCode}
+            </Text>
+          </TouchableOpacity>
         <TextInput
           style={s.mobileInput}
           value={mobile}
