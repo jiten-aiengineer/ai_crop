@@ -478,6 +478,14 @@ def dealer_referral_poster(authorization: str = Header(default=None), token: str
             step1 = '1. Playstore ke App Store thi <b>"CLSL AI"</b> app download karo'
             step2 = '2. Tamara mobile number thi sign up karo'
             step3 = '3. Discount medavva mate aa QR code scan karo athva niche no code vapro!'
+        elif lang == 'mr':
+            step1 = '1. Playstore kiva App Store varun <b>"CLSL AI"</b> app download kara'
+            step2 = '2. Tumchya mobile number ne sign up kara'
+            step3 = '3. Discount milavnyasathi ha QR code scan kara kiva khalil code vapara!'
+        elif lang == 'pa':
+            step1 = '1. Playstore ya App Store ton <b>"CLSL AI"</b> app download karo'
+            step2 = '2. Apne mobile number naal sign up karo'
+            step3 = '3. Discount paun layi eh QR code scan karo ya thalle ditta code varto!'
             
         elements.append(Paragraph(invitation, scan_style))
         elements.append(Spacer(1, 5*mm))
@@ -548,9 +556,9 @@ def dealer_farmers(authorization: str = Header(...)):
         rows = conn.execute("""
             SELECT id, name, mobile_number AS phone, location_consent_at, district, state 
             FROM farmers 
-            WHERE verified_dealer_id = %s 
+            WHERE verified_dealer_id = %s AND mobile_number != %s
             ORDER BY location_consent_at DESC NULLS LAST
-        """, (dealer["id"],)).fetchall()
+        """, (dealer["id"], dealer["contact_number"])).fetchall()
         
         farmers = []
         for r in rows:

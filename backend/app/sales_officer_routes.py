@@ -148,6 +148,14 @@ def sales_officer_referral_poster(authorization: str = Header(default=None), tok
             step1 = '1. Playstore ke App Store thi <b>"CLSL AI"</b> app download karo'
             step2 = '2. Tamara mobile number thi sign up karo'
             step3 = '3. Discount medavva mate aa QR code scan karo athva niche no code vapro!'
+        elif lang == 'mr':
+            step1 = '1. Playstore kiva App Store varun <b>"CLSL AI"</b> app download kara'
+            step2 = '2. Tumchya mobile number ne sign up kara'
+            step3 = '3. Discount milavnyasathi ha QR code scan kara kiva khalil code vapara!'
+        elif lang == 'pa':
+            step1 = '1. Playstore ya App Store ton <b>"CLSL AI"</b> app download karo'
+            step2 = '2. Apne mobile number naal sign up karo'
+            step3 = '3. Discount paun layi eh QR code scan karo ya thalle ditta code varto!'
             
         elements.append(Paragraph(invitation, scan_style))
         elements.append(Spacer(1, 5*mm))
