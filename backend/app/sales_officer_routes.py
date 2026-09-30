@@ -55,7 +55,7 @@ def get_sales_officer_referral(authorization: str = Header(...)):
         pdf = generate_referral_poster(f"Sales Officer: {emp['full_name']}", ref_token, lang, is_sales_officer=True)
         
         return Response(content=pdf, media_type="application/pdf", headers={
-            "Content-Disposition": f\'attachment; filename="CLSL-SO-{emp["employee_code"]}-Poster.pdf"\'
+            "Content-Disposition": f'attachment; filename="CLSL-SO-{emp["employee_code"]}-Poster.pdf"'
         })
 
 @router.get("/farmers")
