@@ -9,8 +9,8 @@ const USE_PRODUCTION = true;
 
 export const API_BASE = USE_PRODUCTION ? PRODUCTION_API_BASE : DEV_API_BASE;
 
-// Auth API endpoints (proxied through Next.js on web, direct on mobile)
-export const AUTH_API = `${API_BASE}/api/auth`;
+// Auth API endpoints (direct to backend on mobile)
+export const AUTH_API = `${API_BASE}/api/v1/public/auth`;
 
 // Main API endpoints
 export const CATALOG_API = `${API_BASE}/api/catalogue`;

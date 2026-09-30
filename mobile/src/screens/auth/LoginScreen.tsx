@@ -235,7 +235,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const fullMobile = countryCode + mobile;
-      const checkRes = await checkPhone(fullMobile);
+      const checkRes = await checkPhone(fullMobile).catch(() => ({ exists: false, role: 'farmer' as const }));
       if (checkRes.exists) {
         setRole(checkRes.role || 'farmer');
         setIsNewUser(false);
