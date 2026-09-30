@@ -38,6 +38,7 @@ const FARMER_TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: Ioni
 
 const DEALER_TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: IoniconName }[] = [
   { id: 'home', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
+  { id: 'products', label: 'Products', icon: 'grid-outline', activeIcon: 'grid' },
   { id: 'redeem', label: 'Redeem', icon: 'scan-outline', activeIcon: 'scan' },
   { id: 'farmers', label: 'Farmers', icon: 'people-outline', activeIcon: 'people' },
   { id: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
