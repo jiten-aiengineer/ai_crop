@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 export default function SalesOfficerHomeScreen({ onNavigate }: { onNavigate: (screen: any) => void }) {
   const { user } = useAuth();
   return (
-    <MobileScreen title={`Hello, ${user?.name || 'Sales Officer'}`} subtitle="Sales Officer Dashboard">
+    <MobileScreen title={`Hello, ${user?.first_name || 'Sales Officer'}`} subtitle="Sales Officer Dashboard">
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Welcome to your dashboard</Text>

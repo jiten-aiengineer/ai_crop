@@ -125,9 +125,7 @@ export async function referralLookup(referralCode: string) {
 
 export async function sendOtp(payload: {
   mobile_number: string;
-  first_name: string;
-  last_name?: string;
-  preferred_language: string;
+  is_new?: boolean;
   dealer_code?: string;
 }) {
   return request<{ status: string }>(
@@ -308,7 +306,7 @@ export async function getSalesOfficerReferral(token: string) {
 }
 
 export async function getSalesOfficerFarmers(token: string) {
-  return request<{ farmers: DealerFarmer[] }>(`${SALES_OFFICER_API}/me/farmers`, 'GET', undefined, token);
+  return request<{ farmers: any[] }>(`${SALES_OFFICER_API}/me/farmers`, 'GET', undefined, token);
 }
 
 export type DealerRedemption = {
@@ -412,5 +410,16 @@ export async function redeemCoupon(
       packing: details.packing,
     },
     token
+  );
+}
+
+export async function checkPhone(mobile: string) {
+  return request<{
+    exists: boolean;
+    role: 'farmer' | 'dealer' | 'sales_officer' | 'general_user' | null;
+  }>(
+    `${AUTH_API}/check-phone`,
+    'POST',
+    { mobile_number: mobile },
   );
 }

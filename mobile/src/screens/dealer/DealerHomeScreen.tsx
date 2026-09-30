@@ -628,15 +628,7 @@ const s = StyleSheet.create({
   heroBtnText: { fontSize: 11, fontWeight: '800', color: C.ink },
 
   // Live stats bar
-  statsBar: {
-    flexDirection: 'row', backgroundColor: C.greenDark,
-    paddingVertical: 13, paddingHorizontal: 20,
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)',
-  },
-  statItem: { flex: 1, alignItems: 'center' },
-  statVal: { fontSize: 20, fontWeight: '900', color: C.lime, letterSpacing: -0.3 },
-  statLabel: { fontSize: 10, color: 'rgba(255,255,255,0.55)', marginTop: 2, fontWeight: '600' },
-  statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginVertical: 4 },
+
 
   // Section headers
   sectionTitle: { fontSize: 17, fontWeight: '900', color: C.ink, letterSpacing: -0.3, marginBottom: 12 },
@@ -741,13 +733,4 @@ const s = StyleSheet.create({
   mitraBtnText: { fontSize: 12, fontWeight: '800', color: C.ink },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { width: '100%', backgroundColor: '#fff', borderRadius: 20, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  modalIconBox: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  modalClose: { padding: 4, backgroundColor: C.bg, borderRadius: 20 },
-  modalTitle: { fontSize: 20, fontWeight: '900', color: C.ink, marginBottom: 12, lineHeight: 26 },
-  modalText: { fontSize: 14, color: '#374151', lineHeight: 22, fontWeight: '500', marginBottom: 20 },
-  modalActionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: C.green, borderRadius: 12, paddingVertical: 14, gap: 8 },
-  modalActionText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 });

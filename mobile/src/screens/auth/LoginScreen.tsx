@@ -16,7 +16,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { languages, loginText, type LanguageCode } from '../../config/i18n';
 import { getI18nTranslations } from '../../services/api';
 import { COUNTRIES } from '../../config/countries';
-import { sendOtp, verifyOtp, dealerMobileStatus, updateProfile, referralLookup, dealerLookup } from '../../services/api';
+import { sendOtp, verifyOtp, dealerMobileStatus, updateProfile, referralLookup, dealerLookup, checkPhone } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 const { width: W } = Dimensions.get('window');
@@ -59,8 +59,8 @@ const SOCIAL_COLORS: Record<string, string> = {
 
 const SOURCE_OPTIONS = ['Dealer', 'Sales Officer', 'Facebook', 'Instagram', 'YouTube', 'WhatsApp', 'Google', 'Friend / Family', 'Other'];
 
-type Step = 'language' | 'account' | 'details' | 'otp';
-const STEP_ORDER: Step[] = ['language', 'account', 'details', 'otp'];
+type Step = 'language' | 'phone' | 'dealer_code' | 'details' | 'otp';
+const STEP_ORDER: Step[] = ['language', 'phone', 'dealer_code', 'details', 'otp'];
 
 type Place = { district: string; state: string; city?: string; latitude: number; longitude: number };
 type Dealer = { name: string; owner_name?: string; state?: string; location?: string; registered_mobile?: string; mobile_matches?: boolean };
@@ -70,6 +70,9 @@ export default function LoginScreen() {
 
   // Step state
   const [step, setStep] = useState<Step>('language');
+  const [role, setRole] = useState<'farmer' | 'dealer' | 'sales_officer' | 'general_user'>('farmer');
+  const [isNewUser, setIsNewUser] = useState(false);
+  
   const [language, setLanguage] = useState<LanguageCode>('en');
   const [remoteT, setRemoteT] = useState<Record<string, string> | null>(null);
 
@@ -148,9 +151,10 @@ export default function LoginScreen() {
 
   const goBack = () => {
     setError('');
-    if (step === 'account') setStep('language');
-    else if (step === 'details') setStep('account');
-    else if (step === 'otp') setStep('details');
+    if (step === 'phone') setStep('language');
+    else if (step === 'details') setStep('phone');
+    else if (step === 'dealer_code') setStep('phone');
+    else if (step === 'otp') { if (isNewUser) setStep('details'); else if (role === 'dealer') setStep('dealer_code'); else setStep('phone'); }
   };
 
   // Auto-verify referral when 7 chars entered
@@ -196,18 +200,8 @@ export default function LoginScreen() {
   const continueFromAccount = async () => {
     if (firstName.trim().length < 2) return setError('Enter your first name.');
     if (lastName.trim().length < 1) return setError('Enter your last name.');
-    if (mobile.replace(/\D/g, '').length !== 10) return setError('Mobile number must be exactly 10 digits.');
-    setLoading(true); setError('');
-    try {
-      const status = await dealerMobileStatus(countryCode + mobile.replace(/\D/g, ''));
-      setIsDealerUI(status.is_registered_dealer);
-      setIsSalesOfficer(status.is_sales_officer);
-      setIsFarmer(false);
-      setReferral(''); setReferralName('');
-      setDealerCode(''); setDealer(null); setDealerConfirmed(false);
-      setStep('details');
-    } catch (e: any) { setError(e.message || 'Something went wrong.'); }
-    finally { setLoading(false); }
+    setError('');
+    setStep('details');
   };
 
   const doLookupDealer = async () => {
@@ -231,58 +225,128 @@ export default function LoginScreen() {
     finally { setLoading(false); }
   };
 
-  const startOtp = async () => {
-    setSubmitAttempted(true); setError('');
-    if (!place) return setError('Location is required.');
-    if (isDealerUI && (!dealer || !dealerConfirmed)) { setDealerError(dealer ? 'Confirm dealership details to continue.' : 'Enter and verify your dealer code.'); return; }
-    if (isFarmer && referral.length === 7 && !referralName) { setReferralError('Enter a valid referral code to continue.'); return; }
-    if (!social.length) return setError('Select at least one social media platform.');
-    if (!source) return setError('Select where you heard about CLSL AI.');
-    if (!termsAccepted) return setError('You must agree to the Terms and Conditions.');
-    if (isFarmer && !promosAccepted) return setError('Farmers must agree to receive rewards and promotional messages.');
+  
+  const continueFromPhone = async () => {
+    if (!mobile || mobile.length < 10) {
+      setError(t.error_mobile || 'Enter a valid 10-digit mobile number');
+      return;
+    }
+    setError('');
     setLoading(true);
     try {
-      await sendOtp({
-        mobile_number: countryCode + mobile.replace(/\D/g, ''),
-        first_name: firstName,
-        last_name: lastName,
-        preferred_language: language,
-        ...(isDealerUI && dealerCode ? { dealer_code: dealerCode } : {}),
-      });
-      setOtp('');
-      setStep('otp');
-    } catch (e: any) { setError(e.message || 'Failed to send OTP.'); }
-    finally { setLoading(false); }
+      const fullMobile = countryCode + mobile;
+      const checkRes = await checkPhone(fullMobile);
+      if (checkRes.exists) {
+        setRole(checkRes.role || 'farmer');
+        setIsNewUser(false);
+        if (checkRes.role === 'dealer') {
+          // If dealer, must enter dealer code first
+          setStep('dealer_code');
+        } else {
+          // Farmer or Sales Officer: jump straight to OTP
+          await sendOtp({ mobile_number: fullMobile });
+          setStep('otp');
+        }
+      } else {
+        // New User -> Must be a Farmer signing up (Dealers/SO are added by admin)
+        setRole('farmer');
+        setIsNewUser(true);
+        setStep('details'); // Collect name, state, etc.
+      }
+    } catch (e: any) {
+      setError(e.message || 'Error checking phone number');
+    }
+    setLoading(false);
   };
 
+  const verifyDealerCode = async () => {
+    if (!dealerCode) {
+      setError('Please enter your dealer code');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    try {
+      const fullMobile = countryCode + mobile;
+      await sendOtp({ mobile_number: fullMobile, dealer_code: dealerCode });
+      setStep('otp');
+    } catch (e: any) {
+      setError(e.message || 'Invalid dealer code');
+    }
+    setLoading(false);
+  };
+
+  const startOtpForNewUser = async () => {
+    if (!firstName) {
+      setError(t.error_firstname || 'First Name is required');
+      return;
+    }
+    // New user signing up
+    setError('');
+    setLoading(true);
+    try {
+      const fullMobile = countryCode + mobile;
+      await sendOtp({ mobile_number: fullMobile, is_new: true });
+      setStep('otp');
+    } catch (e: any) {
+      setError(e.message || 'Error sending OTP');
+    }
+    setLoading(false);
+  };
+
+
   const finish = async () => {
-    if (otp.length !== 6 || !place) return;
+    if (otp.length !== 6) return;
     setLoading(true); setError('');
     try {
       const m = countryCode + mobile.replace(/\D/g, '');
       const verified = await verifyOtp(m, otp);
-      const role = isSalesOfficer ? 'sales_officer' : (isDealerUI ? 'dealer' : (isFarmer ? 'farmer' : 'general_user'));
-      const data = await updateProfile(verified.session_token, {
-        role, first_name: firstName, last_name: lastName, preferred_language: language, date_of_birth: dob || null,
-        district: place.district, state: place.state, city: place.city || null,
-        social_media_used: social, acquisition_source: source,
-        referral_code: isFarmer && referral ? referral : null,
-        dealer_code: isDealerUI && dealerCode ? dealerCode : null,
-        location_latitude: place.latitude, location_longitude: place.longitude,
-        location_label: `${place.district}, ${place.state}`,
-        location_consent: true,
-      });
+      
+      let finalRole = role; // role from checkPhone state
+      let finalFirst = verified.user.first_name || firstName;
+      let finalLast = (verified.user as any).last_name || lastName;
+      let finalDistrict = (verified.user as any).district || (place ? place.district : null);
+      let finalState = (verified.user as any).state || (place ? place.state : null);
+      let verifiedDealerId = (verified.user as any).verified_dealer_id || null;
+
+      if (isNewUser && place) {
+        const data = await updateProfile(verified.session_token, {
+          role: finalRole, first_name: firstName, last_name: lastName, preferred_language: language, date_of_birth: dob || null,
+          district: place.district, state: place.state, city: place.city || null,
+          social_media_used: social, acquisition_source: source,
+          referral_code: finalRole === 'farmer' && referral ? referral : null,
+          dealer_code: finalRole === 'dealer' && dealerCode ? dealerCode : null,
+          location_latitude: place.latitude, location_longitude: place.longitude,
+          location_label: `${place.district}, ${place.state}`,
+          location_consent: true,
+        });
+        if (data && data.user) {
+           finalFirst = (data.user as any).first_name || finalFirst;
+           finalLast = (data.user as any).last_name || finalLast;
+           finalDistrict = (data.user as any).district || finalDistrict;
+           finalState = (data.user as any).state || finalState;
+           verifiedDealerId = (data.user as any).verified_dealer_id || verifiedDealerId;
+        }
+      } else if (finalRole === 'dealer' && dealerCode && !verifiedDealerId) {
+        const data = await updateProfile(verified.session_token, { dealer_code: dealerCode });
+        if (data && data.user) verifiedDealerId = (data.user as any).verified_dealer_id;
+      }
+
       await login(verified.session_token, {
         id: verified.user.id,
-        first_name: (data?.user?.first_name as string) || firstName,
-        last_name: (data?.user?.last_name as string) || lastName,
+        first_name: finalFirst,
+        last_name: finalLast,
         mobile_number: verified.user.mobile_number,
-        role,
+        role: finalRole,
         preferred_language: language,
-        district: place.district,
-        state: place.state,
+        district: finalDistrict,
+        state: finalState,
+        // @ts-ignore
+        verified_dealer_id: verifiedDealerId
       });
-    } catch (e: any) { setError(e.message || 'Invalid OTP. Try again.'); }
+    } catch (e: any) {
+      setError(e.message || t.error_otp || 'Invalid code. Try again.');
+    }
     finally { setLoading(false); }
   };
 
@@ -338,7 +402,42 @@ export default function LoginScreen() {
   );
 
   // ── STEP: Account ─────────────────────────────────────────────────────────
-  const renderAccount = () => (
+  
+  const renderPhone = () => (
+    <View style={s.stepContainer}>
+      <Text style={s.stepTitle}>{t.mobileLabel || 'Mobile Number'}</Text>
+      <Text style={s.stepSubtitle}>Enter your phone number to login or sign up.</Text>
+      <View style={s.mobileInputContainer}>
+        <View style={s.countryCodeBox}><Text style={s.countryCodeText}>{countryCode}</Text></View>
+        <TextInput
+          style={s.mobileInput}
+          value={mobile}
+          onChangeText={(v) => { setMobile(v.replace(/[^0-9]/g, '')); setError(''); }}
+          placeholder="9876543210"
+          keyboardType="phone-pad"
+          maxLength={10}
+          placeholderTextColor={T.muted}
+        />
+      </View>
+    </View>
+  );
+
+  const renderDealerCode = () => (
+    <View style={s.stepContainer}>
+      <Text style={s.stepTitle}>Dealer Code</Text>
+      <Text style={s.stepSubtitle}>Please verify your identity by entering your CLSL Dealer Code.</Text>
+      <TextInput
+        style={s.input}
+        value={dealerCode}
+        onChangeText={(v) => { setDealerCode(v); setError(''); }}
+        placeholder="e.g. DL12345"
+        placeholderTextColor={T.muted}
+      />
+    </View>
+  );
+
+  const renderAccount = () => ( // keeping to avoid syntax errors if referenced elsewhere
+
     <View>
       {renderHeader(t.account || 'Join CLSL AI', t.intro || 'Unlock AI crop care, weather, products, rewards, and offers.')}
       <View style={s.field}>
@@ -390,24 +489,6 @@ export default function LoginScreen() {
             maximumDate={new Date()}
           />
         )}
-      </View>
-      <View style={s.field}>
-        <Text style={s.fieldLabel}>{t.mobile || 'Mobile number'}</Text>
-        <View style={s.phoneRow}>
-          <TouchableOpacity style={s.phonePrefix} onPress={() => setShowCountryModal(true)} activeOpacity={0.7}>
-            <Text style={s.phonePrefixText}>{COUNTRIES.find(c => c.code === countryCode)?.flag} {countryCode}</Text>
-            <Ionicons name="chevron-down" size={14} color={T.primary} style={{ marginLeft: 4 }} />
-          </TouchableOpacity>
-          <TextInput
-            style={[s.input, s.phoneInput]}
-            value={mobile}
-            onChangeText={t => { setMobile(t.replace(/\D/g, '').slice(0, 10)); setError(''); setIsDealerUI(false); setIsSalesOfficer(false); }}
-            placeholder={`Enter number without ${countryCode}`}
-            keyboardType="number-pad"
-            autoComplete="tel"
-            maxLength={10}
-          />
-        </View>
       </View>
     </View>
   );
@@ -627,7 +708,8 @@ export default function LoginScreen() {
           {/* Steps */}
           <View style={s.stepContent}>
             {step === 'language' && renderLanguage()}
-            {step === 'account' && renderAccount()}
+            {step === 'phone' && renderPhone()}
+            {step === 'dealer_code' && renderDealerCode()}
             {step === 'details' && renderDetails()}
             {step === 'otp' && renderOtp()}
           </View>
@@ -669,9 +751,10 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={[s.primaryBtn, (loading || (step === 'otp' && otp.length !== 6)) && s.primaryBtnDisabled]}
               onPress={() => {
-                if (step === 'language') setStep('account');
-                else if (step === 'account') continueFromAccount();
-                else if (step === 'details') startOtp();
+                if (step === 'language') setStep('phone');
+                else if (step === 'phone') continueFromPhone();
+                else if (step === 'dealer_code') verifyDealerCode();
+                else if (step === 'details') startOtpForNewUser();
                 else if (step === 'otp') finish();
               }}
               disabled={loading || (step === 'otp' && otp.length !== 6)}
@@ -838,6 +921,13 @@ const s = StyleSheet.create({
   progressBarRow: { flexDirection: 'row', gap: 6, marginBottom: 8 },
   progressSeg: { flex: 1, height: 4, borderRadius: 2, backgroundColor: T.border },
   progressSegActive: { backgroundColor: T.primary },
+  // Added missing styles for Auth Flow
+  stepContainer: { paddingVertical: 20 },
+
+  mobileInputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: T.card, borderWidth: 1, borderColor: T.border, borderRadius: 12, overflow: 'hidden' },
+  countryCodeBox: { backgroundColor: T.primaryLight, paddingHorizontal: 16, height: 56, justifyContent: 'center', borderRightWidth: 1, borderRightColor: T.border },
+  countryCodeText: { fontSize: 16, fontWeight: '700', color: T.primary },
+  mobileInput: { flex: 1, height: 56, fontSize: 18, fontWeight: '700', paddingHorizontal: 16, color: T.text },
   progressText: { fontSize: 9, fontWeight: '600', color: T.muted, letterSpacing: 0.5 },
 
   // Back
