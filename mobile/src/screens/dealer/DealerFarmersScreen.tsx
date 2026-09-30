@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Image } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import { downloadAndShareFile } from '../../utils/downloadHelper';
 import { Ionicons } from '@expo/vector-icons';
 import { MobileScreen, shared, AppColors } from '../../components/MobileScreen';
 import { useAuth } from '../../contexts/AuthContext';
@@ -174,11 +175,7 @@ export default function DealerFarmersScreen({ onBack }: { onBack: () => void }) 
                         onPress={async () => {
                           const baseUrl = user?.role === 'sales_officer' ? `${API_BASE}/sales_officers` : DEALER_API;
                           const url = `${baseUrl}/me/referral/poster.pdf?token=${encodeURIComponent(token!)}&lang=${lang.id}`;
-                          try {
-                            await WebBrowser.openBrowserAsync(url);
-                          } catch (e) {
-                            Linking.openURL(url).catch(console.error);
-                          }
+                          await downloadAndShareFile(url, `CLSL_Poster_${lang.id}.pdf`);
                         }}
                         style={{paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: C.limePale, borderWidth: 1, borderColor: '#d3e8ad', flexDirection: 'row', alignItems: 'center', gap: 6}}
                       >

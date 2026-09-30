@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, Alert, ActivityIndicator, TextInput, Platform, Dimensions, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { downloadAndShareFile } from '../../utils/downloadHelper';
 import { MobileScreen } from '../../components/MobileScreen';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuth } from '../../contexts/AuthContext';
@@ -221,7 +222,7 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
           <View style={styles.sectionHeading}>
             <Text style={styles.sectionTitle}>Statement Summary</Text>
             <View style={{flexDirection: 'row', gap: 8}}>
-              <TouchableOpacity onPress={() => { if(token) { Linking.openURL(`${DEALER_API}/me/redemptions/report.pdf?period=month&token=${encodeURIComponent(token)}`); } }} disabled={loading} style={[styles.refreshBtn, {backgroundColor: C.limePale}]}>
+              <TouchableOpacity onPress={() => { if(token) { downloadAndShareFile(`${DEALER_API}/me/redemptions/report.pdf?period=month&token=${encodeURIComponent(token)}`, 'Statement.pdf'); } }} disabled={loading} style={[styles.refreshBtn, {backgroundColor: C.limePale}]}>
                 <Ionicons name="download-outline" size={18} color={C.greenDark}/>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => void loadStatement()} disabled={loading} style={styles.refreshBtn}>
