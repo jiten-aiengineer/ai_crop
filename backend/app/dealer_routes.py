@@ -555,9 +555,9 @@ def dealer_farmers(authorization: str = Header(...)):
         rows = conn.execute("""
             SELECT id, name, mobile_number AS phone, location_consent_at, district, state 
             FROM farmers 
-            WHERE verified_dealer_id = %s AND mobile_number != %s
+            WHERE (preferred_dealer_id = %s OR acquisition_dealer_id = %s) AND mobile_number != %s
             ORDER BY location_consent_at DESC NULLS LAST
-        """, (dealer["id"], dealer["portal_mobile_number"])).fetchall()
+        """, (dealer["id"], dealer["id"], dealer["portal_mobile_number"])).fetchall()
         
         farmers = []
         for r in rows:
