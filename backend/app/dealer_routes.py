@@ -558,7 +558,7 @@ def dealer_farmers(authorization: str = Header(...)):
             FROM farmers 
             WHERE verified_dealer_id = %s AND mobile_number != %s
             ORDER BY location_consent_at DESC NULLS LAST
-        """, (dealer["id"], dealer["contact_number"])).fetchall()
+        """, (dealer["id"], dealer["portal_mobile_number"])).fetchall()
         
         farmers = []
         for r in rows:
