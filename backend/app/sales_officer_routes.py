@@ -58,13 +58,12 @@ def get_sales_officer_referral(authorization: str = Header(...)):
         import base64
         import io
         import qrcode  # type: ignore[import]
-        from qrcode.image.pure import PyPNGImage  # type: ignore[import]
         qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=4)
         qr.add_data(link)
         qr.make(fit=True)
-        img = qr.make_image(image_factory=PyPNGImage)
+        img = qr.make_image(fill_color="black", back_color="white")
         buf = io.BytesIO()
-        img.save(buf)
+        img.save(buf, format="PNG")
         qr_data_url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
     except Exception:
         qr_data_url = None

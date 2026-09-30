@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Image } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import { MobileScreen, shared, AppColors } from '../../components/MobileScreen';
 import { useAuth } from '../../contexts/AuthContext';
@@ -26,7 +28,8 @@ export default function DealerFarmersScreen({ onBack }: { onBack: () => void }) 
   const [loading, setLoading] = useState(true);
   const [showQRModal, setShowQRModal] = useState(false);
 
-  useEffect(() => {
+  useFocusEffect(
+    useCallback(() => {
     if (!token || !user) return;
     
     if (user.role === 'sales_officer') {
@@ -50,7 +53,8 @@ export default function DealerFarmersScreen({ onBack }: { onBack: () => void }) 
         setLoading(false);
       }).catch(() => setLoading(false));
     }
-  }, [token, user]);
+    }, [token, user])
+  );
 
   return (
     <MobileScreen title="Referred Farmers" subtitle="Your connected network" onBack={onBack}>
@@ -91,7 +95,7 @@ export default function DealerFarmersScreen({ onBack }: { onBack: () => void }) 
 
             <View style={styles.card}>
               <View style={styles.sectionHeading}>
-                <Text style={styles.sectionTitle}>Network List</Text>
+                <Text style={styles.sectionTitle}>Farmer List</Text>
               </View>
               
               {farmers.length === 0 ? (
@@ -111,7 +115,6 @@ export default function DealerFarmersScreen({ onBack }: { onBack: () => void }) 
                         </View>
                         <View>
                           <Text style={styles.farmerName}>{f.name}</Text>
-                          <Text style={styles.farmerPhone}>{f.phone}</Text>
                         </View>
                       </View>
                       <View style={{alignItems: 'flex-end'}}>
@@ -152,23 +155,38 @@ export default function DealerFarmersScreen({ onBack }: { onBack: () => void }) 
               <View style={{borderTopWidth: 1, borderTopColor: C.bg, paddingTop: 20}}>
                 <Text style={{fontSize: 14, fontWeight: '800', color: C.ink, marginBottom: 12, textAlign: 'center'}}>Download Printable Poster</Text>
                 <View style={{flexDirection: 'row', gap: 12, justifyContent: 'center'}}>
-                  {[
-                    {id: 'en', label: 'English'},
-                    {id: 'hi', label: 'Hindi'},
-                    {id: 'gu', label: 'Gujarati'}
-                  ].map(lang => (
-                    <TouchableOpacity 
-                      key={lang.id}
-                      onPress={() => {
-                        const baseUrl = user?.role === 'sales_officer' ? `${API_BASE}/sales_officers` : DEALER_API;
-                        Linking.openURL(`${baseUrl}/me/referral/poster.pdf?token=${encodeURIComponent(token!)}&lang=${lang.id}`); 
-                      }}
-                      style={{paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: C.limePale, borderWidth: 1, borderColor: '#d3e8ad', flexDirection: 'row', alignItems: 'center', gap: 6}}
-                    >
-                      <Ionicons name="download" size={16} color={C.greenDark} />
-                      <Text style={{color: C.greenDark, fontWeight: '700', fontSize: 13}}>{lang.label}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {(() => {
+                    const stateStr = user?.state?.toLowerCase() || '';
+                    let stateLang = { id: 'gu', label: 'Gujarati' };
+                    if (stateStr.includes('maharashtra')) {
+                      stateLang = { id: 'mr', label: 'Marathi' };
+                    } else if (stateStr.includes('punjab')) {
+                      stateLang = { id: 'pa', label: 'Punjabi' };
+                    }
+                    
+                    return [
+                      {id: 'en', label: 'English'},
+                      {id: 'hi', label: 'Hindi'},
+                      stateLang
+                    ].map(lang => (
+                      <TouchableOpacity 
+                        key={lang.id}
+                        onPress={async () => {
+                          const baseUrl = user?.role === 'sales_officer' ? `${API_BASE}/sales_officers` : DEALER_API;
+                          const url = `${baseUrl}/me/referral/poster.pdf?token=${encodeURIComponent(token!)}&lang=${lang.id}`;
+                          try {
+                            await WebBrowser.openBrowserAsync(url);
+                          } catch (e) {
+                            Linking.openURL(url).catch(console.error);
+                          }
+                        }}
+                        style={{paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: C.limePale, borderWidth: 1, borderColor: '#d3e8ad', flexDirection: 'row', alignItems: 'center', gap: 6}}
+                      >
+                        <Ionicons name="download" size={16} color={C.greenDark} />
+                        <Text style={{color: C.greenDark, fontWeight: '700', fontSize: 13}}>{lang.label}</Text>
+                      </TouchableOpacity>
+                    ));
+                  })()}
                 </View>
                 <Text style={{fontSize: 11, color: C.muted, textAlign: 'center', marginTop: 12}}>
                   Includes CLSL branding, your shop name, steps to install app, and your QR code.
