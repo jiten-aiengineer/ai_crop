@@ -24,6 +24,7 @@ export default function DealerFarmersScreen({ onBack }: { onBack: () => void }) 
   const [farmers, setFarmers] = useState<any[]>([]);
   const [referral, setReferral] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   useEffect(() => {
     if (!token || !user) return;
@@ -70,21 +71,20 @@ export default function DealerFarmersScreen({ onBack }: { onBack: () => void }) 
 
             {referral && (
               <View style={styles.card}>
-                <View style={styles.sectionHeading}>
-                  <Text style={styles.sectionTitle}>Your Referral Code</Text>
-                  <TouchableOpacity onPress={() => { 
-                    const baseUrl = user?.role === 'sales_officer' ? `${API_BASE}/sales_officers` : DEALER_API;
-                    Linking.openURL(`${baseUrl}/me/referral/poster.pdf?token=${encodeURIComponent(token!)}`); 
-                  }} style={[styles.refreshBtn, {backgroundColor: C.limePale}]}>
-                    <Ionicons name="download-outline" size={18} color={C.greenDark}/>
+                <View style={{alignItems: 'center', marginVertical: 8}}>
+                  <Ionicons name="qr-code-outline" size={48} color={C.green} style={{marginBottom: 12}} />
+                  <Text style={{fontSize: 22, fontWeight: '900', color: C.ink, marginBottom: 6}}>Farmer Referral</Text>
+                  <Text style={{fontSize: 14, color: C.muted, textAlign: 'center', paddingHorizontal: 20, marginBottom: 20}}>
+                    Grow your network by inviting farmers. Earn rewards when they purchase CLSL products!
+                  </Text>
+                  
+                  <TouchableOpacity 
+                    onPress={() => setShowQRModal(true)}
+                    style={{backgroundColor: C.green, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12, width: '100%', justifyContent: 'center', shadowColor: C.green, shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4}}
+                  >
+                    <Ionicons name="scan" size={20} color="#FFF" style={{marginRight: 8}} />
+                    <Text style={{color: '#FFF', fontSize: 16, fontWeight: '800'}}>Show My QR & Download</Text>
                   </TouchableOpacity>
-                </View>
-                <View style={{alignItems: 'center', marginVertical: 16}}>
-                  {referral.qr_data_url && (
-                    <Image source={{uri: referral.qr_data_url}} style={{width: 160, height: 160, marginBottom: 16}} />
-                  )}
-                  <Text style={{fontSize: 32, fontWeight: '900', color: C.amber, letterSpacing: 4}}>{referral.referral_token || referral.token}</Text>
-                  <Text style={{fontSize: 14, color: C.muted, marginTop: 8, textAlign: 'center'}}>Show this code to farmers or download the QR poster to paste on your shop wall.</Text>
                 </View>
               </View>
             )}
@@ -126,6 +126,59 @@ export default function DealerFarmersScreen({ onBack }: { onBack: () => void }) 
           </>
         )}
       </ScrollView>
+
+      {/* QR & Download Modal */}
+      {showQRModal && referral && (
+        <View style={StyleSheet.absoluteFill}>
+          <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end'}}>
+            <View style={{backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40}}>
+              <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
+                <Text style={{fontSize: 20, fontWeight: '900', color: C.ink}}>Scan to Join</Text>
+                <TouchableOpacity onPress={() => setShowQRModal(false)} style={{backgroundColor: C.bg, padding: 8, borderRadius: 20}}>
+                  <Ionicons name="close" size={24} color={C.ink} />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={{alignItems: 'center', marginBottom: 24}}>
+                {referral.qr_data_url && (
+                  <View style={{padding: 16, backgroundColor: '#FFF', borderRadius: 20, elevation: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, shadowOffset:{width:0, height:4}, marginBottom: 20}}>
+                    <Image source={{uri: referral.qr_data_url}} style={{width: 200, height: 200}} />
+                  </View>
+                )}
+                <Text style={{fontSize: 12, color: C.muted, fontWeight: '800', letterSpacing: 1.5}}>REFERRAL CODE</Text>
+                <Text selectable style={{fontSize: 38, fontWeight: '900', color: C.green, letterSpacing: 5}}>{referral.referral_token || referral.token}</Text>
+              </View>
+
+              <View style={{borderTopWidth: 1, borderTopColor: C.bg, paddingTop: 20}}>
+                <Text style={{fontSize: 14, fontWeight: '800', color: C.ink, marginBottom: 12, textAlign: 'center'}}>Download Printable Poster</Text>
+                <View style={{flexDirection: 'row', gap: 12, justifyContent: 'center'}}>
+                  {[
+                    {id: 'en', label: 'English'},
+                    {id: 'hi', label: 'Hindi'},
+                    {id: 'gu', label: 'Gujarati'}
+                  ].map(lang => (
+                    <TouchableOpacity 
+                      key={lang.id}
+                      onPress={() => {
+                        const baseUrl = user?.role === 'sales_officer' ? `${API_BASE}/sales_officers` : DEALER_API;
+                        Linking.openURL(`${baseUrl}/me/referral/poster.pdf?token=${encodeURIComponent(token!)}&lang=${lang.id}`); 
+                      }}
+                      style={{paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: C.limePale, borderWidth: 1, borderColor: '#d3e8ad', flexDirection: 'row', alignItems: 'center', gap: 6}}
+                    >
+                      <Ionicons name="download" size={16} color={C.greenDark} />
+                      <Text style={{color: C.greenDark, fontWeight: '700', fontSize: 13}}>{lang.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={{fontSize: 11, color: C.muted, textAlign: 'center', marginTop: 12}}>
+                  Includes CLSL branding, your shop name, steps to install app, and your QR code.
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+
     </MobileScreen>
   );
 }

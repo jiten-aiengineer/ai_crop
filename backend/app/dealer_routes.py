@@ -404,7 +404,7 @@ def dealer_referral(authorization: str = Header(...)):
     }
 
 @router.get("/me/referral/poster.pdf")
-def dealer_referral_poster(authorization: str = Header(default=None), token: str = Query(default=None)):
+def dealer_referral_poster(authorization: str = Header(default=None), token: str = Query(default=None), lang: str = Query(default="en")):
     """Generate a printable A4 poster with the dealer's referral QR code."""
     with connection() as conn:
         auth_val = authorization or f"Bearer {token}" if token else None
@@ -431,7 +431,7 @@ def dealer_referral_poster(authorization: str = Header(default=None), token: str
         qr_io.seek(0)
         
         from reportlab.lib.pagesizes import A4, portrait
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, ListFlowable, ListItem
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import mm
         from reportlab.lib import colors
@@ -442,36 +442,66 @@ def dealer_referral_poster(authorization: str = Header(default=None), token: str
         
         styles = getSampleStyleSheet()
         title_style = ParagraphStyle(
-            'Title', parent=styles['Heading1'], fontSize=32, spaceAfter=10, textColor=colors.HexColor("#1a5928"), alignment=1
+            'Title', parent=styles['Heading1'], fontSize=28, spaceAfter=8, textColor=colors.HexColor("#1a5928"), alignment=1
         )
         subtitle_style = ParagraphStyle(
-            'Subtitle', parent=styles['Normal'], fontSize=20, spaceAfter=20*mm, textColor=colors.HexColor("#5e6c62"), alignment=1
+            'Subtitle', parent=styles['Normal'], fontSize=18, spaceAfter=15*mm, textColor=colors.HexColor("#5e6c62"), alignment=1
         )
         dealer_style = ParagraphStyle(
-            'Dealer', parent=styles['Heading2'], fontSize=28, spaceAfter=5*mm, textColor=colors.HexColor("#1c221e"), alignment=1
+            'Dealer', parent=styles['Heading2'], fontSize=26, spaceAfter=5*mm, textColor=colors.HexColor("#1c221e"), alignment=1
         )
         code_style = ParagraphStyle(
-            'Code', parent=styles['Heading1'], fontSize=48, spaceBefore=10*mm, spaceAfter=10*mm, textColor=colors.HexColor("#d97706"), alignment=1
+            'Code', parent=styles['Heading1'], fontSize=42, spaceBefore=5*mm, spaceAfter=5*mm, textColor=colors.HexColor("#d97706"), alignment=1
         )
         scan_style = ParagraphStyle(
             'Scan', parent=styles['Normal'], fontSize=16, spaceAfter=5*mm, textColor=colors.HexColor("#11401b"), alignment=1
+        )
+        step_style = ParagraphStyle(
+            'Step', parent=styles['Normal'], fontSize=14, spaceAfter=3*mm, textColor=colors.HexColor("#1c221e"), alignment=0, leading=20
         )
         
         elements.append(Paragraph("<b>CROP LIFE SCIENCE LTD.</b>", title_style))
         elements.append(Paragraph("Farmer Reward Network", subtitle_style))
         
         elements.append(Paragraph(f"<b>{dealer['name']}</b>", dealer_style))
-        elements.append(Paragraph("Invites you to join the Crop Life AI platform", scan_style))
         
-        elements.append(Spacer(1, 10*mm))
+        invitation = "Invites you to join the Crop Life AI platform"
+        step1 = '1. Download the <b>"CLSL AI"</b> application from Playstore or App Store'
+        step2 = '2. Sign up with your mobile number'
+        step3 = '3. Scan this QR code or use the referral code below to get discounts!'
+        
+        if lang == 'hi':
+            step1 = '1. Playstore ya App Store se <b>"CLSL AI"</b> app download karein'
+            step2 = '2. Apne mobile number se sign up karein'
+            step3 = '3. Discount paane ke liye yeh QR code scan karein ya niche diya code use karein!'
+        elif lang == 'gu':
+            step1 = '1. Playstore ke App Store thi <b>"CLSL AI"</b> app download karo'
+            step2 = '2. Tamara mobile number thi sign up karo'
+            step3 = '3. Discount medavva mate aa QR code scan karo athva niche no code vapro!'
+            
+        elements.append(Paragraph(invitation, scan_style))
+        elements.append(Spacer(1, 5*mm))
+        
+        steps_list = ListFlowable(
+            [
+                ListItem(Paragraph(step1, step_style), leftIndent=35),
+                ListItem(Paragraph(step2, step_style), leftIndent=35),
+                ListItem(Paragraph(step3, step_style), leftIndent=35),
+            ],
+            bulletType='bullet',
+            start='circle'
+        )
+        elements.append(steps_list)
+        
+        elements.append(Spacer(1, 5*mm))
         
         # QR Code
-        qr_img = RLImage(qr_io, width=120*mm, height=120*mm)
+        qr_img = RLImage(qr_io, width=100*mm, height=100*mm)
         elements.append(qr_img)
         
-        elements.append(Paragraph("Scan to Register", scan_style))
+        elements.append(Paragraph("<b>FARMER REFERRAL CODE</b>", scan_style))
         
-        elements.append(Paragraph(f"Or use code: <b>{ref_token}</b>", code_style))
+        elements.append(Paragraph(f"<b>{ref_token}</b>", code_style))
         
         doc.build(elements)
         
@@ -479,6 +509,7 @@ def dealer_referral_poster(authorization: str = Header(default=None), token: str
         return Response(pdf, media_type="application/pdf", headers={
             "Content-Disposition": f'attachment; filename="CLSL-{dealer["dealer_code"]}-Poster.pdf"'
         })
+
 
 
 # ---------------------------------------------------------------------------
