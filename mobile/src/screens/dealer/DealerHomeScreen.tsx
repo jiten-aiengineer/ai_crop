@@ -12,6 +12,7 @@ const { width: W } = Dimensions.get('window');
 const H_PAD = 16;
 const CARD_GAP = 12;
 const CARD_W = (W - H_PAD * 2 - CARD_GAP) / 2;
+const PRODUCT_CARD_W = W * 0.46;
 
 const C = {
   green:      '#3e7025',
