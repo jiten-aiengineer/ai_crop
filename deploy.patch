@@ -1,0 +1,614 @@
+diff --git a/backend/app/admin.py b/backend/app/admin.py
+index 837716f..8da2557 100644
+--- a/backend/app/admin.py
++++ b/backend/app/admin.py
+@@ -1310,6 +1310,32 @@ class CampaignInput(BaseModel):
+     random_percentage: int = Field(default=10, ge=1, le=100)
+     expiry_days: int = Field(default=30, ge=1, le=365)
+ 
++
++def _generate_coupon_inventory(conn, campaign_id: UUID, count: int, coupon_limit: int = 0) -> int:
++    """Create secure inventory codes without exceeding the campaign limit."""
++    requested = max(0, min(int(count), 5000))
++    if not requested:
++        return 0
++    existing_count = conn.execute(
++        "SELECT COUNT(*) AS count FROM coupons WHERE campaign_id=%s",
++        (campaign_id,),
++    ).fetchone()["count"]
++    target_count = min(requested, max(0, coupon_limit - existing_count)) if coupon_limit else requested
++    inserted = 0
++    attempts = 0
++    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
++    while inserted < target_count and attempts < max(4, target_count * 4):
++        attempts += 1
++        code = "".join(secrets.choice(alphabet) for _ in range(7))
++        row = conn.execute(
++            """INSERT INTO coupons(code,campaign_id,status) VALUES(%s,%s,'available')
++               ON CONFLICT(code) DO NOTHING RETURNING id""",
++            (code, campaign_id),
++        ).fetchone()
++        if row:
++            inserted += 1
++    return inserted
++
+ @router.get("/analytics/farmers")
+ def admin_analytics_farmers(identity: AdminIdentity = Depends(_identity)):
+     _require(identity, ADMIN_READ_ROLES)
+@@ -1372,8 +1398,27 @@ def create_campaign(payload: CampaignInput, identity: AdminIdentity = Depends(_i
+             """,
+             (payload.name, payload.discount_type, payload.discount_value, payload.start_date, payload.end_date, payload.status, json.dumps(rules))
+         ).fetchone()
++        # A published campaign is operational immediately.  Seed its initial
++        # pool in the same transaction so the dashboard and farmer wallet do
++        # not depend on a second manual action.  Very large campaigns can be
++        # replenished in batches from the management screen.
++        generated_count = _generate_coupon_inventory(
++            conn,
++            row["id"],
++            min(payload.coupon_limit, 5000),
++            payload.coupon_limit,
++        )
++        _audit(
++            conn,
++            identity,
++            "create",
++            "campaign",
++            str(row["id"]),
++            None,
++            {"name": payload.name, "status": payload.status, "generated_count": generated_count},
++        )
+         conn.commit()
+-    return {"status": "success", "campaign_id": str(row["id"])}
++    return {"status": "success", "campaign_id": str(row["id"]), "generated_count": generated_count}
+ 
+ class CampaignStatusInput(BaseModel):
+     status: Literal["active", "paused", "completed"]
+@@ -1392,28 +1437,13 @@ class BulkCouponInput(BaseModel):
+ @router.post("/campaigns/{campaign_id}/bulk-generate")
+ def bulk_generate_coupons(campaign_id: UUID, payload: BulkCouponInput, identity: AdminIdentity = Depends(_identity)):
+     _require(identity, CATALOGUE_MANAGER_ROLES)
+-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+-    
+     with connection() as conn:
+         # verify campaign exists
+         cam = conn.execute("SELECT id,rules FROM campaigns WHERE id = %s", (campaign_id,)).fetchone()
+         if not cam:
+             raise HTTPException(status_code=404, detail="Campaign not found")
+         limit = int((cam.get("rules") or {}).get("coupon_limit") or 0)
+-        existing_count = conn.execute("SELECT COUNT(*) AS count FROM coupons WHERE campaign_id=%s", (campaign_id,)).fetchone()["count"]
+-        target_count = min(payload.count, max(0, limit-existing_count)) if limit else payload.count
+-        inserted = 0
+-        attempts = 0
+-        while inserted < target_count and attempts < max(4, target_count * 4):
+-            attempts += 1
+-            code = ''.join(secrets.choice(alphabet) for _ in range(7))
+-            row = conn.execute(
+-                """INSERT INTO coupons(code,campaign_id,status) VALUES(%s,%s,'available')
+-                   ON CONFLICT(code) DO NOTHING RETURNING id""",
+-                (code, campaign_id),
+-            ).fetchone()
+-            if row:
+-                inserted += 1
++        inserted = _generate_coupon_inventory(conn, campaign_id, payload.count, limit)
+         conn.commit()
+         
+     return {"status": "success", "generated_count": inserted}
+@@ -1531,7 +1561,8 @@ def list_dealers(
+         COALESCE((SELECT SUM(cr.amount_redeemed) FROM coupon_redemptions cr WHERE cr.dealer_id=dealers.id),0) redeemed_amount,
+         COALESCE((SELECT SUM(cr.amount_redeemed) FROM coupon_redemptions cr WHERE cr.dealer_id=dealers.id AND cr.credit_note_id IS NULL),0) outstanding_amount,
+         COALESCE((SELECT SUM(total_amount) FROM dealer_credit_notes cn WHERE cn.dealer_id=dealers.id AND cn.status='settled'),0) settled_amount
+-        FROM dealers {where_clause} ORDER BY is_test DESC, name"""
++        FROM dealers {where_clause}
++        ORDER BY account_generated_at DESC NULLS LAST, updated_at DESC, is_test DESC, name"""
+     count_sql = f"SELECT COUNT(*) as c FROM dealers {where_clause}"
+     
+     with connection() as conn:
+diff --git a/backend/app/farmer_auth.py b/backend/app/farmer_auth.py
+index 6bf01eb..0b77be4 100644
+--- a/backend/app/farmer_auth.py
++++ b/backend/app/farmer_auth.py
+@@ -75,11 +75,6 @@ def _issue_campaign_coupon(conn, campaign: dict, farmer_id) -> bool:
+     if existing:
+         return False
+     rules = campaign.get("rules") or {}
+-    coupon_limit = int(rules.get("coupon_limit") or 0)
+-    if coupon_limit:
+-        total = conn.execute("SELECT COUNT(*) AS count FROM coupons WHERE campaign_id=%s", (campaign["id"],)).fetchone()["count"]
+-        if total >= coupon_limit:
+-            return False
+     budget = float(rules.get("budget") or 0)
+     if budget:
+         spent = conn.execute(
+@@ -103,6 +98,14 @@ def _issue_campaign_coupon(conn, campaign: dict, farmer_id) -> bool:
+     ).fetchone()
+     if claimed:
+         return True
++    # The campaign limit caps the total number of codes, not the number of
++    # assignments.  Pre-generated inventory is already part of that total and
++    # must be claimable even when the inventory count has reached the limit.
++    coupon_limit = int(rules.get("coupon_limit") or 0)
++    if coupon_limit:
++        total = conn.execute("SELECT COUNT(*) AS count FROM coupons WHERE campaign_id=%s", (campaign["id"],)).fetchone()["count"]
++        if total >= coupon_limit:
++            return False
+     for _ in range(12):
+         inserted = conn.execute(
+             """INSERT INTO coupons(code,campaign_id,farmer_id,status,issued_at,expires_at)
+diff --git a/backend/tests/test_campaign_coupon_assignment.py b/backend/tests/test_campaign_coupon_assignment.py
+new file mode 100644
+index 0000000..f2882d9
+--- /dev/null
++++ b/backend/tests/test_campaign_coupon_assignment.py
+@@ -0,0 +1,63 @@
++import unittest
++from datetime import datetime, timezone
++
++from backend.app.farmer_auth import _issue_campaign_coupon
++
++
++class _Result:
++    def __init__(self, value):
++        self.value = value
++
++    def fetchone(self):
++        return self.value
++
++
++class _InventoryConnection:
++    def __init__(self, claim_available: bool):
++        self.claim_available = claim_available
++        self.queries: list[str] = []
++
++    def execute(self, query, _params):
++        normalized = " ".join(query.split())
++        self.queries.append(normalized)
++        if normalized.startswith("SELECT 1 FROM coupons"):
++            return _Result(None)
++        if normalized.startswith("UPDATE coupons SET farmer_id"):
++            return _Result({"id": "inventory-code"} if self.claim_available else None)
++        if normalized.startswith("SELECT COUNT(*) AS count FROM coupons"):
++            return _Result({"count": 1})
++        if normalized.startswith("INSERT INTO coupons"):
++            return _Result(None)
++        raise AssertionError(f"Unexpected query: {normalized}")
++
++
++class CampaignCouponAssignmentTests(unittest.TestCase):
++    def campaign(self):
++        return {
++            "id": "campaign-id",
++            "discount_value": 50,
++            "end_date": None,
++            "start_date": datetime.now(timezone.utc),
++            "rules": {"coupon_limit": 1, "expiry_days": 30},
++        }
++
++    def test_full_pre_generated_inventory_can_still_be_assigned(self):
++        conn = _InventoryConnection(claim_available=True)
++
++        issued = _issue_campaign_coupon(conn, self.campaign(), "farmer-id")
++
++        self.assertTrue(issued)
++        self.assertTrue(any(query.startswith("UPDATE coupons SET farmer_id") for query in conn.queries))
++        self.assertFalse(any(query.startswith("SELECT COUNT(*) AS count FROM coupons") for query in conn.queries))
++
++    def test_limit_blocks_new_code_only_after_inventory_is_empty(self):
++        conn = _InventoryConnection(claim_available=False)
++
++        issued = _issue_campaign_coupon(conn, self.campaign(), "farmer-id")
++
++        self.assertFalse(issued)
++        self.assertTrue(any(query.startswith("SELECT COUNT(*) AS count FROM coupons") for query in conn.queries))
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/frontend/app/components/AdminPortal.tsx b/frontend/app/components/AdminPortal.tsx
+index 48794a9..edf4fb8 100644
+--- a/frontend/app/components/AdminPortal.tsx
++++ b/frontend/app/components/AdminPortal.tsx
+@@ -93,11 +93,17 @@ export default function AdminPortal() {
+     try {
+       const me = await api<typeof identity>('me'); setIdentity(me);
+       const safe = async <T,>(path: string) => api<T>(path).catch(() => undefined);
++      let campaignsLoadError = '';
++      const campaignsRequest = api<{ items: any[], total_spend: number }>('campaigns/analytics').catch((reason) => {
++        campaignsLoadError = reason instanceof Error ? reason.message : 'Campaign data could not be loaded.';
++        return undefined;
++      });
+       const [overview, products, options, approvals, inspections, models, employees, salesOfficers, farmersAnalytics, dealersAnalytics, aiCostsAnalytics, campaigns] = await Promise.all([
+         safe<any>('overview'), safe<{ items: Product[] }>('catalogue/products'), safe<{ categories: string[]; crops: string[] }>('catalogue/options'), safe<{ items: Approval[] }>('approvals'), safe<{ items: any[] }>('inspections'), safe<any>('models'), safe<{ items: any[]; assignable_role_codes?: string[] }>('access/employees'), safe<any>('sales-officers'),
+-        safe<any>('analytics/farmers'), safe<any>('analytics/dealers'), safe<any>('analytics/ai-costs'), safe<{ items: any[], total_spend: number }>('campaigns/analytics')
++        safe<any>('analytics/farmers'), safe<any>('analytics/dealers'), safe<any>('analytics/ai-costs'), campaignsRequest
+       ]);
+       setData({ overview, products: products?.items, options, approvals: approvals?.items, inspections: inspections?.items, models, employees: employees?.items, employeeRoleOptions: employees?.assignable_role_codes, salesOfficers, farmersAnalytics, dealersAnalytics, aiCostsAnalytics, campaigns: campaigns?.items, campaignsTotalSpend: campaigns?.total_spend });
++      if (campaignsLoadError) setError(`Marketing campaigns: ${campaignsLoadError}`);
+     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to load the private portal.'); } finally { setLoading(false); }
+   }
+   useEffect(() => { api<Session>('../auth/session').then((value) => { setSession(value); if (value.authenticated) void loadPortal(); }).catch(() => setSession({ configured: false, authenticated: false, session: null })); }, []);
+@@ -155,7 +161,7 @@ export default function AdminPortal() {
+   if (!session) return <main className="admin-loading">Opening Crop Life AI administration…</main>;
+   if (!session.configured) return <SetupScreen />;
+   if (!session.authenticated) return <SignInScreen mode={session.auth_mode} />;
+-  return <main className="admin-shell"><aside className="admin-sidebar"><a className="admin-brand" href="/"><BrandLogo /><span><strong>Crop Life AI</strong><small>CLSL OPERATIONS PORTAL</small></span></a><p className="admin-side-label">Control room</p><nav aria-label="Administration sections">{visibleSections.map((item) => <button key={item.id} className={section === item.id ? 'selected' : ''} onClick={() => { setSection(item.id); setSelected(null); setEditorOpen(false); }}><span>{item.icon}</span>{item.label}</button>)}</nav><div className="admin-sidebar-bottom"><p>Signed in as</p><strong>{identity?.employee.full_name || session.session?.name}</strong><small>{identity?.employee.email || session.session?.email}</small><div className="admin-role-list">{identity?.employee.roles.map((role) => <Badge key={role}>{roleLabel(role)}</Badge>)}</div><form action="/api/admin/auth/logout" method="post"><button className="admin-signout" type="submit">Sign out</button></form></div></aside><section className="admin-workspace"><header className="admin-topbar"><div><p className="admin-overline">Crop Life Science Limited</p><h1>{sections.find((item) => item.id === section)?.label}</h1></div><div className="admin-top-actions"><span className="admin-private"><i />Private operational data</span><button onClick={() => void loadPortal()} disabled={loading}>{loading ? 'Refreshing all data…' : 'Refresh all data'}</button></div></header>{(notice || error) && <div className={`admin-message ${error ? 'error' : 'success'}`} role="status" aria-live="polite"><span>{error ? '!' : '✓'}</span>{error || notice}<button aria-label="Dismiss message" onClick={() => { setNotice(''); setError(''); }}>×</button></div>}{section === 'overview' && <Overview data={data} productCount={data.products?.length || 0} onCatalogue={() => setSection('catalogue')} />}{section === 'catalogue' && <Catalogue editorOpen={editorOpen} onCancel={() => setEditorOpen(false)} products={data.products || []} options={data.options} draft={draft} selected={selected} canEdit={Boolean(capabilities.submit_catalogue_changes)} canDirectStatus={Boolean(capabilities.direct_catalogue_status)} statusBusy={productStatusBusy} onEdit={editProduct} onDirectStatus={directProductStatus} onChange={updateDraft} onCrop={toggleCrop} onImageUpload={uploadProductImage} onSubmit={submitChange} />}{section === 'campaigns' && <Campaigns items={data.campaigns || []} totalSpend={data.campaignsTotalSpend || 0} onRefresh={loadPortal} />}{section === 'approvals' && <Approvals items={data.approvals || []} canSenior={Boolean(capabilities.review_catalogue_changes)} canMap={Boolean(capabilities.decide_crop_mappings)} canSend={Boolean(capabilities.send_catalogue_changes_to_final_publisher)} canFinal={Boolean(capabilities.finalise_catalogue_release)} onDecision={decide} />}{section === 'inspections' && <Inspections items={data.inspections || []} canDelete={Boolean(capabilities.delete_inspections)} canReview={Boolean(capabilities.view_inspections)} onDelete={removeInspection} onReview={async (id, payload) => { await api(`inspections/${id}/expert-review`, { method: 'POST', body: JSON.stringify(payload) }); void loadPortal(); }} />}{section === 'gallery' && <InspectionGallery />}{section === 'fieldforce' && <FieldForce initialData={data.salesOfficers} canManage={Boolean(capabilities.manage_employee_roles)} />}{section === 'dealerships' && <Dealerships canManage={Boolean(capabilities.manage_dealers)} canManagePortalMobile={Boolean(capabilities.manage_dealer_portal_mobile)} canArchive={Boolean(capabilities.archive_dealers)} />}{section === 'farmer_details' && <FarmerDetails />}{section === 'login_audit' && <LoginAudit />}{section === 'models' && <AutomatedModelLab data={data.models} canControl={Boolean(capabilities.control_model_pipeline)} onRefresh={loadPortal} />}{section === 'team' && <Team items={data.employees || []} roleOptions={data.employeeRoleOptions || []} canManage={Boolean(capabilities.manage_employee_roles)} onSave={saveRoles} onInvite={inviteEmployee} />}{section === 'architecture' && <SystemArchitecture />}</section></main>;
++  return <main className="admin-shell"><aside className="admin-sidebar"><a className="admin-brand" href="/"><BrandLogo /><span><strong>Crop Life AI</strong><small>CLSL OPERATIONS PORTAL</small></span></a><p className="admin-side-label">Control room</p><nav aria-label="Administration sections">{visibleSections.map((item) => <button key={item.id} className={section === item.id ? 'selected' : ''} onClick={() => { setSection(item.id); setSelected(null); setEditorOpen(false); }}><span>{item.icon}</span>{item.label}</button>)}</nav><div className="admin-sidebar-bottom"><p>Signed in as</p><strong>{identity?.employee.full_name || session.session?.name}</strong><small>{identity?.employee.email || session.session?.email}</small><div className="admin-role-list">{identity?.employee.roles.map((role) => <Badge key={role}>{roleLabel(role)}</Badge>)}</div><form action="/api/admin/auth/logout" method="post"><button className="admin-signout" type="submit">Sign out</button></form></div></aside><section className="admin-workspace"><header className="admin-topbar"><div><p className="admin-overline">Crop Life Science Limited</p><h1>{sections.find((item) => item.id === section)?.label}</h1></div><div className="admin-top-actions"><span className="admin-private"><i />Private operational data</span><button onClick={() => void loadPortal()} disabled={loading}>{loading ? 'Refreshing all data…' : 'Refresh all data'}</button></div></header>{(notice || error) && <div className={`admin-message ${error ? 'error' : 'success'}`} role="status" aria-live="polite"><span>{error ? '!' : '✓'}</span>{error || notice}<button aria-label="Dismiss message" onClick={() => { setNotice(''); setError(''); }}>×</button></div>}{section === 'overview' && <Overview data={data} productCount={data.products?.length || 0} onCatalogue={() => setSection('catalogue')} />}{section === 'catalogue' && <Catalogue editorOpen={editorOpen} onCancel={() => setEditorOpen(false)} products={data.products || []} options={data.options} draft={draft} selected={selected} canEdit={Boolean(capabilities.submit_catalogue_changes)} canDirectStatus={Boolean(capabilities.direct_catalogue_status)} statusBusy={productStatusBusy} onEdit={editProduct} onDirectStatus={directProductStatus} onChange={updateDraft} onCrop={toggleCrop} onImageUpload={uploadProductImage} onSubmit={submitChange} />}{section === 'campaigns' && <Campaigns items={data.campaigns || []} products={data.products || []} totalSpend={data.campaignsTotalSpend || 0} canManage={Boolean(capabilities.submit_catalogue_changes)} onRefresh={loadPortal} />}{section === 'approvals' && <Approvals items={data.approvals || []} canSenior={Boolean(capabilities.review_catalogue_changes)} canMap={Boolean(capabilities.decide_crop_mappings)} canSend={Boolean(capabilities.send_catalogue_changes_to_final_publisher)} canFinal={Boolean(capabilities.finalise_catalogue_release)} onDecision={decide} />}{section === 'inspections' && <Inspections items={data.inspections || []} canDelete={Boolean(capabilities.delete_inspections)} canReview={Boolean(capabilities.view_inspections)} onDelete={removeInspection} onReview={async (id, payload) => { await api(`inspections/${id}/expert-review`, { method: 'POST', body: JSON.stringify(payload) }); void loadPortal(); }} />}{section === 'gallery' && <InspectionGallery />}{section === 'fieldforce' && <FieldForce initialData={data.salesOfficers} canManage={Boolean(capabilities.manage_employee_roles)} />}{section === 'dealerships' && <Dealerships canManage={Boolean(capabilities.manage_dealers)} canManagePortalMobile={Boolean(capabilities.manage_dealer_portal_mobile)} canArchive={Boolean(capabilities.archive_dealers)} />}{section === 'farmer_details' && <FarmerDetails />}{section === 'login_audit' && <LoginAudit />}{section === 'models' && <AutomatedModelLab data={data.models} canControl={Boolean(capabilities.control_model_pipeline)} onRefresh={loadPortal} />}{section === 'team' && <Team items={data.employees || []} roleOptions={data.employeeRoleOptions || []} canManage={Boolean(capabilities.manage_employee_roles)} onSave={saveRoles} onInvite={inviteEmployee} />}{section === 'architecture' && <SystemArchitecture />}</section></main>;
+ }
+ 
+ function SetupScreen() { return <main className="admin-gate"><div className="admin-gate-card"><BrandLogo gate /><p className="admin-overline">Private operational portal</p><h1>Administration is not configured yet.</h1><p>Configure temporary HTTPS password access or Microsoft Entra sign-in on the private administration hostname.</p></div></main>; }
+@@ -273,11 +279,14 @@ function Team({ items, roleOptions, canManage, onSave, onInvite }: {
+   </div>;
+ }
+ 
+-function Campaigns({ items, products: suppliedProducts = [], totalSpend, onRefresh }: { items: any[]; products?: Product[]; totalSpend: number; onRefresh: () => void }) {
++function newCampaignDraft() {
+   const today = new Date().toISOString().slice(0,10);
+   const later = new Date(Date.now()+30*86400000).toISOString().slice(0,10);
+-  const empty = { name:'', campaignType:'welcome', description:'', discountType:'fixed_amount', discountValue:'50', audience:'new_farmer', states:'', districts:'', villages:'', productId:'', packing:'', startDate:today, endDate:later, couponLimit:'1000', budget:'50000', randomPercentage:'10', expiryDays:'30', publish:true };
+-  const [draft,setDraft]=useState(empty); const [mode,setMode]=useState<'create'|'manage'>('create');
++  return { name:'', campaignType:'welcome', description:'', discountType:'fixed_amount', discountValue:'50', audience:'new_farmer', states:'', districts:'', villages:'', productId:'', packing:'', startDate:today, endDate:later, couponLimit:'1000', budget:'50000', randomPercentage:'10', expiryDays:'30', publish:true };
++}
++
++function Campaigns({ items, products: suppliedProducts = [], totalSpend, canManage, onRefresh }: { items: any[]; products?: Product[]; totalSpend: number; canManage: boolean; onRefresh: () => Promise<void> }) {
++  const [draft,setDraft]=useState(newCampaignDraft); const [mode,setMode]=useState<'create'|'manage'>('create');
+   const [catalogueProducts,setCatalogueProducts]=useState<Product[]>(suppliedProducts);
+   const [busy,setBusy]=useState(false); const [message,setMessage]=useState(''); const [problem,setProblem]=useState('');
+   const [inventory,setInventory]=useState<Record<string,string>>({});
+@@ -292,7 +301,7 @@ function Campaigns({ items, products: suppliedProducts = [], totalSpend, onRefre
+   const selectedProduct=products.find(product=>product.id===draft.productId);
+   const packingOptions=(selectedProduct?.packing||'').split(/[,;/|]/).map(value=>value.trim()).filter(Boolean);
+   const applyPreset=(kind:string)=>{
+-    const presets:Record<string,Partial<typeof empty>>={
++    const presets:Record<string,Partial<ReturnType<typeof newCampaignDraft>>>={
+       welcome:{name:'Welcome Offer',campaignType:'welcome',audience:'new_farmer',discountType:'fixed_amount',discountValue:'50',description:'A one-time reward automatically added after a farmer completes registration.'},
+       festival:{name:'Festival Farmer Offer',campaignType:'festival',audience:'all_farmers',discountType:'percentage',discountValue:'10',description:'A time-limited seasonal reward for eligible farmers.'},
+       regional:{name:'Regional Crop Offer',campaignType:'regional',audience:'targeted',discountType:'fixed_amount',discountValue:'100',description:'A location and product-specific farmer promotion.'},
+@@ -301,14 +310,15 @@ function Campaigns({ items, products: suppliedProducts = [], totalSpend, onRefre
+   };
+   async function create(event:FormEvent){event.preventDefault();setBusy(true);setMessage('');setProblem('');try{
+     const product=products.find(item=>item.id===draft.productId);
+-    await api('campaigns',{method:'POST',body:JSON.stringify({name:draft.name,description:draft.description,campaign_type:draft.campaignType,discount_type:draft.discountType,discount_value:Number(draft.discountValue),audience:draft.audience,states:list(draft.states),districts:list(draft.districts),villages:list(draft.villages),products:product?[product.name]:[],product_ids:product?[product.id]:[],packings:draft.packing?[draft.packing]:[],start_date:new Date(`${draft.startDate}T00:00:00`).toISOString(),end_date:draft.endDate?new Date(`${draft.endDate}T23:59:59`).toISOString():null,coupon_limit:Number(draft.couponLimit||0),budget:Number(draft.budget||0),random_percentage:Number(draft.randomPercentage||10),expiry_days:Number(draft.expiryDays||30),status:draft.publish?'active':'paused'})});
+-    setMessage(draft.publish?'Campaign published. Eligible farmers will receive it in their CLSL AI coupon wallet.':'Campaign saved as paused. Activate it when ready.');setDraft(empty);onRefresh();setMode('manage');
++    const result=await api<{generated_count:number}>('campaigns',{method:'POST',body:JSON.stringify({name:draft.name,description:draft.description,campaign_type:draft.campaignType,discount_type:draft.discountType,discount_value:Number(draft.discountValue),audience:draft.audience,states:list(draft.states),districts:list(draft.districts),villages:list(draft.villages),products:product?[product.name]:[],product_ids:product?[product.id]:[],packings:draft.packing?[draft.packing]:[],start_date:new Date(`${draft.startDate}T00:00:00`).toISOString(),end_date:draft.endDate?new Date(`${draft.endDate}T23:59:59`).toISOString():null,coupon_limit:Number(draft.couponLimit||0),budget:Number(draft.budget||0),random_percentage:Number(draft.randomPercentage||10),expiry_days:Number(draft.expiryDays||30),status:draft.publish?'active':'paused'})});
++    await onRefresh();setMessage(draft.publish?`Campaign published with ${result.generated_count||0} coupons ready for eligible farmers.`:'Campaign saved as paused. Activate it when ready.');setDraft(newCampaignDraft());setMode('manage');
+   }catch(error){setProblem(error instanceof Error?error.message:'Campaign could not be created.')}finally{setBusy(false)}}
+-  async function status(id:string,current:string){setBusy(true);setProblem('');try{await api(`campaigns/${id}/status`,{method:'PUT',body:JSON.stringify({status:current==='active'?'paused':'active'})});onRefresh()}catch(error){setProblem(error instanceof Error?error.message:'Status could not be updated.')}finally{setBusy(false)}}
+-  async function generate(id:string){const count=Number(inventory[id]||100);setBusy(true);setProblem('');try{const result=await api<{generated_count:number}>(`campaigns/${id}/bulk-generate`,{method:'POST',body:JSON.stringify({count})});setMessage(`${result.generated_count} secure seven-character coupons added to inventory.`);onRefresh()}catch(error){setProblem(error instanceof Error?error.message:'Coupon inventory could not be generated.')}finally{setBusy(false)}}
++  async function status(id:string,current:string){setBusy(true);setProblem('');try{await api(`campaigns/${id}/status`,{method:'PUT',body:JSON.stringify({status:current==='active'?'paused':'active'})});await onRefresh()}catch(error){setProblem(error instanceof Error?error.message:'Status could not be updated.')}finally{setBusy(false)}}
++  async function generate(id:string){const count=Number(inventory[id]||100);setBusy(true);setProblem('');try{const result=await api<{generated_count:number}>(`campaigns/${id}/bulk-generate`,{method:'POST',body:JSON.stringify({count})});await onRefresh();setMessage(`${result.generated_count} secure seven-character coupons added to inventory.`)}catch(error){setProblem(error instanceof Error?error.message:'Coupon inventory could not be generated.')}finally{setBusy(false)}}
+   return <div className="admin-content campaign-studio">
+     <header className="campaign-hero"><div><p className="admin-overline">Farmer rewards control centre</p><h2>Campaign & coupon studio</h2><p>Create, target, publish and measure every CLSL farmer promotion from one place.</p></div><div className="campaign-mode"><button className={mode==='create'?'active':''} onClick={()=>setMode('create')}>＋ Create campaign</button><button className={mode==='manage'?'active':''} onClick={()=>setMode('manage')}>Manage & analyse</button></div></header>
+     {(message||problem)&&<p className={`campaign-feedback ${problem?'error':''}`}>{problem||message}</p>}
++    {!canManage&&<p className="campaign-feedback error">Your current access is read-only for campaigns. Ask the Super Administrator to assign campaign management access.</p>}
+     <section className="campaign-kpis"><Metric label="Live campaigns" value={active} note={`${items.length} campaigns configured`} tone="green"/><Metric label="Coupon inventory" value={totalCoupons} note={`${assigned} assigned to farmers`}/><Metric label="Coupons redeemed" value={redeemed} note={totalCoupons?`${Math.round(redeemed/totalCoupons*100)}% redemption rate`:'No redemptions yet'} tone="amber"/><Metric label="Dealer credit generated" value={`₹${Number(totalSpend||0).toLocaleString('en-IN')}`} note="Recorded redemption value"/></section>
+     {mode==='create'?<form className="campaign-builder" onSubmit={create}>
+       <section className="campaign-presets"><div><p className="admin-overline">Start with a campaign type</p><h3>Choose a proven offer structure</h3></div><div>{[['welcome','Welcome offer','Automatic after farmer registration'],['festival','Festival offer','Seasonal and time limited'],['regional','Region-wise offer','State, district or village targeting'],['random','Random reward','Controlled percentage rollout']].map(([id,title,note])=><button type="button" key={id} className={draft.campaignType===id?'selected':''} onClick={()=>applyPreset(id)}><b>{title}</b><small>{note}</small></button>)}</div></section>
+@@ -316,9 +326,9 @@ function Campaigns({ items, products: suppliedProducts = [], totalSpend, onRefre
+         <section className="campaign-form-card"><header><span>1</span><div><h3>Campaign identity</h3><p>What farmers and CLSL teams will recognise.</p></div></header><label>Campaign name<input value={draft.name} onChange={e=>set('name',e.target.value)} placeholder="Example: Kharif Welcome Reward" required/></label><label>Description<textarea rows={3} value={draft.description} onChange={e=>set('description',e.target.value)} placeholder="Explain the purpose and farmer benefit."/></label><label>Campaign category<select value={draft.campaignType} onChange={e=>set('campaignType',e.target.value)}><option value="welcome">Welcome / registration</option><option value="festival">Festival / seasonal</option><option value="regional">Regional promotion</option><option value="random">Random farmer reward</option><option value="general">General promotion</option></select></label></section>
+         <section className="campaign-form-card"><header><span>2</span><div><h3>Farmer benefit</h3><p>Fixed ₹ discounts are the default; percentage offers remain available when required.</p></div></header><div className="campaign-inline"><label>Benefit type<select value={draft.discountType} onChange={e=>set('discountType',e.target.value)}><option value="fixed_amount">Fixed discount (₹) — recommended</option><option value="percentage">Percentage discount (%)</option></select></label><label>{draft.discountType==='fixed_amount'?'Discount amount (₹)':'Discount percentage (%)'}<input type="number" min="1" max={draft.discountType==='percentage'?100:undefined} step="0.5" value={draft.discountValue} onChange={e=>set('discountValue',e.target.value)} required/></label></div><label>Eligible CLSL product<select value={draft.productId} onChange={e=>{set('productId',e.target.value);set('packing','')}}><option value="">All active, approved CLSL products</option>{products.map(product=><option key={product.id} value={product.id}>{product.name} · {product.formulation||product.category}</option>)}</select><small>The farmer wallet and dealer statement will show this verified catalogue scope.</small></label><label>Eligible packing<select value={draft.packing} onChange={e=>set('packing',e.target.value)} disabled={!selectedProduct}><option value="">All eligible packs</option>{packingOptions.map(pack=><option key={pack}>{pack}</option>)}</select><small>{selectedProduct&&!packingOptions.length?'No structured packing is recorded for this product; the offer applies to all packs.':'Choose a pack only when the discount is pack-specific.'}</small></label><div className="campaign-inline"><label>Coupon limit<input type="number" min="0" value={draft.couponLimit} onChange={e=>set('couponLimit',e.target.value)}/></label><label>Campaign budget (₹)<input type="number" min="0" value={draft.budget} onChange={e=>set('budget',e.target.value)}/></label></div></section>
+         <section className="campaign-form-card"><header><span>3</span><div><h3>Audience & location</h3><p>Control exactly who receives the offer.</p></div></header><label>Audience<select value={draft.audience} onChange={e=>set('audience',e.target.value)}><option value="new_farmer">New farmers after registration</option><option value="all_farmers">All registered farmers</option><option value="targeted">Location-targeted farmers</option><option value="random">Random eligible farmers</option></select></label>{draft.audience==='random'&&<label>Farmers to receive offer (%)<input type="number" min="1" max="100" value={draft.randomPercentage} onChange={e=>set('randomPercentage',e.target.value)}/></label>}<label>States<input value={draft.states} onChange={e=>set('states',e.target.value)} placeholder="Example: Gujarat, Bihar"/></label><label>Districts<input value={draft.districts} onChange={e=>set('districts',e.target.value)} placeholder="Example: Vadodara, Rajkot"/></label><label>Villages<input value={draft.villages} onChange={e=>set('villages',e.target.value)} placeholder="Optional, comma separated"/></label></section>
+-        <section className="campaign-form-card"><header><span>4</span><div><h3>Schedule & publishing</h3><p>Set validity and choose when it becomes visible.</p></div></header><div className="campaign-inline"><label>Starts<input type="date" value={draft.startDate} onChange={e=>set('startDate',e.target.value)} required/></label><label>Ends<input type="date" value={draft.endDate} min={draft.startDate} onChange={e=>set('endDate',e.target.value)} required/></label></div><label>Coupon validity after issue (days)<input type="number" min="1" max="365" value={draft.expiryDays} onChange={e=>set('expiryDays',e.target.value)}/></label><label className="campaign-publish"><input type="checkbox" checked={draft.publish} onChange={e=>set('publish',e.target.checked)}/><span><b>Publish immediately</b><small>Eligible farmers see the coupon in the mobile application when they open their wallet.</small></span></label><button className="admin-primary campaign-submit" disabled={busy}>{busy?'Publishing…':draft.publish?'Publish campaign →':'Save paused campaign'}</button></section>
++        <section className="campaign-form-card"><header><span>4</span><div><h3>Schedule & publishing</h3><p>Set validity and choose when it becomes visible.</p></div></header><div className="campaign-inline"><label>Starts<input type="date" value={draft.startDate} onChange={e=>set('startDate',e.target.value)} required/></label><label>Ends<input type="date" value={draft.endDate} min={draft.startDate} onChange={e=>set('endDate',e.target.value)} required/></label></div><label>Coupon validity after issue (days)<input type="number" min="1" max="365" value={draft.expiryDays} onChange={e=>set('expiryDays',e.target.value)}/></label><label className="campaign-publish"><input type="checkbox" checked={draft.publish} onChange={e=>set('publish',e.target.checked)}/><span><b>Publish immediately</b><small>Eligible farmers see the coupon in the mobile application when they open their wallet.</small></span></label><button className="admin-primary campaign-submit" disabled={busy||!canManage}>{busy?'Publishing…':draft.publish?'Publish campaign →':'Save paused campaign'}</button></section>
+       </div>
+-    </form>:<section className="campaign-manage"><header><div><p className="admin-overline">Live campaign register</p><h3>Campaign inventory and performance</h3></div><small>Activate, pause and replenish codes without changing historical redemption data.</small></header><div className="campaign-card-list">{items.map(item=>{const rules=item.rules||{};const budget=Number(rules.budget||0);const spent=Number(item.total_spend||0);return <article key={item.campaign_id}><header><div><Badge tone={item.status==='active'?'green':'slate'}>{item.status}</Badge><span className="campaign-type">{String(rules.campaign_type||'general').replaceAll('_',' ')}</span><h3>{item.name}</h3><p>{rules.description||'No campaign description added.'}</p></div><strong>{item.discount_type==='percentage'?`${item.discount_value}% OFF`:`₹${item.discount_value} OFF`}</strong></header><div className="campaign-card-stats"><div><span>Assigned</span><b>{item.total_assigned||0}</b></div><div><span>Available</span><b>{item.total_available||0}</b></div><div><span>Redeemed</span><b>{item.total_redeemed||0}</b></div><div><span>Spend / budget</span><b>₹{spent.toLocaleString('en-IN')} {budget?`/ ₹${budget.toLocaleString('en-IN')}`:''}</b></div></div><div className="campaign-scope"><span>Audience: <b>{String(rules.audience||'all_farmers').replaceAll('_',' ')}</b></span><span>Region: <b>{[...(rules.states||[]),...(rules.districts||[]),...(rules.villages||[])].join(', ')||'All India'}</b></span><span>Validity: <b>{new Date(item.start_date).toLocaleDateString()} - {item.end_date?new Date(item.end_date).toLocaleDateString():'Open ended'}</b></span></div><footer><div><input type="number" min="1" max="5000" value={inventory[item.campaign_id]||'100'} onChange={e=>setInventory(current=>({...current,[item.campaign_id]:e.target.value}))}/><button className="admin-secondary" disabled={busy} onClick={()=>void generate(item.campaign_id)}>Add coupon inventory</button></div><button className={item.status==='active'?'admin-secondary danger':'admin-primary'} disabled={busy} onClick={()=>void status(item.campaign_id,item.status)}>{item.status==='active'?'Pause campaign':'Activate campaign'}</button></footer></article>})}</div>{!items.length&&<p className="admin-empty">No campaigns created yet. Start with a welcome offer.</p>}</section>}
++    </form>:<section className="campaign-manage"><header><div><p className="admin-overline">Live campaign register</p><h3>Campaign inventory and performance</h3></div><small>Activate, pause and replenish codes without changing historical redemption data.</small></header><div className="campaign-card-list">{items.map(item=>{const rules=item.rules||{};const budget=Number(rules.budget||0);const spent=Number(item.total_spend||0);return <article key={item.campaign_id}><header><div><Badge tone={item.status==='active'?'green':'slate'}>{item.status}</Badge><span className="campaign-type">{String(rules.campaign_type||'general').replaceAll('_',' ')}</span><h3>{item.name}</h3><p>{rules.description||'No campaign description added.'}</p></div><strong>{item.discount_type==='percentage'?`${item.discount_value}% OFF`:`₹${item.discount_value} OFF`}</strong></header><div className="campaign-card-stats"><div><span>Assigned</span><b>{item.total_assigned||0}</b></div><div><span>Available</span><b>{item.total_available||0}</b></div><div><span>Redeemed</span><b>{item.total_redeemed||0}</b></div><div><span>Spend / budget</span><b>₹{spent.toLocaleString('en-IN')} {budget?`/ ₹${budget.toLocaleString('en-IN')}`:''}</b></div></div><div className="campaign-scope"><span>Audience: <b>{String(rules.audience||'all_farmers').replaceAll('_',' ')}</b></span><span>Region: <b>{[...(rules.states||[]),...(rules.districts||[]),...(rules.villages||[])].join(', ')||'All India'}</b></span><span>Validity: <b>{new Date(item.start_date).toLocaleDateString()} - {item.end_date?new Date(item.end_date).toLocaleDateString():'Open ended'}</b></span></div><footer><div><input type="number" min="1" max="5000" value={inventory[item.campaign_id]||'100'} onChange={e=>setInventory(current=>({...current,[item.campaign_id]:e.target.value}))}/><button className="admin-secondary" disabled={busy||!canManage} onClick={()=>void generate(item.campaign_id)}>Add coupon inventory</button></div><button className={item.status==='active'?'admin-secondary danger':'admin-primary'} disabled={busy||!canManage} onClick={()=>void status(item.campaign_id,item.status)}>{item.status==='active'?'Pause campaign':'Activate campaign'}</button></footer></article>})}</div>{!items.length&&<p className="admin-empty">No campaigns created yet. Start with a welcome offer.</p>}</section>}
+   </div>;
+ }
+ 
+diff --git a/frontend/app/components/Dealerships.tsx b/frontend/app/components/Dealerships.tsx
+index 3d85a05..61a710e 100644
+--- a/frontend/app/components/Dealerships.tsx
++++ b/frontend/app/components/Dealerships.tsx
+@@ -11,13 +11,13 @@ async function json<T=Record<string,unknown>>(url:string,init?:RequestInit):Prom
+ export default function Dealerships({canManage,canManagePortalMobile,canArchive}:{canManage:boolean;canManagePortalMobile:boolean;canArchive:boolean}){
+  const [tab,setTab]=useState<'directory'|'verified'|'credits'>('directory'),[items,setItems]=useState<Dealer[]>([]),[credits,setCredits]=useState<Credit[]>([]),[facets,setFacets]=useState<{states:string[];territories:string[]}>({states:[],territories:[]}),[loading,setLoading]=useState(false),[error,setError]=useState('');
+  const [search,setSearch]=useState(''),[state,setState]=useState(''),[territory,setTerritory]=useState(''),[account,setAccount]=useState(''),[testData,setTestData]=useState(''),[status,setStatus]=useState('');
+- const [page,setPage]=useState(1),[pageSize,setPageSize]=useState<AdminPageSize>(25),[total,setTotal]=useState(0),[selected,setSelected]=useState<Dealer|null>(null),[finance,setFinance]=useState<DealerFinance|null>(null),[editor,setEditor]=useState<Partial<Dealer>|null>(null),[accountDealer,setAccountDealer]=useState<Dealer|null>(null),[owner,setOwner]=useState(''),[mobile,setMobile]=useState(''),[qr,setQr]=useState<GeneratedAccount|null>(null),[copied,setCopied]=useState('');
++ const [page,setPage]=useState(1),[pageSize,setPageSize]=useState<AdminPageSize>(25),[total,setTotal]=useState(0),[selected,setSelected]=useState<Dealer|null>(null),[finance,setFinance]=useState<DealerFinance|null>(null),[editor,setEditor]=useState<Partial<Dealer>|null>(null),[accountDealer,setAccountDealer]=useState<Dealer|null>(null),[owner,setOwner]=useState(''),[mobile,setMobile]=useState(''),[qr,setQr]=useState<GeneratedAccount|null>(null),[copied,setCopied]=useState(''),[actionBusy,setActionBusy]=useState(false);
+  const [from,setFrom]=useState(new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().slice(0,10)),[to,setTo]=useState(new Date().toISOString().slice(0,10));
+  const load=useCallback(async()=>{setLoading(true);setError('');try{const p=new URLSearchParams({limit:String(pageSize),offset:String(pageSize===0?0:(page-1)*pageSize)});if(search)p.set('search',search);if(state)p.set('state',state);if(territory)p.set('territory',territory);if(status)p.set('status',status);if(testData)p.set('test_data',testData);if(tab==='verified')p.set('account','verified');else if(account)p.set('account',account);const d=await json<{items:Dealer[];total:number;facets:{states:string[];territories:string[]}}>(`/api/admin/portal/dealers?${p}`);setItems(d.items||[]);setTotal(d.total||0);setFacets(d.facets||{states:[],territories:[]});if(tab==='credits'){const c=await json<{items:Credit[]}>('/api/admin/portal/dealer-credit-notes');setCredits(c.items||[]);setTotal(c.items?.length||0);}}catch(e){setError(e instanceof Error?e.message:'Unable to load dealers');}finally{setLoading(false)}},[search,state,territory,status,testData,account,tab,page,pageSize]);
+  useEffect(()=>{void load()},[load]);useEffect(()=>setPage(1),[search,state,territory,status,testData,account,tab,pageSize]);
+  useEffect(()=>{if(!selected){setFinance(null);return;}void json<DealerFinance>(`/api/admin/portal/dealers/${selected.id}/financials`).then(setFinance).catch(e=>setError(e instanceof Error?e.message:'Financial history could not be loaded.'));},[selected]);
+- async function save(e:FormEvent){e.preventDefault();if(!editor?.name)return;await json(editor.id?`/api/admin/portal/dealers/${editor.id}`:'/api/admin/portal/dealers',{method:editor.id?'PUT':'POST',headers:{'content-type':'application/json'},body:JSON.stringify(editor)});setEditor(null);void load()}
+- async function generateAccount(e:FormEvent){e.preventDefault();if(!accountDealer)return;const d=await json<{dealer_code:string;referral_token:string;download_url:string;dealer?:Partial<Dealer>}>(`/api/admin/portal/dealers/${accountDealer.id}/generate-account`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({owner_name:owner,portal_mobile_number:mobile})});setQr({dealer_code:d.dealer_code,token:d.referral_token,url:d.download_url,dealer:{...accountDealer,...d.dealer,owner_name:owner,portal_mobile_number:d.dealer?.portal_mobile_number||mobile,dealer_code:d.dealer_code,referral_token:d.referral_token}});setCopied('');setAccountDealer(null);void load()}
++ async function save(e:FormEvent){e.preventDefault();if(!editor?.name)return;setActionBusy(true);setError('');try{await json(editor.id?`/api/admin/portal/dealers/${editor.id}`:'/api/admin/portal/dealers',{method:editor.id?'PUT':'POST',headers:{'content-type':'application/json'},body:JSON.stringify(editor)});setEditor(null);setPage(1);await load()}catch(reason){setError(reason instanceof Error?reason.message:'Dealer could not be saved.')}finally{setActionBusy(false)}}
++ async function generateAccount(e:FormEvent){e.preventDefault();if(!accountDealer)return;setActionBusy(true);setError('');try{const d=await json<{dealer_code:string;referral_token:string;download_url:string;dealer?:Partial<Dealer>}>(`/api/admin/portal/dealers/${accountDealer.id}/generate-account`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({owner_name:owner,portal_mobile_number:mobile})});const generated:GeneratedAccount={dealer_code:d.dealer_code,token:d.referral_token,url:d.download_url,dealer:{...accountDealer,...d.dealer,owner_name:owner,portal_mobile_number:d.dealer?.portal_mobile_number||mobile,dealer_code:d.dealer_code,referral_token:d.referral_token}};setItems(current=>current.map(item=>item.id===accountDealer.id?generated.dealer:item));setQr(generated);setCopied('');setAccountDealer(null);await load()}catch(reason){setError(reason instanceof Error?reason.message:'Dealer account could not be generated.')}finally{setActionBusy(false)}}
+  async function copyText(value:string,label:string){try{await navigator.clipboard.writeText(value);setCopied(label);window.setTimeout(()=>setCopied(current=>current===label?'':current),1800)}catch{setError('Clipboard access is unavailable. Select and copy the text manually.')}}
+  function dealerMessage(result:GeneratedAccount){const d=result.dealer;return `Hi ${d.owner_name||'Dealer'}, this is your dealer code for the CLSL AI app for ${d.name}: ${result.dealer_code}. Please log in with your registered mobile number ${d.portal_mobile_number||''}. Open CLSL AI: https://ai.croplifescience.com/`;}
+  function shareDealerWhatsApp(result:GeneratedAccount){const digits=(result.dealer.portal_mobile_number||'').replace(/\D/g,'');window.open(`https://wa.me/${digits}?text=${encodeURIComponent(dealerMessage(result))}`,'_blank','noopener,noreferrer')}
+@@ -34,8 +34,8 @@ export default function Dealerships({canManage,canManagePortalMobile,canArchive}
+   {tab!=='credits'&&<section className="dealer-filters"><label className="wide"><span>Search dealer, owner, code or territory</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Type to search…"/></label><label><span>State</span><select value={state} onChange={e=>setState(e.target.value)}><option value="">All states</option>{facets.states?.map(x=><option key={x}>{x}</option>)}</select></label><label><span>Territory</span><select value={territory} onChange={e=>setTerritory(e.target.value)}><option value="">All territories</option>{facets.territories?.map(x=><option key={x}>{x}</option>)}</select></label><label><span>Account</span><select value={account} onChange={e=>setAccount(e.target.value)} disabled={tab==='verified'}><option value="">All</option><option value="not_generated">Not generated</option><option value="generated">Generated</option><option value="verified">Dealer + referral ready</option></select></label><label><span>Data</span><select value={testData} onChange={e=>setTestData(e.target.value)}><option value="">Live + test</option><option value="no">Live only</option><option value="yes">Test only</option></select></label><label><span>Status</span><select value={status} onChange={e=>setStatus(e.target.value)}><option value="">All</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label></section>}
+   {error&&<p className="admin-error">{error}</p>}{loading?<p className="admin-empty">Loading dealer operations…</p>:tab==='credits'?<section className="dealer-table-card"><table className="admin-table"><thead><tr><th>Credit note</th><th>Dealer</th><th>Period</th><th>Coupons</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody>{creditRows.map(n=><tr key={n.id}><td><b>{n.note_number}</b></td><td>{n.dealer_name}</td><td>{n.period_start} → {n.period_end}</td><td>{n.redemption_count}</td><td><b>{money(n.total_amount)}</b></td><td><span className={`dealer-pill ${n.status}`}>{n.status}</span></td><td><a className="admin-secondary" href={`/api/admin/portal/dealer-credit-notes/${n.id}/download`}>Download</a>{n.status!=='settled'&&canManage&&<button className="admin-primary small" onClick={()=>void settle(n)}>Mark settled</button>}</td></tr>)}</tbody></table><AdminPager page={page} pageSize={pageSize} total={credits.length} shown={creditRows.length} onPage={setPage} onPageSize={setPageSize}/></section>:<section className="dealer-table-card"><table className="admin-table"><thead><tr><th>Dealer</th><th>Account</th><th>State / territory</th><th>Farmers</th><th>Coupons</th><th>Credit</th><th>Actions</th></tr></thead><tbody>{items.map(d=><tr key={d.id}><td><b>{d.name}</b><small>{d.owner_name||'Owner not added'}</small></td><td>{d.dealer_code&&d.owner_name&&d.portal_mobile_number?<><code>{d.dealer_code}</code><small>Referral: {d.referral_token||'not generated'}</small></>:<span className="dealer-pill pending">Not generated</span>}</td><td>{d.state||'—'}<small>{d.sales_territory||'—'}</small></td><td><b>{d.farmer_count||0}</b></td><td>{d.redemption_count||0}<small>{money(d.redeemed_amount)}</small></td><td><b>{money(d.outstanding_amount)}</b><small>Settled {money(d.settled_amount)}</small></td><td><div className="dealer-row-actions"><button onClick={()=>setSelected(d)}>View</button>{canManage&&<button onClick={()=>setEditor(d)}>Edit</button>}{canManage&&!d.referral_token&&<button className="primary" onClick={()=>{setAccountDealer(d);setOwner(d.owner_name||'');setMobile(d.portal_mobile_number||'')}}>Generate account</button>}</div></td></tr>)}</tbody></table><AdminPager page={page} pageSize={pageSize} total={total} shown={items.length} onPage={setPage} onPageSize={setPageSize}/></section>}
+   {selected&&<div className="admin-modal" onMouseDown={()=>setSelected(null)}><aside className="dealer-drawer" onMouseDown={e=>e.stopPropagation()}><button className="drawer-close" onClick={()=>setSelected(null)}>×</button><p className="admin-overline">Dealer performance</p><h3>{selected.name}</h3><p>{selected.owner_name||'Owner pending'} · {selected.portal_mobile_number||'Mobile pending'}</p>{selected.dealer_code&&<section className="dealer-login-credential"><span>CLSL AI dealer login code</span><strong>{selected.dealer_code}</strong><button type="button" onClick={()=>void copyText(selected.dealer_code||'','dealer-view-code')}>{copied==='dealer-view-code'?'✓ Copied':'Copy dealer code'}</button></section>}<dl className="dealer-identity-list"><div><dt>City / territory</dt><dd>{selected.location||selected.sales_area||selected.sales_territory||'Not recorded'}</dd></div><div><dt>State</dt><dd>{selected.state||'Not recorded'}</dd></div></dl><div className="drawer-metrics"><article><span>Farmers</span><b>{selected.farmer_count}</b></article><article><span>Coupons</span><b>{selected.redemption_count}</b></article><article><span>Redeemed</span><b>{money(selected.redeemed_amount)}</b></article><article><span>Outstanding</span><b>{money(selected.outstanding_amount)}</b></article></div>{finance&&<section className="dealer-finance-history"><header><div><span>Total redeemed</span><b>{money(finance.summary.redeemed_amount)}</b></div><div><span>Awaiting credit note</span><b>{money(finance.summary.outstanding_amount)}</b></div></header><h4>Credit & settlement timeline</h4>{finance.credit_notes.length?finance.credit_notes.map(note=><article key={note.id}><div><b>{note.note_number}</b><small>{note.period_start} → {note.period_end} · {note.redemption_count} coupons</small></div><div><b>{money(note.total_amount)}</b><span className={`dealer-pill ${note.status}`}>{note.status}</span>{note.status==='settled'&&<small>Settled {note.settled_at?new Date(note.settled_at).toLocaleString('en-IN'):'—'}<br/>{note.settlement_reference||'No reference recorded'}</small>}<a href={`/api/admin/portal/dealer-credit-notes/${note.id}/download`}>Download statement</a></div></article>):<p>No credit notes have been generated for this dealer.</p>}</section>}{selected.referral_token&&<div className="dealer-qr"><span>Farmer referral QR</span><QRCode value={`https://ai.croplifescience.com/?ref=${selected.referral_token}`} size={150}/><b>{selected.referral_token}</b><small>Farmers may scan this QR or enter the 7-character code manually.</small></div>}<div className="credit-period"><label>From<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>To<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label></div>{canManage&&<button className="admin-primary full" onClick={()=>void generateCredit()}>Generate credit note</button>}{canArchive&&<button className="danger-link" onClick={()=>void archive(selected.id)}>Archive dealer</button>}</aside></div>}
+-  {editor&&<div className="admin-modal"><form className="dealer-modal" onSubmit={save}><h3>{editor.id?'Edit dealer':'Add dealer'}</h3><p>Codes stay hidden until an account is generated with owner name and mobile.</p><label>Dealer name *<input required value={editor.name||''} onChange={e=>setEditor({...editor,name:e.target.value})}/></label><div className="modal-grid"><label>Owner name<input value={editor.owner_name||''} onChange={e=>setEditor({...editor,owner_name:e.target.value})}/></label>{canManagePortalMobile&&<label>Mobile<input value={editor.portal_mobile_number||''} onChange={e=>setEditor({...editor,portal_mobile_number:e.target.value})}/></label>}<label>State<input value={editor.state||''} onChange={e=>setEditor({...editor,state:e.target.value})}/></label><label>Territory<input value={editor.sales_territory||''} onChange={e=>setEditor({...editor,sales_territory:e.target.value})}/></label><label>Status<select value={editor.status||'active'} onChange={e=>setEditor({...editor,status:e.target.value})}><option value="active">Active</option><option value="inactive">Inactive</option></select></label></div><footer><button type="button" onClick={()=>setEditor(null)}>Cancel</button><button className="admin-primary">Save dealer</button></footer></form></div>}
+-  {accountDealer&&<div className="admin-modal"><form className="dealer-modal compact" onSubmit={generateAccount}><h3>Generate dealer account</h3><p>{accountDealer.name}</p><label>Owner name *<input required value={owner} onChange={e=>setOwner(e.target.value)}/></label><label>Verified mobile number *<input required value={mobile} onChange={e=>setMobile(e.target.value)} placeholder="9876543210"/></label><footer><button type="button" onClick={()=>setAccountDealer(null)}>Cancel</button><button className="admin-primary">Generate both codes</button></footer></form></div>}
+-  {qr&&<div className="admin-modal"><div className="dealer-modal dealer-account-result"><header><span className="account-success-mark">✓</span><div><p className="admin-overline">Account generated</p><h3>Dealer credentials ready</h3><p>Verify these details before sharing the dealer code.</p></div></header><section className="generated-dealer-code"><span>CLSL AI dealer login code</span><strong>{qr.dealer_code}</strong><div><button className="admin-secondary" type="button" onClick={()=>void copyText(qr.dealer_code,'dealer-code')}>{copied==='dealer-code'?'✓ Copied':'Copy dealer code'}</button><button className="admin-secondary" type="button" onClick={()=>void copyText(dealerMessage(qr),'dealer-message')}>{copied==='dealer-message'?'✓ Message copied':'Copy complete message'}</button></div></section><dl className="generated-dealer-details"><div><dt>Dealership</dt><dd>{qr.dealer.name}</dd></div><div><dt>Owner</dt><dd>{qr.dealer.owner_name||'Not recorded'}</dd></div><div><dt>City / territory</dt><dd>{qr.dealer.location||qr.dealer.sales_area||qr.dealer.sales_territory||'Not recorded'}</dd></div><div><dt>State</dt><dd>{qr.dealer.state||'Not recorded'}</dd></div><div><dt>Registered mobile</dt><dd>{qr.dealer.portal_mobile_number||'Not recorded'}</dd></div></dl><button className="dealer-whatsapp-share" type="button" onClick={()=>shareDealerWhatsApp(qr)}>Share dealer code on WhatsApp</button><section className="generated-referral"><div><p className="admin-overline">For farmer referrals</p><h4>QR and manual code</h4><p>Farmers can scan this QR or enter the code manually. No referral link is shared.</p></div><QRCode value={qr.url} size={132}/><strong>{qr.token}</strong></section><footer><button className="admin-primary" type="button" onClick={()=>setQr(null)}>Done</button></footer></div></div>}
++  {editor&&<div className="admin-modal"><form className="dealer-modal" onSubmit={save}><h3>{editor.id?'Edit dealer':'Add dealer'}</h3><p>Codes stay hidden until an account is generated with owner name and mobile.</p>{error&&<p className="admin-error">{error}</p>}<label>Dealer name *<input required value={editor.name||''} onChange={e=>setEditor({...editor,name:e.target.value})}/></label><div className="modal-grid"><label>Owner name<input value={editor.owner_name||''} onChange={e=>setEditor({...editor,owner_name:e.target.value})}/></label>{canManagePortalMobile&&<label>Mobile<input value={editor.portal_mobile_number||''} onChange={e=>setEditor({...editor,portal_mobile_number:e.target.value})}/></label>}<label>State<input value={editor.state||''} onChange={e=>setEditor({...editor,state:e.target.value})}/></label><label>Territory<input value={editor.sales_territory||''} onChange={e=>setEditor({...editor,sales_territory:e.target.value})}/></label><label>Status<select value={editor.status||'active'} onChange={e=>setEditor({...editor,status:e.target.value})}><option value="active">Active</option><option value="inactive">Inactive</option></select></label></div><footer><button type="button" disabled={actionBusy} onClick={()=>setEditor(null)}>Cancel</button><button className="admin-primary" disabled={actionBusy}>{actionBusy?'Saving…':'Save dealer'}</button></footer></form></div>}
++  {accountDealer&&<div className="admin-modal"><form className="dealer-modal compact" onSubmit={generateAccount}><h3>Generate dealer account</h3><p>{accountDealer.name}</p>{error&&<p className="admin-error">{error}</p>}<label>Owner name *<input required value={owner} onChange={e=>setOwner(e.target.value)}/></label><label>Verified mobile number *<input required value={mobile} onChange={e=>setMobile(e.target.value)} placeholder="9876543210"/></label><footer><button type="button" disabled={actionBusy} onClick={()=>setAccountDealer(null)}>Cancel</button><button className="admin-primary" disabled={actionBusy}>{actionBusy?'Generating…':'Generate both codes'}</button></footer></form></div>}
++  {qr&&<div className="admin-modal"><div className="dealer-modal dealer-account-result"><header><span className="account-success-mark">✓</span><div><p className="admin-overline">Account generated</p><h3>Dealer credentials ready</h3><p>Verify these details before sharing the dealer code.</p></div></header><section className="generated-dealer-code"><span>CLSL AI dealer login code</span><strong>{qr.dealer_code}</strong><div><button className="admin-secondary" type="button" onClick={()=>void copyText(qr.dealer_code,'dealer-code')}>{copied==='dealer-code'?'✓ Copied':'Copy dealer code'}</button><button className="admin-secondary" type="button" onClick={()=>void copyText(dealerMessage(qr),'dealer-message')}>{copied==='dealer-message'?'✓ Message copied':'Copy complete message'}</button></div></section><dl className="generated-dealer-details"><div><dt>Dealership</dt><dd>{qr.dealer.name}</dd></div><div><dt>Owner</dt><dd>{qr.dealer.owner_name||'Not recorded'}</dd></div><div><dt>City / territory</dt><dd>{qr.dealer.location||qr.dealer.sales_area||qr.dealer.sales_territory||'Not recorded'}</dd></div><div><dt>State</dt><dd>{qr.dealer.state||'Not recorded'}</dd></div><div><dt>Registered mobile</dt><dd>{qr.dealer.portal_mobile_number||'Not recorded'}</dd></div></dl><button className="dealer-whatsapp-share" type="button" onClick={()=>shareDealerWhatsApp(qr)}>Share dealer code on WhatsApp</button><section className="generated-referral"><div><p className="admin-overline">For farmer referrals</p><h4>QR and manual code</h4><p>Farmers can scan this QR or enter the code manually. No referral link is shared.</p></div><QRCode value={qr.url} size={132}/><strong>{qr.token}</strong></section><footer><button className="admin-primary" type="button" onClick={()=>{setQr(null);setAccount('');setPage(1);setTab('verified')}}>Done · view verified dealer</button></footer></div></div>}
+  </div>;
+ }
+diff --git a/mobile/src/screens/coupons/CouponsScreen.tsx b/mobile/src/screens/coupons/CouponsScreen.tsx
+index 69393e0..62c8b40 100644
+--- a/mobile/src/screens/coupons/CouponsScreen.tsx
++++ b/mobile/src/screens/coupons/CouponsScreen.tsx
+@@ -1,4 +1,4 @@
+-import React, { useEffect, useState } from 'react';
++import React, { useCallback, useEffect, useState } from 'react';
+ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, TextInput, ScrollView, Alert, Modal } from 'react-native';
+ import { Ionicons } from '@expo/vector-icons';
+ import { useAuth } from '../../contexts/AuthContext';
+@@ -14,6 +14,7 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
+   const [tab, setTab] = useState<'available' | 'used'>('available');
+   const [loading, setLoading] = useState(true);
+   const [coupons, setCoupons] = useState<Coupon[]>([]);
++  const [loadError, setLoadError] = useState('');
+ 
+   // Upgrade state
+   const [isUpgrading, setIsUpgrading] = useState(false);
+@@ -26,12 +27,15 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
+   const [isCameraOpen, setIsCameraOpen] = useState(false);
+   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+ 
+-  useEffect(() => {
++  const loadCoupons = useCallback(async () => {
+     if (!token || user?.role !== 'farmer') {
+       setLoading(false);
+       return;
+     }
+-    getMyCoupons(token).then(r => {
++    setLoading(true);
++    setLoadError('');
++    try {
++      const r = await getMyCoupons(token);
+       const available = r.coupons.map((x, i) => ({
+         code: String(x.code || `CLSL${i + 1}`),
+         title: String(x.campaign_name || x.title || 'CLSL product reward'),
+@@ -47,9 +51,16 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
+         status: 'used' as const,
+       }));
+       setCoupons([...available, ...used]);
+-    }).catch(() => setCoupons([])).finally(() => setLoading(false));
++    } catch (reason) {
++      setCoupons([]);
++      setLoadError(reason instanceof Error ? reason.message : 'Rewards could not be loaded.');
++    } finally {
++      setLoading(false);
++    }
+   }, [token, user?.role]);
+ 
++  useEffect(() => { void loadCoupons(); }, [loadCoupons]);
++
+   const doUpgrade = () => {
+     if (!upgradeTerms || !upgradePromos) {
+       Alert.alert('Required', 'You must accept both terms and promotional messages to upgrade to a farmer account.');
+@@ -190,14 +201,14 @@ export default function CouponsScreen({ onBack }: { onBack: () => void }) {
+ 
+   const shown = coupons.filter(c => tab === 'used' ? c.status === 'used' : c.status === 'available');
+   return <MobileScreen title="Rewards" subtitle="CLSL product offers" onBack={onBack}>
+-    <View style={styles.balance}><View><Text style={styles.balanceLabel}>Available rewards</Text><Text style={styles.balanceValue}>{coupons.filter(c => c.status === 'available').length}</Text></View><View style={styles.gift}><Ionicons name="gift" size={24} color="#FFF" /></View></View>
++    <View style={styles.balance}><View><Text style={styles.balanceLabel}>Available rewards</Text><Text style={styles.balanceValue}>{coupons.filter(c => c.status === 'available').length}</Text></View><TouchableOpacity style={styles.gift} onPress={() => void loadCoupons()} disabled={loading} accessibilityLabel="Refresh rewards"><Ionicons name={loading?'hourglass-outline':'refresh'} size={24} color="#FFF" /></TouchableOpacity></View>
+     <View style={styles.tabs}><Tab label="Available" active={tab === 'available'} onPress={() => setTab('available')} /><Tab label="Used" active={tab === 'used'} onPress={() => setTab('used')} /></View>
+-    {loading ? <ActivityIndicator size="large" color={AppColors.blue} style={{ marginTop: 40 }} /> : shown.length ? shown.map(c => <CouponItem key={c.code} coupon={c} />) : <View style={styles.empty}><Ionicons name="ticket-outline" size={48} color="#91A6B3" /><Text style={shared.sectionTitle}>No {tab} rewards</Text><Text style={[shared.body, { textAlign: 'center' }]}>Eligible offers will appear here automatically.</Text></View>}
++    {loading ? <ActivityIndicator size="large" color={AppColors.blue} style={{ marginTop: 40 }} /> : loadError ? <View style={styles.empty}><Ionicons name="cloud-offline-outline" size={48} color="#B45309" /><Text style={shared.sectionTitle}>Rewards could not refresh</Text><Text style={[shared.body, { textAlign: 'center' }]}>{loadError}</Text><TouchableOpacity style={shared.primary} onPress={() => void loadCoupons()}><Text style={shared.primaryText}>Try again</Text></TouchableOpacity></View> : shown.length ? shown.map(c => <CouponItem key={c.code} coupon={c} />) : <View style={styles.empty}><Ionicons name="ticket-outline" size={48} color="#91A6B3" /><Text style={shared.sectionTitle}>No {tab} rewards</Text><Text style={[shared.body, { textAlign: 'center' }]}>Eligible offers will appear here automatically.</Text><TouchableOpacity style={styles.refreshEmpty} onPress={() => void loadCoupons()}><Ionicons name="refresh" size={17} color={AppColors.blue}/><Text style={styles.refreshEmptyText}>Refresh rewards</Text></TouchableOpacity></View>}
+   </MobileScreen>;
+ }
+ function Tab({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) { return <TouchableOpacity style={[styles.tab, active && styles.tabOn]} onPress={onPress}><Text style={[styles.tabText, active && styles.tabTextOn]}>{label}</Text></TouchableOpacity> }
+ 
+-function CouponItem({ coupon: c }: { coupon: any }) {
++function CouponItem({ coupon: c }: { coupon: Coupon }) {
+   const [revealed, setRevealed] = useState(false);
+   return (
+     <View style={styles.coupon}>
+@@ -259,6 +270,8 @@ const styles = StyleSheet.create({
+   qrModalCode: { fontSize: 22, fontWeight: '900', color: AppColors.blue, marginTop: 20, letterSpacing: 2 },
+   qrModalHint: { fontSize: 13, color: AppColors.muted, marginTop: 8, fontWeight: '600' },
+   empty: { ...shared.card, alignItems: 'center', gap: 8, paddingVertical: 42 },
++  refreshEmpty: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: AppColors.line },
++  refreshEmptyText: { color: AppColors.blue, fontWeight: '800', fontSize: 13 },
+   
+   checkCard: { flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1.5, borderColor: AppColors.line, borderRadius: 12, padding: 14, backgroundColor: '#FFF' },
+   checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: AppColors.line, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF', marginRight: 10 },
+diff --git a/mobile/src/screens/dealer/DealerRedeemScreen.tsx b/mobile/src/screens/dealer/DealerRedeemScreen.tsx
+index 259abf0..ad1f39f 100644
+--- a/mobile/src/screens/dealer/DealerRedeemScreen.tsx
++++ b/mobile/src/screens/dealer/DealerRedeemScreen.tsx
+@@ -1,16 +1,24 @@
+-import React, { useEffect, useRef, useState } from 'react';
++import React, { useCallback, useEffect, useRef, useState } from 'react';
+ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, Alert, ActivityIndicator, TextInput } from 'react-native';
+ import { Ionicons } from '@expo/vector-icons';
+ import { MobileScreen, shared, AppColors } from '../../components/MobileScreen';
+ import { CameraView, useCameraPermissions } from 'expo-camera';
+ import { useAuth } from '../../contexts/AuthContext';
+-import { DEALER_API } from '../../config/api';
+-import { redeemCoupon, validateCoupon } from '../../services/api';
++import {
++  DealerRedemption,
++  DealerRedemptionSummary,
++  getDealerRedemptions,
++  getDealerRedemptionSummary,
++  redeemCoupon,
++  validateCoupon,
++} from '../../services/api';
+ 
+ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
+   const { token } = useAuth();
+-  const [data, setData] = useState<any>(null);
++  const [summary, setSummary] = useState<DealerRedemptionSummary | null>(null);
++  const [redemptions, setRedemptions] = useState<DealerRedemption[]>([]);
+   const [loading, setLoading] = useState(true);
++  const [loadError, setLoadError] = useState('');
+ 
+   // Scanner state
+   const [isCameraOpen, setIsCameraOpen] = useState(false);
+@@ -24,14 +32,29 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
+   const [redeeming, setRedeeming] = useState(false);
+   const scanLocked = useRef(false);
+ 
+-  useEffect(() => {
+-    if (!token) return;
+-    fetch(`${DEALER_API}/me/redemptions`, { headers: { authorization: `Bearer ${token}` } })
+-      .then(res => res.json())
+-      .then(d => { setData(d); setLoading(false); })
+-      .catch(() => setLoading(false));
++  const loadStatement = useCallback(async () => {
++    if (!token) {
++      setLoading(false);
++      return;
++    }
++    setLoading(true);
++    setLoadError('');
++    try {
++      const [statement, history] = await Promise.all([
++        getDealerRedemptionSummary(token),
++        getDealerRedemptions(token, 'month'),
++      ]);
++      setSummary(statement);
++      setRedemptions(history.items || []);
++    } catch (reason) {
++      setLoadError(reason instanceof Error ? reason.message : 'Dealer statement could not be loaded.');
++    } finally {
++      setLoading(false);
++    }
+   }, [token]);
+ 
++  useEffect(() => { void loadStatement(); }, [loadStatement]);
++
+   const openCamera = async () => {
+     if (!cameraPermission?.granted) {
+       const p = await requestCameraPermission();
+@@ -121,11 +144,7 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
+               const recordedAmount = Number(result.amount_redeemed ?? result.discount_value ?? 0);
+               Alert.alert("Coupon redeemed", `₹${recordedAmount.toFixed(2)} discount recorded successfully.`);
+               setScannedData(null);
+-              // Refresh redemptions
+-              fetch(`${DEALER_API}/me/redemptions`, { headers: { authorization: `Bearer ${token}` } })
+-                .then(r => r.json())
+-                .then(d => setData(d))
+-                .catch(() => {});
++              await loadStatement();
+             } catch (e: any) {
+               Alert.alert("Redemption Failed", e.message || "Failed to redeem coupon.");
+             } finally {
+@@ -155,24 +174,34 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
+         </View>
+ 
+         <View style={shared.card}>
+-          <Text style={shared.sectionTitle}>Statement Summary</Text>
+-          {loading ? <ActivityIndicator style={{ marginTop: 20 }} /> : (
++          <View style={styles.sectionHeading}><Text style={shared.sectionTitle}>Statement Summary</Text><TouchableOpacity onPress={() => void loadStatement()} disabled={loading}><Ionicons name="refresh" size={20} color={AppColors.blue}/></TouchableOpacity></View>
++          {loading ? <ActivityIndicator style={{ marginTop: 20 }} /> : loadError ? <View style={styles.loadError}><Text style={styles.loadErrorText}>{loadError}</Text><TouchableOpacity onPress={() => void loadStatement()}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View> : (
+             <View style={styles.statsRow}>
+               <View style={styles.statBox}>
+-                <Text style={styles.statVal}>₹{data?.summary?.all_amount?.toFixed(0) || 0}</Text>
++                <Text style={styles.statVal}>₹{Number(summary?.summary.all_amount || 0).toFixed(0)}</Text>
+                 <Text style={styles.statLabel}>Total Redeemed</Text>
+               </View>
+               <View style={styles.statBox}>
+-                <Text style={[styles.statVal, { color: AppColors.error }]}>₹{data?.summary?.outstanding_amount?.toFixed(0) || 0}</Text>
++                <Text style={[styles.statVal, { color: AppColors.error }]}>₹{Number(summary?.summary.outstanding_amount || 0).toFixed(0)}</Text>
+                 <Text style={styles.statLabel}>Outstanding</Text>
+               </View>
+             </View>
+           )}
+         </View>
+ 
++        <View style={[shared.card, { marginTop: 16 }]}>
++          <Text style={shared.sectionTitle}>This month&apos;s scanned coupons</Text>
++          {redemptions.length > 0 ? redemptions.slice(0, 20).map(item => (
++            <View key={item.id} style={styles.redemptionRow}>
++              <View style={styles.redemptionMain}><Text style={styles.noteTitle}>{item.campaign_name}</Text><Text style={styles.noteDate}>{item.coupon_code} · {new Date(item.redeemed_at).toLocaleString('en-IN')}</Text></View>
++              <View style={styles.redemptionAmount}><Text style={styles.noteAmount}>₹{Number(item.amount_redeemed || 0).toFixed(0)}</Text><Text style={[styles.noteStatus, item.settled && { color: AppColors.green }]}>{item.settled ? 'settled' : 'outstanding'}</Text></View>
++            </View>
++          )) : <Text style={[shared.body, { marginTop: 12, textAlign: 'center' }]}>No coupons redeemed this month.</Text>}
++        </View>
++
+         <View style={[shared.card, { marginTop: 16 }]}>
+           <Text style={shared.sectionTitle}>Recent Credit Notes</Text>
+-          {data?.credit_notes?.length > 0 ? data.credit_notes.map((c: any) => (
++          {summary?.credit_notes?.length ? summary.credit_notes.map(c => (
+             <View key={c.id} style={styles.noteRow}>
+               <View>
+                 <Text style={styles.noteTitle}>{c.note_number}</Text>
+@@ -254,6 +283,10 @@ const styles = StyleSheet.create({
+   manualInput: { flex: 1, minHeight: 46, borderWidth: 1, borderColor: AppColors.line, borderRadius: 11, paddingHorizontal: 12, color: AppColors.ink, letterSpacing: 2, fontWeight: '800' },
+   manualButton: { minWidth: 82, backgroundColor: AppColors.green, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+   manualButtonText: { color: '#FFF', fontWeight: '800' },
++  sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
++  loadError: { alignItems: 'center', gap: 8, paddingVertical: 18 },
++  loadErrorText: { color: AppColors.error, textAlign: 'center', fontWeight: '600' },
++  retryText: { color: AppColors.blue, fontWeight: '800' },
+   statsRow: { flexDirection: 'row', marginTop: 16, gap: 16 },
+   statBox: { flex: 1, backgroundColor: '#F8FBF3', padding: 16, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#E8EEF2' },
+   statVal: { fontSize: 24, fontWeight: '900', color: AppColors.green },
+@@ -263,6 +296,9 @@ const styles = StyleSheet.create({
+   noteDate: { fontSize: 12, color: AppColors.muted, marginTop: 4 },
+   noteAmount: { fontSize: 16, fontWeight: '800', color: AppColors.ink },
+   noteStatus: { fontSize: 12, color: AppColors.muted, fontWeight: '700', marginTop: 4, textTransform: 'uppercase' },
++  redemptionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F0F4F8' },
++  redemptionMain: { flex: 1 },
++  redemptionAmount: { alignItems: 'flex-end' },
+   
+   // Modals
+   camOverlay: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
+diff --git a/mobile/src/services/api.ts b/mobile/src/services/api.ts
+index 6d46033..6f69013 100644
+--- a/mobile/src/services/api.ts
++++ b/mobile/src/services/api.ts
+@@ -301,6 +301,55 @@ export async function getDealerReferral(token: string) {
+   return request<{ dealer_name: string; token: string; qr_data_url?: string | null }>(`${DEALER_API}/me/referral`, 'GET', undefined, token);
+ }
+ 
++export type DealerRedemption = {
++  id: string;
++  redeemed_at: string;
++  coupon_code: string;
++  campaign_name: string;
++  discount_type: string;
++  discount_value: number;
++  amount_redeemed: number;
++  purchase_reference?: string | null;
++  settled: boolean;
++};
++
++export type DealerRedemptionSummary = {
++  summary: {
++    today_count: number;
++    today_amount: number;
++    month_count: number;
++    month_amount: number;
++    all_count: number;
++    all_amount: number;
++    outstanding_count: number;
++    outstanding_amount: number;
++  };
++  daily: Array<{ day: string; count: number; amount: number }>;
++  monthly: Array<{ month: string; count: number; amount: number }>;
++  credit_notes: Array<{
++    id: string;
++    note_number: string;
++    total_amount: number;
++    status: string;
++    generated_at: string;
++    settled_at?: string | null;
++    settlement_reference?: string | null;
++  }>;
++};
++
++export async function getDealerRedemptions(token: string, period: 'today' | 'month' | 'all' = 'month') {
++  return request<{ status: string; items: DealerRedemption[]; total: number; total_amount: number }>(
++    `${DEALER_API}/me/redemptions?period=${period}`,
++    'GET',
++    undefined,
++    token,
++  );
++}
++
++export async function getDealerRedemptionSummary(token: string) {
++  return request<DealerRedemptionSummary>(`${DEALER_API}/me/redemption-summary`, 'GET', undefined, token);
++}
++
+ // ─── i18n ─────────────────────────────────────────────────────────
+ export async function getI18nTranslations(lang: string) {
+   try {

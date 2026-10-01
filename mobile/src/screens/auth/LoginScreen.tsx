@@ -59,8 +59,8 @@ const SOCIAL_COLORS: Record<string, string> = {
 
 const SOURCE_OPTIONS = ['Dealer', 'Sales Officer', 'Facebook', 'Instagram', 'YouTube', 'WhatsApp', 'Google', 'Friend / Family', 'Other'];
 
-type Step = 'language' | 'phone' | 'dealer_code' | 'details' | 'otp';
-const STEP_ORDER: Step[] = ['language', 'phone', 'dealer_code', 'details', 'otp'];
+type Step = 'language' | 'phone' | 'account' | 'dealer_code' | 'details' | 'otp';
+const STEP_ORDER: Step[] = ['language', 'phone', 'account', 'dealer_code', 'details', 'otp'];
 
 type Place = { district: string; state: string; city?: string; latitude: number; longitude: number };
 type Dealer = { name: string; owner_name?: string; state?: string; location?: string; registered_mobile?: string; mobile_matches?: boolean };
@@ -117,6 +117,7 @@ export default function LoginScreen() {
   const [social, setSocial] = useState<string[]>([]);
   const [source, setSource] = useState('');
   const [isFarmer, setIsFarmer] = useState(false);
+  const [landSize, setLandSize] = useState('');
   const [isDealerUI, setIsDealerUI] = useState(false);
   const [isSalesOfficer, setIsSalesOfficer] = useState(false);
 
@@ -152,7 +153,8 @@ export default function LoginScreen() {
   const goBack = () => {
     setError('');
     if (step === 'phone') setStep('language');
-    else if (step === 'details') setStep('phone');
+    else if (step === 'account') setStep('phone');
+    else if (step === 'details') setStep('account');
     else if (step === 'dealer_code') setStep('phone');
     else if (step === 'otp') { if (isNewUser) setStep('details'); else if (role === 'dealer') setStep('dealer_code'); else setStep('phone'); }
   };
@@ -235,10 +237,15 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const fullMobile = countryCode + mobile;
-      const checkRes = await checkPhone(fullMobile).catch(() => ({ exists: false, role: 'farmer' as const }));
+      const checkRes = await checkPhone(fullMobile);
       if (checkRes.exists) {
         setRole(checkRes.role || 'farmer');
         setIsNewUser(false);
+        if (checkRes.name) {
+          const parts = checkRes.name.split(' ');
+          setFirstName(parts[0]);
+          if (parts.length > 1) setLastName(parts.slice(1).join(' '));
+        }
         if (checkRes.role === 'dealer') {
           // If dealer, must enter dealer code first
           setStep('dealer_code');
@@ -251,7 +258,7 @@ export default function LoginScreen() {
         // New User -> Must be a Farmer signing up (Dealers/SO are added by admin)
         setRole('farmer');
         setIsNewUser(true);
-        setStep('details'); // Collect name, state, etc.
+        setStep('account'); // Collect name, DOB
       }
     } catch (e: any) {
       setError(e.message || 'Error checking phone number');
@@ -314,6 +321,7 @@ export default function LoginScreen() {
           role: finalRole, first_name: firstName, last_name: lastName, preferred_language: language, date_of_birth: dob || null,
           district: place.district, state: place.state, city: place.city || null,
           social_media_used: social, acquisition_source: source,
+          land_size: isFarmer && landSize.trim() ? Number(landSize) : undefined,
           referral_code: finalRole === 'farmer' && referral ? referral : null,
           dealer_code: finalRole === 'dealer' && dealerCode ? dealerCode : null,
           location_latitude: place.latitude, location_longitude: place.longitude,
@@ -440,7 +448,7 @@ export default function LoginScreen() {
     </View>
   );
 
-  const renderAccount = () => ( // keeping to avoid syntax errors if referenced elsewhere
+  const renderAccount = () => (
 
     <View>
       {renderHeader(t.account || 'Join CLSL AI', t.intro || 'Unlock AI crop care, weather, products, rewards, and offers.')}
@@ -550,15 +558,29 @@ export default function LoginScreen() {
 
       {/* Farmer toggle */}
       {!isDealerUI && !isSalesOfficer && (
-        <TouchableOpacity style={s.checkCard} onPress={() => { setIsFarmer(!isFarmer); setError(''); }} activeOpacity={0.8}>
-          <View style={[s.checkbox, isFarmer && s.checkboxActive]}>
-            {isFarmer && <Ionicons name="checkmark" size={12} color="#fff" />}
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={s.checkCardTitle}>{t.iAmFarmer || 'I am a farmer'}</Text>
-            <Text style={s.checkCardSub}>Select this to receive farmer offers and coupons on CLSL products.</Text>
-          </View>
-        </TouchableOpacity>
+        <View style={s.fieldsetCard}>
+          <TouchableOpacity style={[s.checkCard, { marginBottom: isFarmer ? 16 : 0, borderWidth: 0, padding: 0 }]} onPress={() => { setIsFarmer(!isFarmer); setError(''); }} activeOpacity={0.8}>
+            <View style={[s.checkbox, isFarmer && s.checkboxActive]}>
+              {isFarmer && <Ionicons name="checkmark" size={12} color="#fff" />}
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={s.checkCardTitle}>{t.iAmFarmer || 'I am a farmer'}</Text>
+              <Text style={s.checkCardSub}>Select this to receive farmer offers and coupons on CLSL products.</Text>
+            </View>
+          </TouchableOpacity>
+          {isFarmer && (
+            <View style={[s.field, { marginTop: 0, paddingTop: 16, borderTopWidth: 1, borderTopColor: T.border }]}>
+              <Text style={s.fieldLabel}>How many acres is your land?</Text>
+              <TextInput
+                style={s.input}
+                value={landSize}
+                onChangeText={setLandSize}
+                placeholder="Ex. 5.5"
+                keyboardType="decimal-pad"
+              />
+            </View>
+          )}
+        </View>
       )}
 
       {/* Dealer banner */}
@@ -657,7 +679,10 @@ export default function LoginScreen() {
   // ── STEP: OTP ─────────────────────────────────────────────────────────────
   const renderOtp = () => (
     <View>
-      {renderHeader(t.otpTitle || 'Verify your mobile', t.otpHelp || 'Testing mode: enter 123456.')}
+      {renderHeader(
+        t.otpTitle || (firstName && !isNewUser ? `Hi ${firstName}, verify your mobile` : 'Verify your mobile'), 
+        t.otpHelp || 'Testing mode: enter 123456.'
+      )}
       <View style={s.otpNumberRow}>
         <MaterialCommunityIcons name="cellphone-message" size={22} color={T.primary} />
         <Text style={s.otpNumber}>{countryCode} {mobile.replace(/\D/g, '')}</Text>
@@ -713,6 +738,7 @@ export default function LoginScreen() {
           <View style={s.stepContent}>
             {step === 'language' && renderLanguage()}
             {step === 'phone' && renderPhone()}
+            {step === 'account' && renderAccount()}
             {step === 'dealer_code' && renderDealerCode()}
             {step === 'details' && renderDetails()}
             {step === 'otp' && renderOtp()}
@@ -757,6 +783,7 @@ export default function LoginScreen() {
               onPress={() => {
                 if (step === 'language') setStep('phone');
                 else if (step === 'phone') continueFromPhone();
+                else if (step === 'account') continueFromAccount();
                 else if (step === 'dealer_code') verifyDealerCode();
                 else if (step === 'details') startOtpForNewUser();
                 else if (step === 'otp') finish();

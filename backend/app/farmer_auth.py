@@ -184,6 +184,7 @@ class ProfilePayload(BaseModel):
     location_label: str = Field(min_length=3, max_length=300)
     location_postcode: Optional[str] = Field(default=None, max_length=24)
     location_country: Optional[str] = Field(default="India", max_length=100)
+    land_size: Optional[float] = Field(default=None, ge=0, le=99999)
     location_accuracy_meters: Optional[float] = Field(default=None, ge=0, le=100000)
     location_metadata: dict = Field(default_factory=dict)
 
@@ -507,7 +508,7 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
 
         updated = conn.execute(
             """UPDATE farmers SET role=%s,name=%s,last_name=%s,date_of_birth=%s,preferred_language=%s,email=%s,city=%s,district=%s,
-                 village=%s,state=%s,social_media_used=%s::jsonb,acquisition_source=%s,
+                 village=%s,state=%s,social_media_used=%s::jsonb,acquisition_source=%s,land_size=%s,
                  location_latitude=%s,location_longitude=%s,location_label=%s,
                  location_postcode=%s,location_country=%s,location_accuracy_meters=%s,location_metadata=%s::jsonb,
                  location_consent_at=CASE WHEN %s THEN COALESCE(location_consent_at,now()) ELSE location_consent_at END,
@@ -527,6 +528,7 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
              _to_english(payload.state),
              json.dumps(payload.social_media_used),
              payload.acquisition_source,
+             payload.land_size,
              payload.location_latitude,payload.location_longitude,payload.location_label,
              payload.location_postcode,payload.location_country,payload.location_accuracy_meters,
              json.dumps(payload.location_metadata),payload.location_consent,

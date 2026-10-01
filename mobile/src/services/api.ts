@@ -417,6 +417,7 @@ export async function checkPhone(mobile: string) {
   return request<{
     exists: boolean;
     role: 'farmer' | 'dealer' | 'sales_officer' | 'general_user' | null;
+    name?: string;
   }>(
     `${AUTH_API}/check-phone`,
     'POST',
