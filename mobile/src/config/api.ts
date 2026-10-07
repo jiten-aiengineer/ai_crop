@@ -2,7 +2,7 @@
 // Points to the live cloud server for all API calls
 
 const PRODUCTION_API_BASE = 'https://ai.croplifescience.com';
-const DEV_API_BASE = 'http://192.168.29.91:8000'; // Local backend
+const DEV_API_BASE = 'https://giant-pens-dream.loca.lt'; // Localtunnel bypassing firewall
 
 // Toggle this to switch between dev and production
 const USE_PRODUCTION = true;

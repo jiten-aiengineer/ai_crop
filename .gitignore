@@ -40,6 +40,8 @@ next-env.d.ts
 /tmp/expo-*/
 /work/
 /.npm-cache/
+/.gradle-codex/
+/.toolchains/
 /.vercel-global/
 /.xdg-cache/
 /.xdg-data/

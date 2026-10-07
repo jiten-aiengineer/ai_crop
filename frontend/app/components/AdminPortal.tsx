@@ -20,7 +20,7 @@ type CapabilityMap = Record<string, boolean>;
 type Product = { id: string; name: string; category: string; common_name: string | null; formulation: string | null; dose: string | null; use_benefits: string | null; packing: string | null; application_method: string | null; safety_information: string | null; image_path: string | null; source_page: number | null; catalogue_version: string; status: string; approval_status: string; version: number; crops: string[]; problems: string[]; price_per_pack: number | null; };
 type Approval = { id: string; entity_key: string; requested_action: string; review_stage?: 'senior_manager' | 'final_publisher'; proposed_data: { product: Product; crops: string[] }; requested_at: string; requested_by_name?: string };
 type PortalData = { overview?: any; products?: Product[]; options?: { categories: string[]; crops: string[] }; approvals?: Approval[]; inspections?: any[]; models?: any; employees?: any[]; employeeRoleOptions?: string[]; salesOfficers?: any; farmersAnalytics?: any; dealersAnalytics?: any; aiCostsAnalytics?: any; campaigns?: any[]; campaignsTotalSpend?: number };
-type Section = 'overview' | 'catalogue' | 'campaigns' | 'approvals' | 'inspections' | 'gallery' | 'fieldforce' | 'models' | 'team' | 'architecture' | 'dealerships' | 'farmer_details' | 'login_audit';
+type Section = 'overview' | 'catalogue' | 'campaigns' | 'approvals' | 'inspections' | 'gallery' | 'fieldforce' | 'models' | 'team' | 'architecture' | 'dealerships' | 'farmer_details' | 'login_audit' | 'profile';
 
 const sections: Array<{ id: Section; label: string; icon: string; capability?: string }> = [
   { id: 'overview', label: 'Command centre', icon: '◈' }, { id: 'catalogue', label: 'Product catalogue', icon: '▦', capability: 'view_catalogue' },
@@ -33,6 +33,7 @@ const sections: Array<{ id: Section; label: string; icon: string; capability?: s
   { id: 'login_audit', label: 'Login Audit', icon: '🔒', capability: 'view_sales_officer_activity' },
   { id: 'models', label: 'AI diagnostic lab', icon: '⌁', capability: 'view_model_observability' },
   { id: 'team', label: 'Access & hierarchy', icon: '♙', capability: 'view_employee_access' }, { id: 'architecture', label: 'System architecture', icon: '◇' },
+  { id: 'profile', label: 'My Profile', icon: '👤' },
 ];
 const freshProduct = (): Product => ({ id: '', name: '', category: '', common_name: '', formulation: '', dose: '', use_benefits: '', packing: '', application_method: '', safety_information: '', image_path: '', source_page: null, catalogue_version: 'Admin catalogue', status: 'active', approval_status: 'pending', version: 1, crops: [], problems: [], price_per_pack: null });
 const displayDate = (value?: string) => value ? new Date(value).toLocaleString() : '—';
@@ -161,12 +162,94 @@ export default function AdminPortal() {
   if (!session) return <main className="admin-loading">Opening Crop Life AI administration…</main>;
   if (!session.configured) return <SetupScreen />;
   if (!session.authenticated) return <SignInScreen mode={session.auth_mode} />;
-  return <main className="admin-shell"><aside className="admin-sidebar"><a className="admin-brand" href="/"><BrandLogo /><span><strong>Crop Life AI</strong><small>CLSL OPERATIONS PORTAL</small></span></a><p className="admin-side-label">Control room</p><nav aria-label="Administration sections">{visibleSections.map((item) => <button key={item.id} className={section === item.id ? 'selected' : ''} onClick={() => { setSection(item.id); setSelected(null); setEditorOpen(false); }}><span>{item.icon}</span>{item.label}</button>)}</nav><div className="admin-sidebar-bottom"><p>Signed in as</p><strong>{identity?.employee.full_name || session.session?.name}</strong><small>{identity?.employee.email || session.session?.email}</small><div className="admin-role-list">{identity?.employee.roles.map((role) => <Badge key={role}>{roleLabel(role)}</Badge>)}</div><form action="/api/admin/auth/logout" method="post"><button className="admin-signout" type="submit">Sign out</button></form></div></aside><section className="admin-workspace"><header className="admin-topbar"><div><p className="admin-overline">Crop Life Science Limited</p><h1>{sections.find((item) => item.id === section)?.label}</h1></div><div className="admin-top-actions"><span className="admin-private"><i />Private operational data</span><button onClick={() => void loadPortal()} disabled={loading}>{loading ? 'Refreshing all data…' : 'Refresh all data'}</button></div></header>{(notice || error) && <div className={`admin-message ${error ? 'error' : 'success'}`} role="status" aria-live="polite"><span>{error ? '!' : '✓'}</span>{error || notice}<button aria-label="Dismiss message" onClick={() => { setNotice(''); setError(''); }}>×</button></div>}{section === 'overview' && <Overview data={data} productCount={data.products?.length || 0} onCatalogue={() => setSection('catalogue')} />}{section === 'catalogue' && <Catalogue editorOpen={editorOpen} onCancel={() => setEditorOpen(false)} products={data.products || []} options={data.options} draft={draft} selected={selected} canEdit={Boolean(capabilities.submit_catalogue_changes)} canDirectStatus={Boolean(capabilities.direct_catalogue_status)} statusBusy={productStatusBusy} onEdit={editProduct} onDirectStatus={directProductStatus} onChange={updateDraft} onCrop={toggleCrop} onImageUpload={uploadProductImage} onSubmit={submitChange} />}{section === 'campaigns' && <Campaigns items={data.campaigns || []} products={data.products || []} totalSpend={data.campaignsTotalSpend || 0} canManage={Boolean(capabilities.submit_catalogue_changes)} onRefresh={loadPortal} />}{section === 'approvals' && <Approvals items={data.approvals || []} canSenior={Boolean(capabilities.review_catalogue_changes)} canMap={Boolean(capabilities.decide_crop_mappings)} canSend={Boolean(capabilities.send_catalogue_changes_to_final_publisher)} canFinal={Boolean(capabilities.finalise_catalogue_release)} onDecision={decide} />}{section === 'inspections' && <Inspections items={data.inspections || []} canDelete={Boolean(capabilities.delete_inspections)} canReview={Boolean(capabilities.view_inspections)} onDelete={removeInspection} onReview={async (id, payload) => { await api(`inspections/${id}/expert-review`, { method: 'POST', body: JSON.stringify(payload) }); void loadPortal(); }} />}{section === 'gallery' && <InspectionGallery />}{section === 'fieldforce' && <FieldForce initialData={data.salesOfficers} canManage={Boolean(capabilities.manage_employee_roles)} />}{section === 'dealerships' && <Dealerships canManage={Boolean(capabilities.manage_dealers)} canManagePortalMobile={Boolean(capabilities.manage_dealer_portal_mobile)} canArchive={Boolean(capabilities.archive_dealers)} />}{section === 'farmer_details' && <FarmerDetails />}{section === 'login_audit' && <LoginAudit />}{section === 'models' && <AutomatedModelLab data={data.models} canControl={Boolean(capabilities.control_model_pipeline)} onRefresh={loadPortal} />}{section === 'team' && <Team items={data.employees || []} roleOptions={data.employeeRoleOptions || []} canManage={Boolean(capabilities.manage_employee_roles)} onSave={saveRoles} onInvite={inviteEmployee} />}{section === 'architecture' && <SystemArchitecture />}</section></main>;
+  return <main className="admin-shell"><aside className="admin-sidebar"><a className="admin-brand" href="/"><BrandLogo /><span><strong>Crop Life AI</strong><small>CLSL OPERATIONS PORTAL</small></span></a><p className="admin-side-label">Control room</p><nav aria-label="Administration sections">{visibleSections.map((item) => <button key={item.id} className={section === item.id ? 'selected' : ''} onClick={() => { setSection(item.id); setSelected(null); setEditorOpen(false); }}><span>{item.icon}</span>{item.label}</button>)}</nav><div className="admin-sidebar-bottom"><p>Signed in as</p><strong>{identity?.employee.full_name || session.session?.name}</strong><small>{identity?.employee.email || session.session?.email}</small><form action="/api/admin/auth/logout" method="post"><button className="admin-signout" style={{ marginTop: '12px' }} type="submit">Sign out</button></form></div></aside><section className="admin-workspace"><header className="admin-topbar"><div><p className="admin-overline">Crop Life Science Limited</p><h1>{sections.find((item) => item.id === section)?.label}</h1></div><div className="admin-top-actions"><span className="admin-private"><i />Private operational data</span><button onClick={() => void loadPortal()} disabled={loading}>{loading ? 'Refreshing all data…' : 'Refresh all data'}</button></div></header>{(notice || error) && <div className={`admin-message ${error ? 'error' : 'success'}`} role="status" aria-live="polite"><span>{error ? '!' : '✓'}</span>{error || notice}<button aria-label="Dismiss message" onClick={() => { setNotice(''); setError(''); }}>×</button></div>}{section === 'overview' && <Overview data={data} productCount={data.products?.length || 0} onCatalogue={() => setSection('catalogue')} />}{section === 'catalogue' && <Catalogue editorOpen={editorOpen} onCancel={() => setEditorOpen(false)} products={data.products || []} options={data.options} draft={draft} selected={selected} canEdit={Boolean(capabilities.submit_catalogue_changes)} canDirectStatus={Boolean(capabilities.direct_catalogue_status)} statusBusy={productStatusBusy} onEdit={editProduct} onDirectStatus={directProductStatus} onChange={updateDraft} onCrop={toggleCrop} onImageUpload={uploadProductImage} onSubmit={submitChange} />}{section === 'campaigns' && <Campaigns items={data.campaigns || []} products={data.products || []} totalSpend={data.campaignsTotalSpend || 0} canManage={Boolean(capabilities.submit_catalogue_changes)} onRefresh={loadPortal} />}{section === 'approvals' && <Approvals items={data.approvals || []} canSenior={Boolean(capabilities.review_catalogue_changes)} canMap={Boolean(capabilities.decide_crop_mappings)} canSend={Boolean(capabilities.send_catalogue_changes_to_final_publisher)} canFinal={Boolean(capabilities.finalise_catalogue_release)} onDecision={decide} />}{section === 'inspections' && <Inspections items={data.inspections || []} canDelete={Boolean(capabilities.delete_inspections)} canReview={Boolean(capabilities.view_inspections)} onDelete={removeInspection} onReview={async (id, payload) => { await api(`inspections/${id}/expert-review`, { method: 'POST', body: JSON.stringify(payload) }); void loadPortal(); }} />}{section === 'gallery' && <InspectionGallery />}{section === 'fieldforce' && <FieldForce initialData={data.salesOfficers} canManage={Boolean(capabilities.manage_employee_roles)} />}{section === 'dealerships' && <Dealerships canManage={Boolean(capabilities.manage_dealers)} canManagePortalMobile={Boolean(capabilities.manage_dealer_portal_mobile)} canArchive={Boolean(capabilities.archive_dealers)} />}{section === 'farmer_details' && <FarmerDetails />}{section === 'login_audit' && <LoginAudit />}{section === 'models' && <AutomatedModelLab data={data.models} canControl={Boolean(capabilities.control_model_pipeline)} onRefresh={loadPortal} />}{section === 'team' && <Team items={data.employees || []} roleOptions={data.employeeRoleOptions || []} canManage={Boolean(capabilities.manage_employee_roles)} onSave={saveRoles} onInvite={inviteEmployee} />}{section === 'architecture' && <SystemArchitecture />}{section === 'profile' && <MyProfile identity={identity} session={session} />}</section></main>;
 }
 
 function SetupScreen() { return <main className="admin-gate"><div className="admin-gate-card"><BrandLogo gate /><p className="admin-overline">Private operational portal</p><h1>Administration is not configured yet.</h1><p>Configure temporary HTTPS password access or Microsoft Entra sign-in on the private administration hostname.</p></div></main>; }
-function SignInScreen({ mode }: { mode?: Session['auth_mode'] }) { return mode === 'password' ? <TemporaryPasswordSignIn /> : <main className="admin-gate"><div className="admin-gate-card"><BrandLogo gate /><p className="admin-overline">Crop Life Science Limited</p><h1>Crop Life AI operations portal</h1><p>Use your approved Crop Life Microsoft account. Your employee record and assigned role decide access.</p><a className="admin-login" href="/api/admin/auth/login">Continue with Microsoft <span>→</span></a></div></main>; }
-function TemporaryPasswordSignIn() { const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); setError(''); const response = await fetch('/api/admin/auth/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) }); const body = await response.json().catch(() => ({})) as ApiErrorBody; if (response.ok) window.location.reload(); else { setError(readableError(body) || 'Sign-in failed.'); setBusy(false); } } return <main className="admin-gate"><form className="admin-gate-card" onSubmit={submit}><BrandLogo gate /><p className="admin-overline">Secure employee access</p><h1>Crop Life AI operations portal</h1><p>Use your official Crop Life email and the password sent by the administrator.</p><label>Official email<input type="email" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>{error && <p className="admin-form-error">{error}</p>}<button className="admin-login" disabled={busy}>{busy ? 'Signing in…' : 'Sign in →'}</button></form></main>; }
+function SignInScreen({ mode }: { mode?: Session['auth_mode'] }) {
+  const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const resetToken = params?.get('reset_token') || '';
+  if (resetToken) return <ResetPasswordScreen token={resetToken} />;
+  return mode === 'password' ? <TemporaryPasswordSignIn /> : <main className="admin-gate"><div className="admin-gate-card"><BrandLogo gate /><p className="admin-overline">Crop Life Science Limited</p><h1>Crop Life AI operations portal</h1><p>Use your approved Crop Life Microsoft account. Your employee record and assigned role decide access.</p><a className="admin-login" href="/api/admin/auth/login">Continue with Microsoft <span>→</span></a></div></main>;
+}
+function ResetPasswordScreen({ token }: { token: string }) {
+  const [newPwd, setNewPwd] = useState(''); const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false); const [done, setDone] = useState(false); const [error, setError] = useState('');
+  async function submit(e: FormEvent) {
+    e.preventDefault(); if (newPwd !== confirm) { setError('Passwords do not match.'); return; }
+    setBusy(true); setError('');
+    const res = await fetch('/api/admin/auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, new_password: newPwd }) });
+    const body = await res.json().catch(() => ({})) as ApiErrorBody;
+    if (res.ok) { setDone(true); setTimeout(() => { window.location.href = '/admin/portal'; }, 3000); }
+    else { setError(readableError(body) || 'Reset failed. The link may have expired.'); setBusy(false); }
+  }
+  return <main className="admin-gate"><form className="admin-gate-card" onSubmit={submit}><BrandLogo gate /><p className="admin-overline">Set new password</p><h1>Reset your password</h1>
+    {done ? <p style={{ color: '#b7dc53', fontWeight: 700 }}>✓ Password updated! Redirecting to login…</p> : <>
+      <p>Enter your new password below. It must be at least 8 characters.</p>
+      <label>New password<input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} minLength={8} required autoFocus /></label>
+      <label>Confirm password<input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} minLength={8} required /></label>
+      {error && <p className="admin-form-error">{error}</p>}
+      <button className="admin-login" disabled={busy} type="submit">{busy ? 'Saving…' : 'Set new password →'}</button>
+    </>}
+  </form></main>;
+}
+function TemporaryPasswordSignIn() {
+  const [mode, setMode] = useState<'login' | 'forgot' | 'forgot_done'>('login');
+  const [username, setUsername] = useState(''); const [password, setPassword] = useState('');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  async function submit(event: FormEvent) {
+    event.preventDefault(); setBusy(true); setError('');
+    const response = await fetch('/api/admin/auth/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+    const body = await response.json().catch(() => ({})) as ApiErrorBody;
+    if (response.ok) window.location.reload(); else { setError(readableError(body) || 'Sign-in failed.'); setBusy(false); }
+  }
+  async function sendReset(event: FormEvent) {
+    event.preventDefault(); setBusy(true); setError('');
+    await fetch('/api/admin/auth/forgot-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: forgotEmail }) });
+    setBusy(false); setMode('forgot_done');
+  }
+  if (mode === 'forgot_done') return <main className="admin-gate"><div className="admin-gate-card"><BrandLogo gate /><p className="admin-overline">Check your email</p><h1>Reset link sent</h1><p>If <strong>{forgotEmail}</strong> is registered, a password reset link has been sent. Check your inbox and spam folder.</p><button className="admin-login" onClick={() => setMode('login')}>← Back to sign in</button></div></main>;
+  if (mode === 'forgot') return <main className="admin-gate"><form className="admin-gate-card" onSubmit={sendReset}><BrandLogo gate /><p className="admin-overline">Forgot password</p><h1>Reset your password</h1><p>Enter your official email address. If it is registered, we will send a reset link.</p><label>Official email<input type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} autoComplete="email" required autoFocus /></label>{error && <p className="admin-form-error">{error}</p>}<button className="admin-login" disabled={busy} type="submit">{busy ? 'Sending…' : 'Send reset link →'}</button><button type="button" className="admin-signout" onClick={() => setMode('login')} style={{ marginTop: 14, display: 'block' }}>← Back to sign in</button></form></main>;
+  return <main className="admin-gate"><form className="admin-gate-card" onSubmit={submit}><BrandLogo gate /><p className="admin-overline">Secure employee access</p><h1>Crop Life AI operations portal</h1><p>Use your official Crop Life email and the password sent by the administrator.</p><label>Official email<input type="email" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>{error && <p className="admin-form-error">{error}</p>}<button className="admin-login" disabled={busy} type="submit">{busy ? 'Signing in…' : 'Sign in →'}</button><button type="button" className="admin-signout" onClick={() => setMode('forgot')} style={{ marginTop: 14, display: 'block', textAlign: 'center', width: '100%' }}>Forgot password?</button></form></main>;
+}
+
+function MyProfile({ identity, session }: { identity: any, session: any }) {
+  const name = identity?.employee.full_name || session.session?.name;
+  const email = identity?.employee.email || session.session?.email;
+  const roles = identity?.employee.roles || [];
+  
+  return (
+    <div className="admin-content">
+      <div className="admin-list-toolbar">
+        <div>
+          <p className="admin-overline">Account Settings</p>
+          <h2>My Profile</h2>
+          <p>View your personal details, assigned roles, and session capabilities.</p>
+        </div>
+      </div>
+      <div className="admin-two-column">
+        <div className="admin-panel">
+          <h3>Personal Details</h3>
+          <dl style={{ display: 'grid', gap: '15px' }}>
+            <div><dt style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', marginBottom: '4px' }}>Full Name</dt><dd style={{ fontWeight: 'bold', fontSize: '16px' }}>{name}</dd></div>
+            <div><dt style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', marginBottom: '4px' }}>Official Email</dt><dd>{email}</dd></div>
+            <div><dt style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', marginBottom: '4px' }}>Authentication Mode</dt><dd style={{ textTransform: 'capitalize' }}>{session.auth_mode || 'Standard'}</dd></div>
+          </dl>
+        </div>
+        <div className="admin-panel">
+          <h3>Assigned Roles & Capabilities</h3>
+          <p style={{ fontSize: '13px', color: '#666', marginBottom: '16px' }}>Your roles define what you can view and change in the operations portal.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+            {roles.length === 0 ? <p className="admin-empty">No specific administrative roles assigned.</p> : roles.map((role: string) => (
+              <Badge key={role} tone="green">{roleLabel(role)}</Badge>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Overview({ data, productCount, onCatalogue }: { data: PortalData; productCount: number; onCatalogue: () => void }) { 
   const overview = data.overview || {}; const inspection = overview.inspections_30d || {}; const product = overview.products || {}; const s3 = overview.private_s3 || {}; 
@@ -242,6 +325,9 @@ const roleProfiles: Record<string, string[]> = {
   quality_reviewer: ['field_employee', 'expert_review_approver'],
 };
 
+type EmployeeDraft = { employee_code: string; full_name: string; office_email: string; phone_number: string; designation: string; department: string; location: string; city: string; state: string; territory: string; reporting_manager_name: string; status: string };
+const freshEmployee = (): EmployeeDraft => ({ employee_code: '', full_name: '', office_email: '', phone_number: '', designation: '', department: '', location: '', city: '', state: '', territory: '', reporting_manager_name: '', status: 'active' });
+
 function Team({ items, roleOptions, canManage, onSave, onInvite }: {
   items: any[]; roleOptions: string[]; canManage: boolean;
   onSave: (employeeId: string, roles: string[]) => Promise<void>;
@@ -251,11 +337,23 @@ function Team({ items, roleOptions, canManage, onSave, onInvite }: {
   const [selected, setSelected] = useState<any | null>(null); const [roles, setRoles] = useState<string[]>([]);
   const [profile, setProfile] = useState('custom'); const [saving, setSaving] = useState(false); const [inviting, setInviting] = useState(false);
   const [invitation, setInvitation] = useState<InvitationResult | null>(null);
-  const [page,setPage]=useState(1); const [pageSize,setPageSize]=useState<AdminPageSize>(25);
+  const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState<AdminPageSize>(25);
+  // Add/Edit employee
+  const [empEditorOpen, setEmpEditorOpen] = useState(false);
+  const [empEditing, setEmpEditing] = useState<any | null>(null);
+  const [empDraft, setEmpDraft] = useState<EmployeeDraft>(freshEmployee());
+  const [empSaving, setEmpSaving] = useState(false);
+  const [empError, setEmpError] = useState('');
+  const [empNotice, setEmpNotice] = useState('');
+  // CSV import
+  const [importBusy, setImportBusy] = useState(false);
+  const [importResult, setImportResult] = useState<any | null>(null);
+
   const visible = items.filter((employee) => (hrState === 'all' || employee.hr_sync_state === hrState)
-    && `${employee.full_name} ${employee.employee_code} ${employee.office_email || ''} ${employee.department || ''} ${employee.location || ''}`.toLowerCase().includes(query.toLowerCase()));
-  const paged=pageSize===0?visible:visible.slice((page-1)*pageSize,page*pageSize);
-  useEffect(()=>setPage(1),[query,hrState,pageSize]);
+    && `${employee.full_name} ${employee.employee_code} ${employee.office_email || ''} ${employee.department || ''} ${employee.location || ''} ${employee.city || ''} ${employee.state || ''} ${employee.territory || ''}`.toLowerCase().includes(query.toLowerCase()));
+  const paged = pageSize === 0 ? visible : visible.slice((page - 1) * pageSize, page * pageSize);
+  useEffect(() => setPage(1), [query, hrState, pageSize]);
+
   const openEditor = (employee: any) => {
     setSelected(employee); setRoles(Array.isArray(employee.roles) ? employee.roles.filter((role: string) => role !== 'super_admin') : []);
     setProfile('custom'); setInvitation(null);
@@ -264,18 +362,95 @@ function Team({ items, roleOptions, canManage, onSave, onInvite }: {
   const toggle = (role: string) => { setProfile('custom'); setRoles((current) => current.includes(role) ? current.filter((item) => item !== role) : [...current, role]); };
   const save = async () => { if (!selected) return; setSaving(true); try { await onSave(selected.id, roles); setSelected(null); } catch { /* Portal banner shows the reason. */ } finally { setSaving(false); } };
   const invite = async () => { if (!selected) return; setInviting(true); setInvitation(null); try { setInvitation(await onInvite(selected.id, roles)); } catch { /* Portal banner shows the reason. */ } finally { setInviting(false); } };
+
+  const openEmpEditor = (emp: any | null) => {
+    setEmpEditing(emp); setEmpError(''); setEmpNotice('');
+    setEmpDraft(emp ? { employee_code: emp.employee_code || '', full_name: emp.full_name || '', office_email: emp.office_email || '', phone_number: emp.phone_number || '', designation: emp.designation || '', department: emp.department || '', location: emp.location || '', city: emp.city || '', state: emp.state || '', territory: emp.territory || '', reporting_manager_name: emp.reporting_manager_name || '', status: emp.status || 'active' } : freshEmployee());
+    setEmpEditorOpen(true);
+  };
+  const setEmpField = (field: keyof EmployeeDraft, value: string) => setEmpDraft(d => ({ ...d, [field]: value }));
+  async function submitEmployee(e: FormEvent) {
+    e.preventDefault(); setEmpSaving(true); setEmpError(''); setEmpNotice('');
+    try {
+      const url = empEditing ? `/api/admin/portal/employees/${empEditing.id}` : '/api/admin/portal/employees';
+      const method = empEditing ? 'PATCH' : 'POST';
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(empDraft) });
+      const body = await res.json().catch(() => ({})) as ApiErrorBody;
+      if (res.ok) { setEmpNotice(empEditing ? 'Employee updated successfully.' : 'Employee added successfully.'); setEmpEditorOpen(false); location.reload(); }
+      else setEmpError(readableError(body) || 'Could not save employee.');
+    } catch { setEmpError('Network error.'); } finally { setEmpSaving(false); }
+  }
+  async function handleCsvImport(file: File) {
+    setImportBusy(true); setImportResult(null);
+    const form = new FormData(); form.set('file', file);
+    try {
+      const res = await fetch('/api/admin/portal/employees/import-csv', { method: 'POST', body: form, cache: 'no-store' });
+      const body = await res.json().catch(() => ({}));
+      setImportResult(body);
+      if (res.ok && !body.errors?.length) location.reload();
+    } catch { setImportResult({ message: 'Network error during import.' }); } finally { setImportBusy(false); }
+  }
+
+  if (empEditorOpen) return (
+    <div className="admin-content">
+      <form onSubmit={submitEmployee} className="admin-editor">
+        <header>
+          <div>
+            <button type="button" className="admin-back" onClick={() => setEmpEditorOpen(false)}>← Team directory</button>
+            <p className="admin-overline">{empEditing ? 'Edit employee' : 'Add new employee'}</p>
+            <h2>{empEditing ? `Edit ${empEditing.full_name}` : 'Add new employee record'}</h2>
+          </div>
+        </header>
+        <fieldset style={{ border: 0, padding: '25px 28px', margin: 0 }}>
+          {empError && <div className="admin-message error" style={{ marginBottom: 14 }}><span>!</span>{empError}</div>}
+          <div className="admin-form-grid">
+            <Field label="Employee Code" value={empDraft.employee_code} onChange={v => setEmpField('employee_code', v)} required disabled={!!empEditing} hint="Unique ID, e.g. EMP001" />
+            <Field label="Full Name" value={empDraft.full_name} onChange={v => setEmpField('full_name', v)} required />
+            <Field label="Official Email" value={empDraft.office_email} onChange={v => setEmpField('office_email', v)} type="email" />
+            <Field label="Phone Number" value={empDraft.phone_number} onChange={v => setEmpField('phone_number', v)} />
+            <Field label="Designation" value={empDraft.designation} onChange={v => setEmpField('designation', v)} />
+            <Field label="Department" value={empDraft.department} onChange={v => setEmpField('department', v)} />
+            <Field label="City" value={empDraft.city} onChange={v => setEmpField('city', v)} />
+            <Field label="State" value={empDraft.state} onChange={v => setEmpField('state', v)} />
+            <Field label="Territory" value={empDraft.territory} onChange={v => setEmpField('territory', v)} />
+            <Field label="Location / Office" value={empDraft.location} onChange={v => setEmpField('location', v)} />
+            <Field label="Reporting Manager" value={empDraft.reporting_manager_name} onChange={v => setEmpField('reporting_manager_name', v)} />
+            <label><span>Status *</span><select value={empDraft.status} onChange={e => setEmpField('status', e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="pending">Pending</option></select></label>
+          </div>
+        </fieldset>
+        <footer><button type="button" className="admin-secondary" onClick={() => setEmpEditorOpen(false)}>Cancel</button><button className="admin-primary" disabled={empSaving} type="submit">{empSaving ? 'Saving…' : empEditing ? 'Save changes' : 'Add employee'}</button></footer>
+      </form>
+    </div>
+  );
+
   return <div className="admin-content">
-    <div className="admin-list-toolbar"><div><p className="admin-overline">Employee directory & access hierarchy</p><h2>{items.length} official employee records</h2><p>Select an employee by official email, choose a responsibility profile and send access. No duplicate employee or dummy identity is created.</p></div><Badge tone={canManage ? 'green' : 'slate'}>{canManage ? 'Super Administrator' : 'Read-only directory'}</Badge></div>
+    <div className="admin-list-toolbar"><div><p className="admin-overline">Employee directory &amp; access hierarchy</p><h2>{items.length} official employee records</h2><p>Add employees manually, import from CSV, then assign roles and send portal access.</p></div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {canManage && <><button className="admin-primary" onClick={() => openEmpEditor(null)}>+ Add employee</button>
+          <label className="admin-secondary" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', border: '1px solid #c8d7cf', borderRadius: 8, fontSize: 12, fontWeight: 750, color: '#2c5843', background: '#fff' }}>
+            {importBusy ? '⟳ Importing…' : '↑ Import CSV'}
+            <input type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) void handleCsvImport(f); e.target.value = ''; }} disabled={importBusy} />
+          </label>
+        </>
+        }
+        <Badge tone={canManage ? 'green' : 'slate'}>{canManage ? 'Super Administrator' : 'Read-only directory'}</Badge>
+      </div>
+    </div>
+    {importResult && <div className={`admin-message ${importResult.errors?.length ? 'error' : 'success'}`} style={{ marginBottom: 12 }}><span>{importResult.errors?.length ? '!' : '✓'}</span>{importResult.message}{importResult.errors?.length ? ` Errors: ${importResult.errors[0]}` : ''}<button onClick={() => setImportResult(null)}>×</button></div>}
+    {empNotice && <div className="admin-message success" style={{ marginBottom: 12 }}><span>✓</span>{empNotice}<button onClick={() => setEmpNotice('')}>×</button></div>}
     <div className="admin-metric-grid admin-team-metrics"><Metric label="Employees" value={items.length} note="Official employee master" tone="green" /><Metric label="Portal access" value={items.filter((employee) => employee.portal_access_active).length} note="Email/password accounts" /><Metric label="Updated" value={items.filter((employee) => employee.hr_sync_state === 'updated').length} note="Official HR fields changed" tone="amber" /><Metric label="Inactive / left" value={items.filter((employee) => employee.hr_sync_state === 'inactive').length} note="Access automatically blocked" /></div>
     {selected && <section className="admin-role-editor"><header><div><p className="admin-overline">Assign profile and invite by email</p><h3>{selected.full_name} <span>· {selected.employee_code}</span></h3><p>{selected.office_email || selected.microsoft_upn || 'No official email recorded'} · Super Administrator access remains protected.</p></div><button className="admin-secondary" onClick={() => { setSelected(null); setInvitation(null); }}>Cancel</button></header>
-      <label className="admin-access-profile"><span>Responsibility profile</span><select value={profile} onChange={(event) => applyProfile(event.target.value)}><option value="custom">Custom permissions</option><option value="manager">Manager — prepare and edit catalogue proposals</option><option value="senior_manager">Senior Manager — validate mappings and inspect data</option><option value="managing_director">Managing Director — executive review and approval</option><option value="quality_reviewer">Inspection Quality Reviewer — inspect and remove unsuitable cases</option></select><small>You can adjust individual permissions below. Model-quality cases do not require human approval; this reviewer handles exceptions.</small></label>
+      <label className="admin-access-profile"><span>Responsibility profile</span><select value={profile} onChange={(event) => applyProfile(event.target.value)}><option value="custom">Custom permissions</option><option value="manager">Manager — prepare and edit catalogue proposals</option><option value="senior_manager">Senior Manager — validate mappings and inspect data</option><option value="managing_director">Managing Director — executive review and approval</option><option value="quality_reviewer">Inspection Quality Reviewer — inspect and remove unsuitable cases</option></select><small>You can adjust individual permissions below.</small></label>
       <div className="admin-role-options">{roleOptions.map((role) => <label key={role}><input type="checkbox" checked={roles.includes(role)} onChange={() => toggle(role)} /><span>{roleLabel(role)}</span></label>)}</div>
       {invitation && <div className={`admin-invitation-result ${invitation.email_sent ? 'sent' : 'manual'}`}><b>{invitation.email_sent ? `Invitation sent to ${invitation.email}` : `Access created for ${invitation.email}`}</b><p>{invitation.delivery_message}</p>{invitation.temporary_password && <><small>Temporary password — shown only in this response</small><div><input readOnly value={invitation.temporary_password} onFocus={(event) => event.target.select()} /><button className="admin-secondary" type="button" onClick={() => void navigator.clipboard.writeText(invitation.temporary_password || '')}>Copy password</button></div></>}</div>}
       <footer><button className="admin-secondary" disabled={saving || inviting} onClick={() => void save()}>{saving ? 'Saving…' : 'Save roles only'}</button><button className="admin-primary" disabled={saving || inviting || !roles.length || !(selected.office_email || selected.microsoft_upn)} onClick={() => void invite()}>{inviting ? 'Creating secure access…' : selected.portal_access_active ? 'Reset password & resend access' : 'Create account & send password'}</button></footer>
     </section>}
-    <div className="admin-catalogue-filters"><label className="admin-search"><span>⌕</span><input placeholder="Search employee, email, code, department or location" value={query} onChange={(event) => setQuery(event.target.value)} /></label><label className="admin-status-filter">HR status<select value={hrState} onChange={(event) => setHrState(event.target.value)}><option value="all">All employees</option><option value="new">New</option><option value="existing">Existing</option><option value="updated">Updated</option><option value="inactive">Inactive / left</option></select></label></div>
-    <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Official employee</th><th>Organisation & Contact</th><th>Reporting manager</th><th>Assigned roles</th><th>Portal access</th>{canManage && <th>Action</th>}</tr></thead><tbody>{paged.map((employee) => <tr key={employee.id}><td><b>{employee.full_name}</b><small>{employee.employee_code} · {employee.office_email || employee.microsoft_upn || 'No work email recorded'}</small></td><td>{employee.department || '—'}<small>{employee.designation || employee.location || '—'}</small><small>Office: {employee.office_mobile || 'None'} | Personal: {employee.personal_mobile || 'None'}</small></td><td>{employee.reporting_manager_name || 'Not recorded'}</td><td><div className="admin-role-list">{(employee.roles || []).length ? (employee.roles || []).map((role: string) => <Badge key={role}>{roleLabel(role)}</Badge>) : <span className="admin-no-role">No admin role</span>}</div></td><td><Badge tone={employee.portal_access_active ? 'green' : 'slate'}>{employee.portal_access_active ? 'Access issued' : 'Not invited'}</Badge><small>{employee.portal_last_login_at ? `Last login ${displayDate(employee.portal_last_login_at)}` : employee.portal_invited_at ? `Invited ${displayDate(employee.portal_invited_at)}` : '—'}</small></td>{canManage && <td><button className="admin-secondary" onClick={() => openEditor(employee)}>Set profile / invite</button></td>}</tr>)}</tbody></table><AdminPager page={page} pageSize={pageSize} total={visible.length} shown={paged.length} onPage={setPage} onPageSize={setPageSize}/></div>
+    <div className="admin-catalogue-filters"><label className="admin-search"><span>⌕</span><input placeholder="Search name, email, code, department, city, state or territory" value={query} onChange={(event) => setQuery(event.target.value)} /></label><label className="admin-status-filter">HR status<select value={hrState} onChange={(event) => setHrState(event.target.value)}><option value="all">All employees</option><option value="new">New</option><option value="existing">Existing</option><option value="updated">Updated</option><option value="inactive">Inactive / left</option></select></label></div>
+    <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Official employee</th><th>Contact &amp; Location</th><th>Organisation</th><th>Reporting manager</th><th>Assigned roles</th><th>Portal access</th>{canManage && <th>Actions</th>}</tr></thead><tbody>{paged.map((employee) => <tr key={employee.id}><td><b>{employee.full_name}</b><small>{employee.employee_code} · {employee.office_email || employee.microsoft_upn || 'No work email'}</small></td><td><b>{employee.phone_number || employee.office_mobile || '—'}</b><small>{[employee.city, employee.state, employee.territory].filter(Boolean).join(', ') || employee.location || '—'}</small></td><td>{employee.department || '—'}<small>{employee.designation || '—'}</small></td><td>{employee.reporting_manager_name || 'Not recorded'}</td><td><div className="admin-role-list">{(employee.roles || []).length ? (employee.roles || []).map((role: string) => <Badge key={role}>{roleLabel(role)}</Badge>) : <span className="admin-no-role">No admin role</span>}</div></td><td><Badge tone={employee.portal_access_active ? 'green' : 'slate'}>{employee.portal_access_active ? 'Access issued' : 'Not invited'}</Badge><small>{employee.portal_last_login_at ? `Last login ${displayDate(employee.portal_last_login_at)}` : employee.portal_invited_at ? `Invited ${displayDate(employee.portal_invited_at)}` : '—'}</small></td>{canManage && <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><button className="admin-secondary" onClick={() => openEditor(employee)}>Set roles / invite</button><button className="admin-secondary" onClick={() => openEmpEditor(employee)}>Edit</button></td>}</tr>)}</tbody></table><AdminPager page={page} pageSize={pageSize} total={visible.length} shown={paged.length} onPage={setPage} onPageSize={setPageSize}/></div>
     {!visible.length && <p className="admin-empty">No employee matches this search.</p>}
+    <div style={{ marginTop: 16, padding: '14px 18px', background: '#f8faf9', borderRadius: 10, border: '1px dashed #c8d9cf' }}>
+      <p style={{ margin: 0, fontSize: 11, color: '#6b8276' }}><strong>CSV Import format:</strong> Columns: <code>employee_code, full_name, office_email, phone_number, designation, department, location, city, state, territory, reporting_manager_name, status</code>. First row must be the header. Status values: active, inactive, pending.</p>
+    </div>
   </div>;
 }
 
@@ -328,7 +503,159 @@ function Campaigns({ items, products: suppliedProducts = [], totalSpend, canMana
         <section className="campaign-form-card"><header><span>3</span><div><h3>Audience & location</h3><p>Control exactly who receives the offer.</p></div></header><label>Audience<select value={draft.audience} onChange={e=>set('audience',e.target.value)}><option value="new_farmer">New farmers after registration</option><option value="all_farmers">All registered farmers</option><option value="targeted">Location-targeted farmers</option><option value="random">Random eligible farmers</option></select></label>{draft.audience==='random'&&<label>Farmers to receive offer (%)<input type="number" min="1" max="100" value={draft.randomPercentage} onChange={e=>set('randomPercentage',e.target.value)}/></label>}<label>States<input value={draft.states} onChange={e=>set('states',e.target.value)} placeholder="Example: Gujarat, Bihar"/></label><label>Districts<input value={draft.districts} onChange={e=>set('districts',e.target.value)} placeholder="Example: Vadodara, Rajkot"/></label><label>Villages<input value={draft.villages} onChange={e=>set('villages',e.target.value)} placeholder="Optional, comma separated"/></label></section>
         <section className="campaign-form-card"><header><span>4</span><div><h3>Schedule & publishing</h3><p>Set validity and choose when it becomes visible.</p></div></header><div className="campaign-inline"><label>Starts<input type="date" value={draft.startDate} onChange={e=>set('startDate',e.target.value)} required/></label><label>Ends<input type="date" value={draft.endDate} min={draft.startDate} onChange={e=>set('endDate',e.target.value)} required/></label></div><label>Coupon validity after issue (days)<input type="number" min="1" max="365" value={draft.expiryDays} onChange={e=>set('expiryDays',e.target.value)}/></label><label className="campaign-publish"><input type="checkbox" checked={draft.publish} onChange={e=>set('publish',e.target.checked)}/><span><b>Publish immediately</b><small>Eligible farmers see the coupon in the mobile application when they open their wallet.</small></span></label><button className="admin-primary campaign-submit" disabled={busy||!canManage}>{busy?'Publishing…':draft.publish?'Publish campaign →':'Save paused campaign'}</button></section>
       </div>
-    </form>:<section className="campaign-manage"><header><div><p className="admin-overline">Live campaign register</p><h3>Campaign inventory and performance</h3></div><small>Activate, pause and replenish codes without changing historical redemption data.</small></header><div className="campaign-card-list">{items.map(item=>{const rules=item.rules||{};const budget=Number(rules.budget||0);const spent=Number(item.total_spend||0);return <article key={item.campaign_id}><header><div><Badge tone={item.status==='active'?'green':'slate'}>{item.status}</Badge><span className="campaign-type">{String(rules.campaign_type||'general').replaceAll('_',' ')}</span><h3>{item.name}</h3><p>{rules.description||'No campaign description added.'}</p></div><strong>{item.discount_type==='percentage'?`${item.discount_value}% OFF`:`₹${item.discount_value} OFF`}</strong></header><div className="campaign-card-stats"><div><span>Assigned</span><b>{item.total_assigned||0}</b></div><div><span>Available</span><b>{item.total_available||0}</b></div><div><span>Redeemed</span><b>{item.total_redeemed||0}</b></div><div><span>Spend / budget</span><b>₹{spent.toLocaleString('en-IN')} {budget?`/ ₹${budget.toLocaleString('en-IN')}`:''}</b></div></div><div className="campaign-scope"><span>Audience: <b>{String(rules.audience||'all_farmers').replaceAll('_',' ')}</b></span><span>Region: <b>{[...(rules.states||[]),...(rules.districts||[]),...(rules.villages||[])].join(', ')||'All India'}</b></span><span>Validity: <b>{new Date(item.start_date).toLocaleDateString()} - {item.end_date?new Date(item.end_date).toLocaleDateString():'Open ended'}</b></span></div><footer><div><input type="number" min="1" max="5000" value={inventory[item.campaign_id]||'100'} onChange={e=>setInventory(current=>({...current,[item.campaign_id]:e.target.value}))}/><button className="admin-secondary" disabled={busy||!canManage} onClick={()=>void generate(item.campaign_id)}>Add coupon inventory</button></div><button className={item.status==='active'?'admin-secondary danger':'admin-primary'} disabled={busy||!canManage} onClick={()=>void status(item.campaign_id,item.status)}>{item.status==='active'?'Pause campaign':'Activate campaign'}</button></footer></article>})}</div>{!items.length&&<p className="admin-empty">No campaigns created yet. Start with a welcome offer.</p>}</section>}
+    </form>:<section className="campaign-manage"><header style={{ marginBottom: '20px' }}><div><p className="admin-overline">Live campaign register</p><h3>Campaign inventory and performance</h3></div><small>Activate, pause and replenish codes without changing historical redemption data.</small></header>
+    
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px', paddingBottom: '32px' }}>
+      {items.map(item => {
+        const rules = item.rules || {};
+        const budget = Number(rules.budget || 0);
+        const spent = Number(item.total_spend || 0);
+        const budgetProgress = budget ? Math.min((spent / budget) * 100, 100) : 0;
+        
+        const assigned = Number(item.total_assigned || 0);
+        const redeemed = Number(item.total_redeemed || 0);
+        const available = Number(item.total_available || 0);
+        const totalInventory = assigned + available + redeemed;
+        const redemptionRate = assigned > 0 ? (redeemed / assigned) * 100 : 0;
+
+        return (
+          <article key={item.campaign_id} style={{ 
+            background: '#fff', 
+            borderRadius: '20px', 
+            boxShadow: '0 10px 30px rgba(0,0,0,0.06)', 
+            overflow: 'hidden', 
+            border: '1px solid rgba(0,0,0,0.04)',
+            display: 'flex', 
+            flexDirection: 'column', 
+            position: 'relative'
+          }}>
+            <header style={{ 
+              background: item.status === 'active' ? 'linear-gradient(135deg, #0a8043 0%, #10a359 100%)' : 'linear-gradient(135deg, #475569 0%, #64748b 100%)', 
+              padding: '24px', 
+              color: 'white',
+              position: 'relative'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                <span style={{ 
+                  background: 'rgba(255,255,255,0.2)', 
+                  backdropFilter: 'blur(4px)', 
+                  padding: '4px 10px', 
+                  borderRadius: '20px', 
+                  fontSize: '10px', 
+                  textTransform: 'uppercase', 
+                  fontWeight: 800, 
+                  letterSpacing: '1px' 
+                }}>
+                  {String(rules.campaign_type || 'general').replaceAll('_', ' ')}
+                </span>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  background: 'white', 
+                  color: item.status === 'active' ? '#0a8043' : '#475569', 
+                  padding: '4px 10px', 
+                  borderRadius: '20px', 
+                  fontSize: '11px', 
+                  fontWeight: 800,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                }}>
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: item.status === 'active' ? '#0a8043' : '#475569' }}></div>
+                  {item.status.toUpperCase()}
+                </div>
+              </div>
+              
+              <h3 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 6px 0', lineHeight: 1.2 }}>{item.name}</h3>
+              <p style={{ opacity: 0.9, fontSize: '12px', margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{rules.description || 'No campaign description added.'}</p>
+              
+              <div style={{ position: 'absolute', bottom: '-16px', right: '20px', background: item.status === 'active' ? '#f59e0b' : '#94a3b8', color: '#fff', padding: '8px 16px', borderRadius: '12px', fontWeight: 800, fontSize: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 2 }}>
+                {item.discount_type === 'percentage' ? `${item.discount_value}% OFF` : `₹${item.discount_value} OFF`}
+              </div>
+            </header>
+
+            <div style={{ padding: '28px 24px 20px', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
+                  <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 800, marginBottom: '4px', letterSpacing: '0.5px' }}>Redeemed</div>
+                  <div style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a' }}>{redeemed}</div>
+                  <div style={{ fontSize: '11px', color: '#0a8043', fontWeight: 700, marginTop: '4px' }}>{redemptionRate.toFixed(1)}% hit rate</div>
+                </div>
+                
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
+                  <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 800, marginBottom: '4px', letterSpacing: '0.5px' }}>Available</div>
+                  <div style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a' }}>{available}</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', fontWeight: 600 }}>Total gen: {totalInventory}</div>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '8px', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px' }}>
+                  <span style={{ color: '#475569' }}>Budget Used</span>
+                  <span style={{ color: '#0f172a' }}>₹{spent.toLocaleString('en-IN')} {budget ? `/ ₹${budget.toLocaleString('en-IN')}` : ''}</span>
+                </div>
+                <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${budgetProgress}%`, height: '100%', background: budgetProgress > 80 ? '#ef4444' : budgetProgress > 50 ? '#f59e0b' : '#3b82f6', borderRadius: '4px', transition: 'width 1s ease-in-out' }}></div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: '#f1f5f9', borderRadius: '12px', fontSize: '12px', borderLeft: '3px solid #3b82f6' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <span style={{ color: '#64748b', minWidth: '60px', fontWeight: 600 }}>Target:</span>
+                  <strong style={{ color: '#334155' }}>{String(rules.audience || 'all_farmers').replaceAll('_', ' ')}</strong>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <span style={{ color: '#64748b', minWidth: '60px', fontWeight: 600 }}>Region:</span>
+                  <strong style={{ color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[...(rules.states || []), ...(rules.districts || []), ...(rules.villages || [])].join(', ') || 'All India'}</strong>
+                </div>
+              </div>
+              
+            </div>
+
+            <footer style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input 
+                  type="number" 
+                  min="1" max="5000" 
+                  value={inventory[item.campaign_id] || '100'} 
+                  onChange={e => setInventory(current => ({ ...current, [item.campaign_id]: e.target.value }))}
+                  style={{ width: '80px', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', textAlign: 'center', fontSize: '13px', fontWeight: 600, background: '#fff' }}
+                />
+                <button 
+                  disabled={busy || !canManage} 
+                  onClick={() => void generate(item.campaign_id)}
+                  style={{ flex: 1, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', color: '#334155', fontWeight: 700, fontSize: '13px', cursor: (busy || !canManage) ? 'not-allowed' : 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
+                >
+                  + Generate Inventory
+                </button>
+              </div>
+              
+              <button 
+                disabled={busy || !canManage} 
+                onClick={() => void status(item.campaign_id, item.status)}
+                style={{ 
+                  width: '100%', 
+                  padding: '12px', 
+                  borderRadius: '10px', 
+                  background: item.status === 'active' ? '#fee2e2' : '#dcfce7', 
+                  color: item.status === 'active' ? '#ef4444' : '#16a34a', 
+                  border: 'none', 
+                  fontWeight: 800, 
+                  fontSize: '13px', 
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  cursor: (busy || !canManage) ? 'not-allowed' : 'pointer',
+                  transition: 'background 0.2s'
+                }}
+              >
+                {item.status === 'active' ? 'Pause Campaign' : 'Activate Campaign'}
+              </button>
+            </footer>
+          </article>
+        );
+      })}
+    </div>
+    {!items.length&&<p className="admin-empty">No campaigns created yet. Start with a welcome offer.</p>}</section>}
   </div>;
 }
 

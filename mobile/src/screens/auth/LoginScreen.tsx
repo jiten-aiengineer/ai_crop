@@ -31,12 +31,14 @@ const T = {
   text:         '#1d3322',    // --ink on green theme
   textSub:      '#344c39',
   muted:        '#71806d',
+  mutedLight:   '#a3b8a8',
   border:       '#d7e4cf',    // green-tinted borders
   bg:           '#f2f6ed',    // auth-shell background
   card:         '#FFFFFF',
   error:        '#a22b2b',
   errorBg:      '#fff3f3',
   success:      '#2c6b1f',
+  ink:          '#1d3322',
 };
 
 const SOCIAL_OPTIONS = ['WhatsApp', 'Facebook', 'Instagram', 'YouTube', 'Telegram', 'LinkedIn'];
@@ -204,6 +206,12 @@ export default function LoginScreen() {
     if (lastName.trim().length < 1) return setError('Enter your last name.');
     setError('');
     setStep('details');
+    // Automatically fetch location
+    if (!place) {
+      setTimeout(() => {
+        captureLocation();
+      }, 500);
+    }
   };
 
   const doLookupDealer = async () => {
@@ -236,29 +244,35 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      const fullMobile = countryCode + mobile;
+      const fullMobile = countryCode + mobile.replace(/\D/g, '');
       const checkRes = await checkPhone(fullMobile);
       if (checkRes.exists) {
-        setRole(checkRes.role || 'farmer');
+        setRole(checkRes.role || 'general_user');
         setIsNewUser(false);
         if (checkRes.name) {
           const parts = checkRes.name.split(' ');
           setFirstName(parts[0]);
           if (parts.length > 1) setLastName(parts.slice(1).join(' '));
         }
-        if (checkRes.role === 'dealer') {
+        
+        if (checkRes.role === 'dealer' && !checkRes.dealer_code) {
           // If dealer, must enter dealer code first
           setStep('dealer_code');
         } else {
-          // Farmer or Sales Officer: jump straight to OTP
+          // Farmer, Sales Officer, or Verified Dealer: jump straight to OTP
           await sendOtp({ mobile_number: fullMobile });
           setStep('otp');
         }
       } else {
-        // New User -> Must be a Farmer signing up (Dealers/SO are added by admin)
-        setRole('farmer');
+        // New User OR Incomplete Profile -> Must go through signup flow
+        setRole(checkRes.role || 'general_user');
         setIsNewUser(true);
-        setStep('account'); // Collect name, DOB
+        if (checkRes.name) {
+          const parts = checkRes.name.split(' ');
+          setFirstName(parts[0]);
+          if (parts.length > 1) setLastName(parts.slice(1).join(' '));
+        }
+        setStep('account'); // Collect name, DOB, etc.
       }
     } catch (e: any) {
       setError(e.message || 'Error checking phone number');
@@ -274,7 +288,7 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      const fullMobile = countryCode + mobile;
+      const fullMobile = countryCode + mobile.replace(/\D/g, '');
       await sendOtp({ mobile_number: fullMobile, dealer_code: dealerCode });
       setStep('otp');
     } catch (e: any) {
@@ -288,11 +302,35 @@ export default function LoginScreen() {
       setError(t.error_firstname || 'First Name is required');
       return;
     }
+    if (isFarmer && (!landSize || landSize.trim() === '')) {
+      setError('Please enter your land size in acres (compulsory for farmers).');
+      return;
+    }
+    if (social.length === 0) {
+      setError('Please select at least one social media platform you use.');
+      return;
+    }
+    if (!source) {
+      setError('Please select where you heard about CLSL AI.');
+      return;
+    }
+    if (!place) {
+      setError('Please wait for location verification to complete or tap to retry.');
+      return;
+    }
+    if (!termsAccepted) {
+      setError('Please agree to the Terms and Conditions to continue.');
+      return;
+    }
+    if (isFarmer && !promosAccepted) {
+      setError('Please agree to receive rewards and promotional messages.');
+      return;
+    }
     // New user signing up
     setError('');
     setLoading(true);
     try {
-      const fullMobile = countryCode + mobile;
+      const fullMobile = countryCode + mobile.replace(/\D/g, '');
       await sendOtp({ mobile_number: fullMobile, is_new: true });
       setStep('otp');
     } catch (e: any) {
@@ -302,22 +340,39 @@ export default function LoginScreen() {
   };
 
 
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [verifiedUser, setVerifiedUser] = useState<any>(null);
+
   const finish = async () => {
     if (otp.length !== 6) return;
     setLoading(true); setError('');
     try {
-      const m = countryCode + mobile.replace(/\D/g, '');
-      const verified = await verifyOtp(m, otp);
+      let currentToken = sessionToken;
+      let currentUser = verifiedUser;
+
+      if (!currentToken || !currentUser) {
+        const m = countryCode + mobile.replace(/\D/g, '');
+        const verified = await verifyOtp(m, otp);
+        currentToken = verified.session_token;
+        currentUser = verified.user;
+        setSessionToken(currentToken);
+        setVerifiedUser(currentUser);
+      }
       
       let finalRole = role; // role from checkPhone state
-      let finalFirst = verified.user.first_name || firstName;
-      let finalLast = (verified.user as any).last_name || lastName;
-      let finalDistrict = (verified.user as any).district || (place ? place.district : null);
-      let finalState = (verified.user as any).state || (place ? place.state : null);
-      let verifiedDealerId = (verified.user as any).verified_dealer_id || null;
+      if (isNewUser) {
+         if (!isDealerUI && !isSalesOfficer) {
+            finalRole = isFarmer ? 'farmer' : 'general_user';
+         }
+      }
+      let finalFirst = currentUser.first_name || firstName;
+      let finalLast = currentUser.last_name || lastName;
+      let finalDistrict = currentUser.district || (place ? place.district : null);
+      let finalState = currentUser.state || (place ? place.state : null);
+      let verifiedDealerId = currentUser.verified_dealer_id || null;
 
       if (isNewUser && place) {
-        const data = await updateProfile(verified.session_token, {
+        const data = await updateProfile(currentToken, {
           role: finalRole, first_name: firstName, last_name: lastName, preferred_language: language, date_of_birth: dob || null,
           district: place.district, state: place.state, city: place.city || null,
           social_media_used: social, acquisition_source: source,
@@ -336,15 +391,29 @@ export default function LoginScreen() {
            verifiedDealerId = (data.user as any).verified_dealer_id || verifiedDealerId;
         }
       } else if (finalRole === 'dealer' && dealerCode && !verifiedDealerId) {
-        const data = await updateProfile(verified.session_token, { dealer_code: dealerCode });
+        const data = await updateProfile(currentToken, {
+          role: 'dealer',
+          first_name: currentUser.first_name || 'Dealer',
+          last_name: currentUser.last_name || 'User',
+          preferred_language: currentUser.preferred_language || language || 'en',
+          social_media_used: currentUser.social_media_used?.length ? currentUser.social_media_used : ['WhatsApp'],
+          acquisition_source: currentUser.acquisition_source || 'Other',
+          location_label: currentUser.location_label || `${place?.district || 'Unknown'}, ${place?.state || 'Unknown'}`,
+          location_latitude: currentUser.location_latitude || place?.latitude || 0,
+          location_longitude: currentUser.location_longitude || place?.longitude || 0,
+          location_consent: true,
+          district: currentUser.district || place?.district || 'Unknown',
+          state: currentUser.state || place?.state || 'Unknown',
+          dealer_code: dealerCode
+        });
         if (data && data.user) verifiedDealerId = (data.user as any).verified_dealer_id;
       }
 
-      await login(verified.session_token, {
-        id: verified.user.id,
+      await login(currentToken, {
+        id: currentUser.id,
         first_name: finalFirst,
         last_name: finalLast,
-        mobile_number: verified.user.mobile_number,
+        mobile_number: currentUser.mobile_number,
         role: finalRole,
         preferred_language: language,
         district: finalDistrict,
@@ -413,23 +482,54 @@ export default function LoginScreen() {
   
   const renderPhone = () => (
     <View style={s.stepContainer}>
-      <Text style={s.stepTitle}>{t.mobileLabel || 'Mobile Number'}</Text>
-      <Text style={s.stepSubtitle}>Enter your phone number to login or sign up.</Text>
-      <View style={s.mobileInputContainer}>
+      <View style={{ marginBottom: 16, alignItems: 'center' }}>
+        <Image source={require('../../../assets/images/mascot_v3.png')} style={{ width: 80, height: 80, marginBottom: 8 }} resizeMode="contain" />
+        <Text style={[s.stepTitle, { textAlign: 'center' }]}>{t.mobileLabel || 'Mobile Number'}</Text>
+        <Text style={[s.stepSubtitle, { textAlign: 'center' }]}>Enter your phone number to login or sign up.</Text>
+      </View>
+      <View style={[s.mobileInputContainer, { height: 48 }]}>
         <TouchableOpacity style={s.countryCodeBox} onPress={() => setShowCountryModal(true)}>
             <Text style={s.countryCodeText}>
               {COUNTRIES.find(c => c.code === countryCode)?.flag || '????'} {countryCode}
             </Text>
+            <Ionicons name="chevron-down" size={14} color={T.ink} style={{ marginLeft: 6 }} />
           </TouchableOpacity>
         <TextInput
-          style={s.mobileInput}
+          style={[s.mobileInput, { letterSpacing: 8, fontWeight: '700', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 16 }]}
           value={mobile}
           onChangeText={(v) => { setMobile(v.replace(/[^0-9]/g, '')); setError(''); }}
-          placeholder="9876543210"
+          placeholder="__________"
           keyboardType="phone-pad"
           maxLength={10}
-          placeholderTextColor={T.muted}
+          placeholderTextColor={T.mutedLight + '70'}
+          autoFocus
         />
+      </View>
+      
+      <View style={{ marginTop: 24, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+        <View style={s.featureCard}>
+          <View style={s.featureIconBox}><Ionicons name="leaf" size={22} color={T.primary} /></View>
+          <Text style={s.featureCardTitle}>AI Crop Doctor</Text>
+          <Text style={s.featureCardSub}>Instant disease detection</Text>
+        </View>
+
+        <View style={s.featureCard}>
+          <View style={s.featureIconBox}><Ionicons name="partly-sunny" size={22} color={T.primary} /></View>
+          <Text style={s.featureCardTitle}>Live Weather</Text>
+          <Text style={s.featureCardSub}>Local field forecasts</Text>
+        </View>
+
+        <View style={s.featureCard}>
+          <View style={s.featureIconBox}><Ionicons name="gift" size={22} color={T.primary} /></View>
+          <Text style={s.featureCardTitle}>Rewards</Text>
+          <Text style={s.featureCardSub}>Coupons & exclusive offers</Text>
+        </View>
+
+        <View style={s.featureCard}>
+          <View style={s.featureIconBox}><Ionicons name="people" size={22} color={T.primary} /></View>
+          <Text style={s.featureCardTitle}>Community</Text>
+          <Text style={s.featureCardSub}>Expert farming guidance</Text>
+        </View>
       </View>
     </View>
   );
@@ -443,7 +543,7 @@ export default function LoginScreen() {
         value={dealerCode}
         onChangeText={(v) => { setDealerCode(v); setError(''); }}
         placeholder="e.g. DL12345"
-        placeholderTextColor={T.muted}
+        placeholderTextColor={T.mutedLight}
       />
     </View>
   );
@@ -454,11 +554,11 @@ export default function LoginScreen() {
       {renderHeader(t.account || 'Join CLSL AI', t.intro || 'Unlock AI crop care, weather, products, rewards, and offers.')}
       <View style={s.field}>
         <Text style={s.fieldLabel}>{t.firstName || 'First name'}</Text>
-        <TextInput style={s.input} value={firstName} onChangeText={t => { setFirstName(t); setError(''); }} placeholder="Ex. Rahul" autoCapitalize="words" autoComplete="given-name" />
+        <TextInput style={s.input} value={firstName} onChangeText={t => { setFirstName(t); setError(''); }} placeholder="Ex. Rahul" autoCapitalize="words" autoComplete="given-name" placeholderTextColor={T.mutedLight} />
       </View>
       <View style={s.field}>
         <Text style={s.fieldLabel}>{t.lastName || 'Last name'}</Text>
-        <TextInput style={s.input} value={lastName} onChangeText={t => { setLastName(t); setError(''); }} placeholder="Ex. Sharma" autoCapitalize="words" autoComplete="family-name" />
+        <TextInput style={s.input} value={lastName} onChangeText={t => { setLastName(t); setError(''); }} placeholder="Ex. Sharma" autoCapitalize="words" autoComplete="family-name" placeholderTextColor={T.mutedLight} />
       </View>
       <View style={s.field}>
         <Text style={s.fieldLabel}>Date of Birth <Text style={{fontSize: 10, color: '#8294A0'}}>(get rewards on your birthday)</Text></Text>
@@ -487,6 +587,7 @@ export default function LoginScreen() {
             placeholder="DD/MM/YYYY" 
             keyboardType="numeric" 
             maxLength={10} 
+            placeholderTextColor={T.mutedLight}
           />
           <TouchableOpacity onPress={() => setShowDatePicker(true)} style={{ position: 'absolute', right: 15, height: '100%', justifyContent: 'center' }}>
             <Ionicons name="calendar-outline" size={22} color={T.primary} />
@@ -508,20 +609,8 @@ export default function LoginScreen() {
   // ── STEP: Details ─────────────────────────────────────────────────────────
   const renderDetails = () => (
     <View>
-      {renderHeader(t.details || 'Complete your login', t.detailsHelp || 'Current location is required for local weather and crop support.')}
+      {renderHeader(t.details || 'Complete your login')}
 
-      {/* Location */}
-      <TouchableOpacity style={[s.locationCard, place && s.locationCardReady]} onPress={captureLocation} disabled={loading} activeOpacity={0.8}>
-        <View style={[s.locationIcon, place && s.locationIconReady]}>
-          <MaterialCommunityIcons name={place ? 'check' : 'crosshairs-gps'} size={20} color={place ? T.green : T.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.locationText, place && s.locationTextReady]}>
-            {loading ? (t.wait || 'Getting location…') : place ? (t.locationReady || 'Location verified') : (t.location || 'Use my current location')}
-          </Text>
-          {place && <Text style={s.locationSub}>{place.district}{place.state ? `, ${place.state}` : ''}</Text>}
-        </View>
-      </TouchableOpacity>
 
       {/* Social media */}
       <View style={s.fieldsetCard}>
@@ -558,9 +647,9 @@ export default function LoginScreen() {
 
       {/* Farmer toggle */}
       {!isDealerUI && !isSalesOfficer && (
-        <View style={s.fieldsetCard}>
-          <TouchableOpacity style={[s.checkCard, { marginBottom: isFarmer ? 16 : 0, borderWidth: 0, padding: 0 }]} onPress={() => { setIsFarmer(!isFarmer); setError(''); }} activeOpacity={0.8}>
-            <View style={[s.checkbox, isFarmer && s.checkboxActive]}>
+        <View style={[s.checkCard, { marginBottom: isFarmer ? 16 : 16, flexDirection: 'column' }]}>
+          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'flex-start' }} onPress={() => { setIsFarmer(!isFarmer); setError(''); }} activeOpacity={0.8}>
+            <View style={[s.checkbox, isFarmer && s.checkboxActive, { marginTop: 2 }]}>
               {isFarmer && <Ionicons name="checkmark" size={12} color="#fff" />}
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
@@ -569,14 +658,15 @@ export default function LoginScreen() {
             </View>
           </TouchableOpacity>
           {isFarmer && (
-            <View style={[s.field, { marginTop: 0, paddingTop: 16, borderTopWidth: 1, borderTopColor: T.border }]}>
-              <Text style={s.fieldLabel}>How many acres is your land?</Text>
+            <View style={[s.field, { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: T.border, marginBottom: 0 }]}>
+              <Text style={s.fieldLabel}>How many acres is your land? <Text style={{color:'red'}}>*</Text></Text>
               <TextInput
                 style={s.input}
                 value={landSize}
                 onChangeText={setLandSize}
                 placeholder="Ex. 5.5"
                 keyboardType="decimal-pad"
+                placeholderTextColor={T.mutedLight}
               />
             </View>
           )}
@@ -597,15 +687,15 @@ export default function LoginScreen() {
       {/* Farmer referral */}
       {isFarmer && !isDealerUI && !isSalesOfficer && (
         <View style={s.fieldsetCard}>
-          <Text style={s.fieldsetTitle}>{t.referralCode || 'Dealer referral code'} (optional)</Text>
-          <Text style={[s.stepSubtitle, { marginBottom: 12, fontSize: 11, color: T.text }]}>Get a referral code from your nearest CLSL dealer to unlock special offers.</Text>
+          <Text style={s.fieldsetTitle}>Dealer / Sales Officer Referral Code (optional)</Text>
+          <Text style={[s.stepSubtitle, { marginBottom: 12, fontSize: 11, color: T.text }]}>Get a referral code from your nearest CLSL dealer or sales officer to unlock special offers.</Text>
           <TouchableOpacity style={s.qrScanBtn} onPress={async () => { const p = await requestCameraPermission(); if (p.granted) setIsCameraOpen(true); else setError('Camera permission required to scan QR.'); }}>
             <MaterialCommunityIcons name="qrcode-scan" size={18} color={T.primary} />
             <Text style={s.qrScanText}>{t.scanQr || 'Scan referral QR code'}</Text>
           </TouchableOpacity>
           <View style={s.dividerRow}><View style={s.dividerLine} /><Text style={s.dividerText}>{t.orEnterCode || 'or enter the 7-character code'}</Text><View style={s.dividerLine} /></View>
           <View style={s.field}>
-            <Text style={s.fieldLabel}>{t.referralCode || 'Dealer referral code'}</Text>
+            <Text style={s.fieldLabel}>Referral code</Text>
             <TextInput
               style={[s.input, referralError ? s.inputError : null]}
               value={referral}
@@ -613,6 +703,7 @@ export default function LoginScreen() {
               placeholder="Ex. A7Q2K9M"
               autoCapitalize="characters"
               maxLength={7}
+              placeholderTextColor={T.mutedLight}
             />
             {referralError ? <Text style={s.fieldError}>{referralError}</Text> : null}
             {referral.length === 7 && loading && !referralName && <Text style={s.statusChecking}>{t.wait || 'Checking code…'}</Text>}
@@ -637,6 +728,7 @@ export default function LoginScreen() {
               onChangeText={t => { setDealerCode(t.trim().toUpperCase()); setDealer(null); setDealerConfirmed(false); setDealerError(''); }}
               placeholder="Ex. DLR-XXXXXXX"
               autoCapitalize="characters"
+              placeholderTextColor={T.mutedLight}
             />
             <TouchableOpacity style={[s.verifyBtn, (!dealerCode.trim() || loading) && s.verifyBtnDisabled]} onPress={doLookupDealer} disabled={!dealerCode.trim() || loading}>
               <Text style={s.verifyBtnText}>{loading ? '…' : (t.verify || 'Verify')}</Text>
@@ -681,14 +773,14 @@ export default function LoginScreen() {
     <View>
       {renderHeader(
         t.otpTitle || (firstName && !isNewUser ? `Hi ${firstName}, verify your mobile` : 'Verify your mobile'), 
-        t.otpHelp || 'Testing mode: enter 123456.'
+        'Enter the code sent to your phone.'
       )}
       <View style={s.otpNumberRow}>
         <MaterialCommunityIcons name="cellphone-message" size={22} color={T.primary} />
         <Text style={s.otpNumber}>{countryCode} {mobile.replace(/\D/g, '')}</Text>
       </View>
       <View style={s.field}>
-        <Text style={s.fieldLabel}>{t.otp || '6-digit OTP'}</Text>
+        <Text style={s.fieldLabel}>{'Verification Code'}</Text>
         <TextInput
           style={[s.input, s.otpInput]}
           value={otp}
@@ -697,6 +789,7 @@ export default function LoginScreen() {
           autoComplete="one-time-code"
           maxLength={6}
           placeholder="1 2 3 4 5 6"
+          placeholderTextColor={T.mutedLight}
           autoFocus
         />
       </View>
@@ -747,26 +840,34 @@ export default function LoginScreen() {
           {/* Inline CTA Button */}
           {step === 'details' && (
             <View style={{marginBottom: 10, gap: 10}}>
-              <TouchableOpacity activeOpacity={0.8} style={[s.checkCard, { alignItems: 'center', paddingVertical: 18, marginBottom: 0 }]} onPress={() => setTermsAccepted(!termsAccepted)}>
-                <View style={[s.checkbox, termsAccepted && s.checkboxActive]}>
-                  {termsAccepted && <Ionicons name="checkmark" size={12} color="#FFF" />}
-                </View>
-                <View style={{flex: 1, marginLeft: 12}}>
-                  <Text style={[s.checkCardTitle, { fontSize: 13 }]}>
-                    I agree to the <Text style={{color: T.primary, textDecorationLine: 'underline'}} onPress={(e) => { e.stopPropagation(); setShowTermsModal(true); }}>Terms and Conditions</Text> <Text style={s.requiredBadge}>*</Text>
-                  </Text>
-                </View>
-              </TouchableOpacity>
-              
-              {isFarmer && (
-                <TouchableOpacity activeOpacity={0.8} style={[s.checkCard, { alignItems: 'center', paddingVertical: 18 }]} onPress={() => setPromosAccepted(!promosAccepted)}>
-                  <View style={[s.checkbox, promosAccepted && s.checkboxActive]}>
-                    {promosAccepted && <Ionicons name="checkmark" size={12} color="#FFF" />}
-                  </View>
-                  <View style={{flex: 1, marginLeft: 12}}>
-                    <Text style={[s.checkCardTitle, { fontSize: 13 }]}>I agree to receive rewards and promotional messages <Text style={s.requiredBadge}>*</Text></Text>
+              <View style={[s.checkCard, { alignItems: 'center', paddingVertical: 18, marginBottom: 0 }]}>
+                <TouchableOpacity onPress={() => setTermsAccepted(!termsAccepted)} style={{ padding: 4, paddingLeft: 0 }}>
+                  <View style={[s.checkbox, termsAccepted && s.checkboxActive]}>
+                    {termsAccepted && <Ionicons name="checkmark" size={12} color="#FFF" />}
                   </View>
                 </TouchableOpacity>
+                <View style={{flex: 1, marginLeft: 8}}>
+                  <Text style={[s.checkCardTitle, { fontSize: 13 }]}>
+                    <Text onPress={() => setTermsAccepted(!termsAccepted)}>I agree to the </Text>
+                    <Text style={{color: T.primary, textDecorationLine: 'underline'}} onPress={() => setShowTermsModal(true)}>Terms and Conditions</Text> 
+                    <Text style={s.requiredBadge}> *</Text>
+                  </Text>
+                </View>
+              </View>
+              
+              {isFarmer && (
+                <View style={[s.checkCard, { alignItems: 'center', paddingVertical: 18 }]}>
+                  <TouchableOpacity onPress={() => setPromosAccepted(!promosAccepted)} style={{ padding: 4, paddingLeft: 0 }}>
+                    <View style={[s.checkbox, promosAccepted && s.checkboxActive]}>
+                      {promosAccepted && <Ionicons name="checkmark" size={12} color="#FFF" />}
+                    </View>
+                  </TouchableOpacity>
+                  <View style={{flex: 1, marginLeft: 8}}>
+                    <Text style={[s.checkCardTitle, { fontSize: 13 }]} onPress={() => setPromosAccepted(!promosAccepted)}>
+                      I agree to receive rewards and promotional messages <Text style={s.requiredBadge}>*</Text>
+                    </Text>
+                  </View>
+                </View>
               )}
             </View>
           )}
@@ -795,7 +896,7 @@ export default function LoginScreen() {
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <Text style={s.primaryBtnText}>
-                  {step === 'otp' ? (t.enter || 'Enter CLSL AI') : step === 'details' ? (t.otpButton || 'Continue with OTP') : (t.continue || 'Continue')} →
+                  {step === 'otp' ? (t.enter || 'Enter CLSL AI') : step === 'details' ? ('Continue with Verification Code') : (t.continue || 'Continue')} →
                 </Text>
               )}
             </TouchableOpacity>
@@ -812,7 +913,7 @@ export default function LoginScreen() {
             <TextInput
               style={s.langSearchInput}
               placeholder="Search language..."
-              placeholderTextColor={T.muted}
+              placeholderTextColor={T.mutedLight}
               value={langSearch}
               onChangeText={setLangSearch}
             />
@@ -955,10 +1056,10 @@ const s = StyleSheet.create({
   // Added missing styles for Auth Flow
   stepContainer: { paddingVertical: 20 },
 
-  mobileInputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: T.card, borderWidth: 1, borderColor: T.border, borderRadius: 12, overflow: 'hidden' },
-  countryCodeBox: { backgroundColor: T.primaryLight, paddingHorizontal: 16, height: 56, justifyContent: 'center', borderRightWidth: 1, borderRightColor: T.border },
+  mobileInputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: T.card, borderWidth: 1, borderColor: T.border, borderRadius: 12, overflow: 'hidden', height: 48 },
+  countryCodeBox: { backgroundColor: T.primaryLight, paddingHorizontal: 16, height: 48, justifyContent: 'center', borderRightWidth: 1, borderRightColor: T.border },
   countryCodeText: { fontSize: 16, fontWeight: '700', color: T.primary },
-  mobileInput: { flex: 1, height: 56, fontSize: 18, fontWeight: '700', paddingHorizontal: 16, color: T.text },
+  mobileInput: { flex: 1, height: 48, fontSize: 18, fontWeight: '700', paddingHorizontal: 16, color: T.text },
   progressText: { fontSize: 9, fontWeight: '600', color: T.muted, letterSpacing: 0.5 },
 
   // Back
@@ -1119,4 +1220,41 @@ const s = StyleSheet.create({
   welcomeTitle: { fontSize: 26, fontWeight: '900', color: T.primary, marginBottom: 4 },
   welcomeSub: { fontSize: 14, color: T.textSub, fontWeight: '700', lineHeight: 20 },
   mascotImgSmall: { width: 170, height: 170 },
+
+  // Feature Cards
+  featureCard: {
+    width: '48%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  featureIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: T.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  featureCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: T.ink,
+    marginBottom: 4,
+  },
+  featureCardSub: {
+    fontSize: 10,
+    color: T.muted,
+    textAlign: 'center',
+  },
 });

@@ -51,13 +51,27 @@ def get_sales_officer_referral(authorization: str = Header(...)):
         else:
             ref_token = ref["referral_token"]
             
-            from .pdf_generator import generate_referral_poster
-        pdf = generate_referral_poster(f"Sales Officer: {emp['full_name']}", ref_token, lang, is_sales_officer=True)
-        
-        return Response(content=pdf, media_type="application/pdf", headers={
-            "Content-Disposition": f'attachment; filename="CLSL-SO-{emp["employee_code"]}-Poster.pdf"'
-        })
-
+        link = f"https://ai.croplifescience.com/?ref={ref_token}"
+        qr_data_url: Optional[str] = None
+        try:
+            import base64
+            import io
+            import qrcode  # type: ignore[import]
+            qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=6, border=3)
+            qr.add_data(link)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            qr_data_url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+        except Exception:
+            pass
+            
+        return {
+            "status": "success",
+            "referral_token": ref_token,
+            "qr_data_url": qr_data_url
+        }
 @router.get("/farmers")
 def list_sales_officer_farmers(authorization: str = Header(...)):
     with connection() as conn:

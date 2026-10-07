@@ -7,6 +7,7 @@ import { getDealerDashboard, getDealerReferral, validateCoupon, redeemCoupon, ge
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import QRCode from 'react-native-qrcode-svg';
 import mascotImage from '../../../assets/images/mascot_v3.png';
+import GlobalHeader from '../../components/GlobalHeader';
 
 const { width: W } = Dimensions.get('window');
 const H_PAD = 16;
@@ -41,7 +42,7 @@ const QUICK_ACTIONS = [
   { id: 'scan',       icon: 'qrcode-scan',               lib: 'mci', color: C.green,    bg: C.limePale,  label: 'Scan Coupon',    sub: 'Redeem offers'       },
   { id: 'inspect',    icon: 'leaf',                      lib: 'mci', color: C.amber,    bg: C.amberPale, label: 'AI Crop Doctor', sub: 'Identify problems'   },
   { id: 'calculator', icon: 'calculator-variant-outline',lib: 'mci', color: C.teal,     bg: C.tealPale,  label: 'Spray Calc',     sub: 'Get right dosage'    },
-  { id: 'assistant',  icon: 'chat-processing-outline',   lib: 'mci', color: C.purple,   bg: C.purplePale,label: 'Ask Mitra',      sub: 'Your farming friend' },
+  { id: 'assistant',  icon: 'chat-processing-outline',   lib: 'mci', color: C.purple,   bg: C.purplePale,label: 'Ask Dr. CLSL',      sub: 'Your farming friend' },
 ] as const;
 
 type Dashboard={dealer:{name:string;dealer_code:string};targets:{monthly_referrals:number;total_referrals:number};redemptions:{monthly_count:number;monthly_amount:number}};
@@ -184,52 +185,7 @@ export default function DealerHomeScreen({onNavigate}:{onNavigate:(s:string)=>vo
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Top bar */}
-      <View style={s.topBar}>
-        <View style={s.topBarHeader}>
-          <View style={s.topBarLeft}>
-            <Image
-              source={require('../../../assets/images/clsl-logo-leaf.png')}
-              style={s.topBarLogo}
-              resizeMode="contain"
-            />
-            <View>
-              <Text style={s.topBarBrand}>CLSL</Text>
-              <Text style={s.topBarTagline}>{dashboard?.dealer.name || user?.dealer_name || 'Crop care, made smarter.'}</Text>
-            </View>
-          </View>
-          <View style={s.topBarRight}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.05)', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 20 }}>
-              <Text style={{ color: C.ink, fontSize: 12, fontWeight: '800', marginRight: 4 }}>28C</Text>
-              <Ionicons name="partly-sunny" size={14} color={C.green} />
-            </View>
-            <TouchableOpacity style={s.topBarBtn} onPress={() => setShowNotifications(!showNotifications)}>
-              <Ionicons name="notifications-outline" size={20} color={C.ink} />
-              <View style={s.notifDot} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-
-      {showNotifications && (
-        <View style={{ position: 'absolute', top: Platform.OS === 'ios' ? 100 : 90, right: 16, backgroundColor: '#fff', borderRadius: 16, width: 280, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 10, zIndex: 100, padding: 12, borderWidth: 1, borderColor: '#e5e7eb' }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: 4 }}>
-            <Text style={{ fontSize: 14, fontWeight: '800', color: C.ink }}>Notifications</Text>
-            <TouchableOpacity onPress={() => setShowNotifications(false)}>
-              <Ionicons name="close" size={16} color={C.muted} />
-            </TouchableOpacity>
-          </View>
-          
-          <TouchableOpacity style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }} onPress={() => { setShowNotifications(false); }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: C.ink }}>New Campaign Live! 🎉</Text>
-            <Text style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>The Kharif Welcome Offer is now active.</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={{ padding: 10 }} onPress={() => { setShowNotifications(false); }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: C.green }}>Redemption Success ✅</Text>
-            <Text style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>₹150 coupon redeemed successfully.</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <GlobalHeader tagline={dashboard?.dealer.name || user?.dealer_name || undefined} />
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         

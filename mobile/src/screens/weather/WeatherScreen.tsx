@@ -14,7 +14,8 @@ export default function WeatherScreen({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     async function load() {
       try {
-        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(place)}&count=1&language=en&format=json`);
+        const searchQuery = place.replace(/ district/i, '').replace(/ city/i, '');
+        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchQuery)}&count=1&language=en&format=json`);
         const geo = await geoRes.json();
         if (!geo.results?.length) {
           setError('Location not found.');

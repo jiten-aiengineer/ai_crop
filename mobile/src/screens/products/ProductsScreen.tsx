@@ -11,6 +11,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { getCatalogue, CatalogProduct } from '../../services/api';
 import { transformCropList, CROP_CATEGORIES } from '../../utils/crop';
 import { BlurView } from 'expo-blur';
+import GlobalHeader from '../../components/GlobalHeader';
 
 const { width: W, height: H } = Dimensions.get('window');
 const H_PAD = 16;
@@ -124,18 +125,7 @@ export default function ProductsScreen({ onBack }: { onBack: () => void }) {
       <StatusBar barStyle="dark-content" backgroundColor={C.card} />
 
       {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity onPress={onBack} style={s.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Ionicons name="arrow-back" size={22} color={C.green} />
-        </TouchableOpacity>
-        <View style={s.headerCenter}>
-          <Image source={require('../../../assets/images/clsl-logo.png')} style={s.headerLogo} resizeMode="contain" />
-          <Text style={s.headerTitle}>CLSL Products</Text>
-        </View>
-        <View style={s.headerCount}>
-          <Text style={s.headerCountText}>{products.length || 73}+</Text>
-        </View>
-      </View>
+      <GlobalHeader onBack={onBack} />
 
       {/* Search bar */}
       <View style={s.searchRow}>

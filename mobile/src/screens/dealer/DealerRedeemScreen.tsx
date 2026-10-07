@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { downloadAndShareFile } from '../../utils/downloadHelper';
 import { MobileScreen } from '../../components/MobileScreen';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import GlobalHeader from '../../components/GlobalHeader';
 import { useAuth } from '../../contexts/AuthContext';
 import { DEALER_API } from '../../config/api';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -187,11 +188,12 @@ export default function DealerRedeemScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-            <Ionicons name="arrow-back" size={24} color={C.ink} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Redeem & Statement</Text>
+      <GlobalHeader onBack={onBack} tagline="Dealer Redemption" />
+      <View style={{ paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: C.line }}>
+
+
+
+        <Text style={{ fontSize: 20, fontWeight: '800', color: C.ink, textAlign: 'center' }}>Redeem & Statement</Text>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
         

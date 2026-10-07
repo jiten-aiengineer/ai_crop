@@ -7,7 +7,7 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import InspectScreen from '../screens/inspect/InspectScreen';
 import ProductsScreen from '../screens/products/ProductsScreen';
-import CouponsScreen from '../screens/coupons/CouponsScreen';
+import RewardsScreen from '../screens/rewards/RewardsScreen';
 import CalculatorScreen from '../screens/calculator/CalculatorScreen';
 import WeatherScreen from '../screens/weather/WeatherScreen';
 import AssistantScreen from '../screens/assistant/AssistantScreen';
@@ -22,58 +22,57 @@ import * as SplashScreen from 'expo-splash-screen';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-const PRIMARY = '#3e7025';   // green — matches website's --green variable
-const MUTED = '#94a096';     // muted green-grey — matches website's muted text
+const PRIMARY = '#3e7025';
+const MUTED = '#94a096';
 
-type Tab = 'home' | 'inspect' | 'products' | 'coupons' | 'profile' | 'redeem' | 'farmers' | 'dealers';
+type Tab = 'home' | 'inspect' | 'products' | 'coupons' | 'rewards' | 'profile' | 'redeem' | 'farmers' | 'dealers';
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
+// ── Farmer tabs: Rewards replaces the old "Coupons" tab ─────────────────────
 const FARMER_TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: IoniconName }[] = [
-  { id: 'home', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
-  { id: 'inspect', label: 'Inspect', icon: 'leaf-outline', activeIcon: 'leaf' },
-  { id: 'products', label: 'Products', icon: 'grid-outline', activeIcon: 'grid' },
-  { id: 'coupons', label: 'Rewards', icon: 'gift-outline', activeIcon: 'gift' },
-  { id: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
+  { id: 'home',    label: 'Home',    icon: 'home-outline',    activeIcon: 'home'    },
+  { id: 'inspect', label: 'Inspect', icon: 'leaf-outline',    activeIcon: 'leaf'    },
+  { id: 'products',label: 'Products',icon: 'grid-outline',    activeIcon: 'grid'    },
+  { id: 'rewards', label: 'Rewards', icon: 'gift-outline',    activeIcon: 'gift'    },
+  { id: 'profile', label: 'Profile', icon: 'person-outline',  activeIcon: 'person'  },
 ];
 
+const GENERAL_USER_TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: IoniconName }[] = [
+  { id: 'home',    label: 'Home',    icon: 'home-outline',    activeIcon: 'home'    },
+  { id: 'inspect', label: 'Inspect', icon: 'leaf-outline',    activeIcon: 'leaf'    },
+  { id: 'products',label: 'Products',icon: 'grid-outline',    activeIcon: 'grid'    },
+  { id: 'profile', label: 'Profile', icon: 'person-outline',  activeIcon: 'person'  },
+];
+
+// ── Dealer tabs ──────────────────────────────────────────────────────────────
 const DEALER_TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: IoniconName }[] = [
-  { id: 'home', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
-  { id: 'products', label: 'Products', icon: 'grid-outline', activeIcon: 'grid' },
-  { id: 'redeem', label: 'Redeem', icon: 'scan-outline', activeIcon: 'scan' },
-  { id: 'farmers', label: 'Farmers', icon: 'people-outline', activeIcon: 'people' },
-  { id: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
+  { id: 'home',    label: 'Home',    icon: 'home-outline',    activeIcon: 'home'    },
+  { id: 'products',label: 'Products',icon: 'grid-outline',    activeIcon: 'grid'    },
+  { id: 'redeem',  label: 'Redeem',  icon: 'scan-outline',    activeIcon: 'scan'    },
+  { id: 'farmers', label: 'Farmers', icon: 'people-outline',  activeIcon: 'people'  },
+  { id: 'profile', label: 'Profile', icon: 'person-outline',  activeIcon: 'person'  },
 ];
 
+// ── Sales Officer tabs: includes coupons tab ──────────────────────────────────
 const SALES_OFFICER_TABS: { id: Tab; label: string; icon: IoniconName; activeIcon: IoniconName }[] = [
-  { id: 'home', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
-  { id: 'inspect', label: 'Inspect', icon: 'leaf-outline', activeIcon: 'leaf' },
-  { id: 'farmers', label: 'Farmers', icon: 'people-outline', activeIcon: 'people' },
-  { id: 'dealers', label: 'Dealers', icon: 'business-outline', activeIcon: 'business' },
-  { id: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
+  { id: 'home',    label: 'Home',    icon: 'home-outline',    activeIcon: 'home'    },
+  { id: 'inspect', label: 'Inspect', icon: 'leaf-outline',    activeIcon: 'leaf'    },
+  { id: 'products',label: 'Products',icon: 'grid-outline',    activeIcon: 'grid'    },
+  { id: 'farmers', label: 'Farmers', icon: 'people-outline',  activeIcon: 'people'  },
+  { id: 'profile', label: 'Profile', icon: 'person-outline',  activeIcon: 'person'  },
 ];
 
 function BottomTabBar({ active, onPress, role }: { active: Tab; onPress: (tab: Tab) => void; role: string | undefined }) {
   const insets = useSafeAreaInsets();
-  const tabs = role === 'sales_officer' ? SALES_OFFICER_TABS : (role === 'dealer' ? DEALER_TABS : FARMER_TABS);
+  const tabs = role === 'sales_officer' ? SALES_OFFICER_TABS : (role === 'dealer' ? DEALER_TABS : (role === 'farmer' ? FARMER_TABS : GENERAL_USER_TABS));
   return (
     <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {tabs.map(tab => {
         const isActive = active === tab.id;
         return (
-          <TouchableOpacity
-            key={tab.id}
-            style={styles.tabItem}
-            onPress={() => onPress(tab.id)}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={isActive ? tab.activeIcon : tab.icon}
-              size={24}
-              color={isActive ? PRIMARY : MUTED}
-            />
-            <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
-              {tab.label}
-            </Text>
+          <TouchableOpacity key={tab.id} style={styles.tabItem} onPress={() => onPress(tab.id)} activeOpacity={0.7}>
+            <Ionicons name={isActive ? tab.activeIcon : tab.icon} size={24} color={isActive ? PRIMARY : MUTED} />
+            <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{tab.label}</Text>
             {isActive && <View style={styles.tabActiveBar} />}
           </TouchableOpacity>
         );
@@ -86,39 +85,28 @@ function AppContent() {
   const { isLoading, isLoggedIn, user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [subScreen, setSubScreen] = useState<string | null>(null);
+  // Track which inner tab the rewards/coupons page opens to
+  const [rewardsInitialTab, setRewardsInitialTab] = useState<'coupons' | 'rewards'>('coupons');
 
   React.useEffect(() => {
-    if (!isLoading) {
-      SplashScreen.hideAsync().catch(() => {});
-    }
+    if (!isLoading) SplashScreen.hideAsync().catch(() => {});
   }, [isLoading]);
 
   React.useEffect(() => {
-    if (!isLoggedIn) {
-      setActiveTab('home');
-      setSubScreen(null);
-    }
+    if (!isLoggedIn) { setActiveTab('home'); setSubScreen(null); }
   }, [isLoggedIn]);
 
   React.useEffect(() => {
     if (!isLoggedIn) return;
-    
     const backAction = () => {
-      if (subScreen) {
-        setSubScreen(null);
-        return true;
-      }
-      if (activeTab !== 'home') {
-        setActiveTab('home');
-        return true;
-      }
+      if (subScreen) { setSubScreen(null); return true; }
+      if (activeTab !== 'home') { setActiveTab('home'); return true; }
       Alert.alert('Hold on!', 'Are you sure you want to close this app?', [
         { text: 'Cancel', onPress: () => null, style: 'cancel' },
         { text: 'Sure', onPress: () => BackHandler.exitApp() },
       ]);
       return true;
     };
-
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => backHandler.remove();
   }, [subScreen, activeTab, isLoggedIn]);
@@ -131,19 +119,36 @@ function AppContent() {
     );
   }
 
-  if (!isLoggedIn) {
-    return <LoginScreen />;
-  }
+  if (!isLoggedIn) return <LoginScreen />;
 
-  // Handle sub-screens launched from Home quick actions
-  if (subScreen === 'weather') return <WeatherScreen onBack={() => setSubScreen(null)} />;
-  if (subScreen === 'calculator') return <CalculatorScreen onBack={() => setSubScreen(null)} />;
-  if (subScreen === 'assistant') return <AssistantScreen onBack={() => setSubScreen(null)} />;
-  if (subScreen === 'history') return <HistoryScreen onBack={() => setSubScreen(null)} />;
+  // Sub-screens
+  if (subScreen === 'weather')     return <WeatherScreen onBack={() => setSubScreen(null)} />;
+  if (subScreen === 'calculator')  return <CalculatorScreen onBack={() => setSubScreen(null)} />;
+  if (subScreen === 'assistant')   return <AssistantScreen onBack={() => setSubScreen(null)} />;
+  if (subScreen === 'history')     return <HistoryScreen onBack={() => setSubScreen(null)} />;
 
   const handleNavigate = (screen: string) => {
-    // Map quick-action IDs to tab IDs or sub-screens
-    if (['home', 'inspect', 'products', 'coupons', 'redeem', 'farmers'].includes(screen)) {
+    // 'coupons' → open Rewards page at Coupons tab
+    if (screen === 'coupons') {
+      if (user?.role === 'farmer' || user?.role === 'general_user') {
+        setRewardsInitialTab('coupons');
+        setActiveTab('rewards');
+      }
+      return;
+    }
+    // 'farmers' → handle it for sales officer and dealer
+    if (screen === 'farmers') {
+      setActiveTab('farmers');
+      return;
+    }
+    // 'rewards' → open Rewards page at Rewards tab
+    if (screen === 'rewards') {
+      setRewardsInitialTab('rewards');
+      setActiveTab('rewards');
+      return;
+    }
+    const tabIds: Tab[] = ['home', 'inspect', 'products', 'rewards', 'coupons', 'redeem', 'farmers', 'dealers', 'profile'];
+    if (tabIds.includes(screen as Tab)) {
       setActiveTab(screen as Tab);
     } else {
       setSubScreen(screen);
@@ -154,27 +159,41 @@ function AppContent() {
 
   const renderScreen = () => {
     switch (activeTab) {
-      case 'inspect': return <InspectScreen onBack={goHome} />;
+      case 'inspect':  return <InspectScreen onBack={goHome} />;
       case 'products': return <ProductsScreen onBack={goHome} />;
-      case 'coupons': return <CouponsScreen onBack={goHome} />;
-      case 'redeem': return <DealerRedeemScreen onBack={goHome} />;
-      case 'farmers': return <DealerFarmersScreen onBack={goHome} />;
-      case 'dealers': return <SalesOfficerDealersScreen onBack={goHome} />;
-      case 'profile': return (
-        <ProfileScreen onNavigate={handleNavigate} />
-      );
-      default: 
+      case 'rewards':  return <RewardsScreen onBack={goHome} onNavigate={handleNavigate} initialTab={rewardsInitialTab} />;
+      case 'coupons':
+        // Sales officer coupon view (no rewards tab)
+        return user?.role === 'sales_officer'
+          ? <RewardsScreen onBack={goHome} onNavigate={handleNavigate} initialTab="coupons" />
+          : <RewardsScreen onBack={goHome} onNavigate={handleNavigate} initialTab="coupons" />;
+      case 'redeem':   return <DealerRedeemScreen onBack={goHome} />;
+      case 'farmers':  return <DealerFarmersScreen onBack={goHome} />;
+      case 'dealers':  return <SalesOfficerDealersScreen onBack={goHome} />;
+      case 'profile':  return <ProfileScreen onNavigate={handleNavigate} />;
+      default:
         if (user?.role === 'sales_officer') return <SalesOfficerHomeScreen onNavigate={handleNavigate} />;
-        return user?.role === 'dealer' ? <DealerHomeScreen onNavigate={handleNavigate} /> : <HomeScreen onNavigate={handleNavigate} />;
+        return user?.role === 'dealer'
+          ? <DealerHomeScreen onNavigate={handleNavigate} />
+          : <HomeScreen onNavigate={handleNavigate} />;
     }
   };
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ flex: 1 }}>
-        {renderScreen()}
-      </View>
-      <BottomTabBar active={activeTab} onPress={(tab) => { setSubScreen(null); setActiveTab(tab); }} role={user?.role} />
+      <View style={{ flex: 1 }}>{renderScreen()}</View>
+      <BottomTabBar
+        active={activeTab}
+        onPress={(tab) => {
+          setSubScreen(null);
+          // When farmer presses Rewards tab, keep the last initialTab or default coupons
+          if (tab === 'rewards' && activeTab !== 'rewards') {
+            setRewardsInitialTab('coupons');
+          }
+          setActiveTab(tab);
+        }}
+        role={user?.role}
+      />
     </View>
   );
 }
@@ -212,7 +231,5 @@ const styles = StyleSheet.create({
   },
   tabLabel: { fontSize: 11, fontWeight: '600', color: MUTED },
   tabLabelActive: { color: PRIMARY, fontWeight: '700' },
-  // Active indicator bar — lime accent (matches website's --lime / active states)
   tabActiveBar: { position: 'absolute', top: -8, width: 28, height: 3, borderRadius: 2, backgroundColor: '#cbe968' },
-
 });

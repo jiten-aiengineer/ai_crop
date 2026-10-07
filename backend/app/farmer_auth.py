@@ -168,7 +168,7 @@ class ProfilePayload(BaseModel):
     first_name: str = Field(min_length=2, max_length=180)
     last_name: str = Field(min_length=1, max_length=180)
     date_of_birth: Optional[str] = None
-    preferred_language: str = Field(default="en", pattern=r"^(en|hi|gu|mr|bn|bho)$")
+    preferred_language: str = Field(default="en", max_length=10)
     email: Optional[str] = Field(default=None, max_length=255)
     city: Optional[str] = Field(default=None, max_length=120)
     district: Optional[str] = Field(default=None, max_length=120)
@@ -251,6 +251,7 @@ def _public_user(row) -> dict:
         "location_latitude": float(row["location_latitude"]) if row.get("location_latitude") is not None else None,
         "location_longitude": float(row["location_longitude"]) if row.get("location_longitude") is not None else None,
         "requires_onboarding": not bool(row.get("role") and row.get("name") and row.get("location_consent_at")),
+        "verified_dealer_id": str(row.get("verified_dealer_id")) if row.get("verified_dealer_id") else None,
     }
 
 
@@ -366,15 +367,31 @@ def check_phone(payload: CheckPhonePayload):
         # Let's match based on contact_number (last 10 digits)
         mobile_10 = "".join(filter(str.isdigit, mobile))[-10:]
         if len(mobile_10) == 10:
-            d = conn.execute("SELECT id, name, dealer_code FROM dealers WHERE status='active' AND RIGHT(regexp_replace(contact_number, '[^\d]', '', 'g'), 10) = %s LIMIT 1", (mobile_10,)).fetchone()
+            d = conn.execute("""
+                SELECT id, name, dealer_code 
+                FROM dealers 
+                WHERE status='active' 
+                AND (
+                    RIGHT(regexp_replace(contact_number, '[^0-9]', '', 'g'), 10) = %s
+                    OR RIGHT(regexp_replace(portal_mobile_number, '[^0-9]', '', 'g'), 10) = %s
+                ) 
+                LIMIT 1
+            """, (mobile_10, mobile_10)).fetchone()
             if d:
                 return CheckPhoneResponse(exists=True, role="dealer", name=d["name"], dealer_code=d["dealer_code"])
             
             # Also check if it's a sales officer pre-registered in employees/users?
-            # They don't sign up, they just get added by admin.
-            # No, if admin adds sales officer, they get added directly to armers table with role='sales_officer'.
-            # Wait, import_sales_officers.py creates them in armers table.
-            
+            e = conn.execute("""
+                SELECT e.id, e.full_name 
+                FROM employees e
+                JOIN sales_officer_territories sot ON sot.employee_id = e.id
+                WHERE e.status <> 'inactive' 
+                AND (RIGHT(regexp_replace(e.office_mobile, '[^0-9]', '', 'g'), 10) = %s 
+                     OR RIGHT(regexp_replace(e.personal_mobile, '[^0-9]', '', 'g'), 10) = %s)
+                LIMIT 1
+            """, (mobile_10, mobile_10)).fetchone()
+            if e:
+                return CheckPhoneResponse(exists=True, role="sales_officer", name=e["full_name"])
     return CheckPhoneResponse(exists=False, role=None, name=None)
 
 @router.post("/send-otp")
@@ -422,7 +439,9 @@ def verify_otp(payload: VerifyOtpPayload, request: Request):
     with connection() as conn:
         row = conn.execute("SELECT id,otp_hash,attempts FROM farmer_otps WHERE mobile_number=%s AND expires_at>now() ORDER BY created_at DESC LIMIT 1", (payload.mobile_number,)).fetchone()
         if not row:
-            raise HTTPException(400, "OTP not found or expired. Request a new OTP.")
+            # Debugging: show what was searched
+            count = conn.execute("SELECT COUNT(*) as c FROM farmer_otps WHERE mobile_number=%s", (payload.mobile_number,)).fetchone()["c"]
+            raise HTTPException(400, f"OTP not found or expired. Request a new OTP. (Searched: {payload.mobile_number}, count: {count})")
         if row["attempts"] >= 5:
             raise HTTPException(429, "Maximum OTP attempts exceeded. Request a new OTP.")
         if not secrets.compare_digest(row["otp_hash"], _otp_hash(payload.mobile_number, payload.otp)):
@@ -431,9 +450,68 @@ def verify_otp(payload: VerifyOtpPayload, request: Request):
             raise HTTPException(400, "Invalid OTP. For testing, enter 123456.")
         user = conn.execute("SELECT * FROM farmers WHERE mobile_number=%s", (payload.mobile_number,)).fetchone()
         if not user:
-            user = conn.execute("INSERT INTO farmers(mobile_number,is_verified,last_login_at) VALUES(%s,true,now()) RETURNING *", (payload.mobile_number,)).fetchone()
+            role = None
+            name = None
+            mobile_10 = "".join(filter(str.isdigit, payload.mobile_number))[-10:]
+            e = conn.execute("""
+                SELECT e.full_name
+                FROM employees e
+                JOIN sales_officer_territories sot ON sot.employee_id = e.id
+                WHERE e.status <> 'inactive' 
+                AND (RIGHT(regexp_replace(e.office_mobile, '[^\d]', '', 'g'), 10) = %s 
+                     OR RIGHT(regexp_replace(e.personal_mobile, '[^\d]', '', 'g'), 10) = %s)
+                LIMIT 1
+            """, (mobile_10, mobile_10)).fetchone()
+            if e:
+                role = "sales_officer"
+                name = e["full_name"]
+            else:
+                d = conn.execute("""
+                    SELECT id, name
+                    FROM dealers
+                    WHERE status='active' 
+                    AND (
+                        RIGHT(regexp_replace(contact_number, '[^0-9]', '', 'g'), 10) = %s 
+                        OR RIGHT(regexp_replace(portal_mobile_number, '[^0-9]', '', 'g'), 10) = %s
+                    )
+                    LIMIT 1
+                """, (mobile_10, mobile_10)).fetchone()
+                if d:
+                    role = "dealer"
+                    name = d["name"]
+            user = conn.execute("INSERT INTO farmers(mobile_number,is_verified,last_login_at,role,name,verified_dealer_id) VALUES(%s,true,now(),%s,%s,%s) RETURNING *", (payload.mobile_number, role, name, d["id"] if role == "dealer" else None)).fetchone()
         else:
-            user = conn.execute("UPDATE farmers SET is_verified=true,last_login_at=now(),updated_at=now() WHERE id=%s RETURNING *", (user["id"],)).fetchone()
+            # If they were already in the DB but didn't have their role synced properly:
+            if not user["role"]:
+                mobile_10 = "".join(filter(str.isdigit, payload.mobile_number))[-10:]
+                e = conn.execute("""
+                    SELECT e.full_name
+                    FROM employees e
+                    JOIN sales_officer_territories sot ON sot.employee_id = e.id
+                    WHERE e.status <> 'inactive' 
+                    AND (RIGHT(regexp_replace(e.office_mobile, '[^\d]', '', 'g'), 10) = %s 
+                         OR RIGHT(regexp_replace(e.personal_mobile, '[^\d]', '', 'g'), 10) = %s)
+                    LIMIT 1
+                """, (mobile_10, mobile_10)).fetchone()
+                if e:
+                    user = conn.execute("UPDATE farmers SET role='sales_officer', name=%s, is_verified=true,last_login_at=now(),updated_at=now() WHERE id=%s RETURNING *", (e["full_name"], user["id"])).fetchone()
+                else:
+                    d = conn.execute("""
+                        SELECT id, name
+                        FROM dealers
+                        WHERE status='active' 
+                        AND (
+                            RIGHT(regexp_replace(contact_number, '[^0-9]', '', 'g'), 10) = %s 
+                            OR RIGHT(regexp_replace(portal_mobile_number, '[^0-9]', '', 'g'), 10) = %s
+                        )
+                        LIMIT 1
+                    """, (mobile_10, mobile_10)).fetchone()
+                    if d:
+                        user = conn.execute("UPDATE farmers SET role='dealer', name=%s, verified_dealer_id=%s, is_verified=true,last_login_at=now(),updated_at=now() WHERE id=%s RETURNING *", (d["name"], d["id"], user["id"])).fetchone()
+                    else:
+                        user = conn.execute("UPDATE farmers SET is_verified=true,last_login_at=now(),updated_at=now() WHERE id=%s RETURNING *", (user["id"],)).fetchone()
+            else:
+                user = conn.execute("UPDATE farmers SET is_verified=true,last_login_at=now(),updated_at=now() WHERE id=%s RETURNING *", (user["id"],)).fetchone()
         conn.execute("DELETE FROM farmer_otps WHERE mobile_number=%s", (payload.mobile_number,))
         conn.execute("UPDATE public_sessions SET revoked_at=now() WHERE farmer_id=%s AND revoked_at IS NULL", (user["id"],))
         session_token = secrets.token_urlsafe(48)
@@ -455,89 +533,112 @@ def save_profile(payload: ProfilePayload, authorization: str = Header(...)):
         raise HTTPException(400, "Use either your own dealer code or a dealer referral code, not both.")
     if payload.role == "dealer" and not payload.dealer_code:
         raise HTTPException(400, "Dealer code is required.")
+    try:
+        with connection() as conn:
+            user = _session_user(conn, authorization)
+            referral_dealer_id = None
+            referral_employee_id = None
+            verified_dealer_id = None
+            if payload.referral_code:
+                referral = conn.execute(
+                    """SELECT dr.dealer_id FROM dealer_referrals dr JOIN dealers d ON d.id=dr.dealer_id
+                       WHERE lower(dr.referral_token)=lower(%s) AND (dr.expires_at IS NULL OR dr.expires_at>now())
+                         AND d.status='active' LIMIT 1""", (payload.referral_code.strip(),),
+                ).fetchone()
+                if referral:
+                    referral_dealer_id = referral["dealer_id"]
+                else:
+                    emp_referral = conn.execute(
+                        """SELECT er.employee_id FROM employee_referrals er JOIN employees e ON e.id = er.employee_id
+                           WHERE lower(er.referral_token)=lower(%s) AND e.status='active' LIMIT 1""", (payload.referral_code.strip(),),
+                    ).fetchone()
+                    if emp_referral:
+                        referral_employee_id = emp_referral["employee_id"]
+                    else:
+                        raise HTTPException(400, "Referral code not found or expired.")
+            if payload.role == "dealer":
+                dealer = conn.execute("SELECT id,portal_mobile_number,contact_number,status,name,owner_name FROM dealers WHERE lower(dealer_code)=lower(%s) LIMIT 1", (payload.dealer_code.strip(),)).fetchone()
+                if not dealer or dealer["status"] != "active":
+                    raise HTTPException(400, "Active dealer code not found.")
+                if dealer["portal_mobile_number"] and dealer["portal_mobile_number"] != user["mobile_number"]:
+                    raise HTTPException(409, "This dealer code is already linked to another verified mobile number.")
+                registered_mobile = "".join(character for character in (dealer["contact_number"] or "") if character.isdigit())[-10:]
+                user_mobile = "".join(character for character in user["mobile_number"] if character.isdigit())[-10:]
+                if registered_mobile and registered_mobile != user_mobile:
+                    raise HTTPException(403, "Use the mobile number registered for this dealer code.")
+                another_dealer = conn.execute(
+                    "SELECT 1 FROM dealers WHERE portal_mobile_number=%s AND id<>%s LIMIT 1",
+                    (user["mobile_number"], dealer["id"]),
+                ).fetchone()
+                if another_dealer:
+                    raise HTTPException(409, "This mobile is already linked to a different dealership. Use its registered mobile number or ask CLSL administration to reset the old test binding.")
+                conn.execute("UPDATE dealers SET portal_mobile_number=%s,updated_at=now() WHERE id=%s", (user["mobile_number"], dealer["id"]))
+                verified_dealer_id = dealer["id"]
+            metadata = {"dealer_code": payload.dealer_code, "referral_code": payload.referral_code, "profile_completed_at": datetime.now(timezone.utc).isoformat()}
+            # If they are a dealer, override the name they typed with the official DB name
+            final_first_name = payload.first_name.strip()
+            final_last_name = payload.last_name.strip()
+            if payload.role == "dealer" and dealer:
+                official_name = dealer.get("owner_name") or dealer.get("name") or final_first_name
+                # Split the official name into first and last name if possible, or just put it all in first_name
+                name_parts = official_name.strip().split(" ", 1)
+                final_first_name = name_parts[0]
+                final_last_name = name_parts[1] if len(name_parts) > 1 else ""
+    
+            updated = conn.execute(
+                """UPDATE farmers SET role=%s,name=%s,last_name=%s,date_of_birth=%s,preferred_language=%s,email=%s,city=%s,district=%s,
+                     village=%s,state=%s,social_media_used=%s::jsonb,acquisition_source=%s,land_size=%s,
+                     location_latitude=%s,location_longitude=%s,location_label=%s,
+                     location_postcode=%s,location_country=%s,location_accuracy_meters=%s,location_metadata=%s::jsonb,
+                     location_consent_at=CASE WHEN %s THEN COALESCE(location_consent_at,now()) ELSE location_consent_at END,
+                     acquisition_dealer_id=COALESCE(acquisition_dealer_id,%s),preferred_dealer_id=COALESCE(%s,preferred_dealer_id),
+                     acquisition_employee_id=COALESCE(acquisition_employee_id,%s),
+                     verified_dealer_id=%s,profile_metadata=profile_metadata || %s::jsonb,updated_at=now()
+                   WHERE id=%s RETURNING *""",
+                (payload.role,
+                 _to_english(final_first_name),
+                 _to_english(final_last_name),
+                 payload.date_of_birth,
+                 payload.preferred_language,
+                 payload.email,
+                 _to_english(payload.city),
+                 _to_english(payload.district),
+                 _to_english(payload.village),
+                 _to_english(payload.state),
+                 json.dumps(payload.social_media_used),
+                 payload.acquisition_source,
+                 payload.land_size,
+                 payload.location_latitude,payload.location_longitude,payload.location_label,
+                 payload.location_postcode,payload.location_country,payload.location_accuracy_meters,
+                 json.dumps(payload.location_metadata),payload.location_consent,
+                 referral_dealer_id,referral_dealer_id,referral_employee_id,verified_dealer_id,json.dumps(metadata),user["id"]),
+            ).fetchone()
+            if payload.role == "farmer":
+                _sync_farmer_campaign_coupons(conn, updated)
+            conn.commit()
+            return {"status": "success", "user": _public_user(updated)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        err_msg = traceback.format_exc()
+        print(err_msg)
+        raise HTTPException(400, f"Error saving profile: {str(e)}")
+
+
+class LanguagePayload(BaseModel):
+    preferred_language: str = Field(min_length=2, max_length=10)
+
+@router.post("/profile/language")
+def update_language(payload: LanguagePayload, authorization: str = Header(...)):
     with connection() as conn:
         user = _session_user(conn, authorization)
-        referral_dealer_id = None
-        referral_employee_id = None
-        verified_dealer_id = None
-        if payload.referral_code:
-            referral = conn.execute(
-                """SELECT dr.dealer_id FROM dealer_referrals dr JOIN dealers d ON d.id=dr.dealer_id
-                   WHERE lower(dr.referral_token)=lower(%s) AND (dr.expires_at IS NULL OR dr.expires_at>now())
-                     AND d.status='active' LIMIT 1""", (payload.referral_code.strip(),),
-            ).fetchone()
-            if referral:
-                referral_dealer_id = referral["dealer_id"]
-            else:
-                emp_referral = conn.execute(
-                    """SELECT er.employee_id FROM employee_referrals er JOIN employees e ON e.id = er.employee_id
-                       WHERE lower(er.referral_token)=lower(%s) AND e.status='active' LIMIT 1""", (payload.referral_code.strip(),),
-                ).fetchone()
-                if emp_referral:
-                    referral_employee_id = emp_referral["employee_id"]
-                else:
-                    raise HTTPException(400, "Referral code not found or expired.")
-        if payload.role == "dealer":
-            dealer = conn.execute("SELECT id,portal_mobile_number,contact_number,status,name,owner_name FROM dealers WHERE lower(dealer_code)=lower(%s) LIMIT 1", (payload.dealer_code.strip(),)).fetchone()
-            if not dealer or dealer["status"] != "active":
-                raise HTTPException(400, "Active dealer code not found.")
-            if dealer["portal_mobile_number"] and dealer["portal_mobile_number"] != user["mobile_number"]:
-                raise HTTPException(409, "This dealer code is already linked to another verified mobile number.")
-            registered_mobile = "".join(character for character in (dealer["contact_number"] or "") if character.isdigit())[-10:]
-            user_mobile = "".join(character for character in user["mobile_number"] if character.isdigit())[-10:]
-            if registered_mobile and registered_mobile != user_mobile:
-                raise HTTPException(403, "Use the mobile number registered for this dealer code.")
-            another_dealer = conn.execute(
-                "SELECT 1 FROM dealers WHERE portal_mobile_number=%s AND id<>%s LIMIT 1",
-                (user["mobile_number"], dealer["id"]),
-            ).fetchone()
-            if another_dealer:
-                raise HTTPException(409, "This mobile is already linked to a different dealership. Use its registered mobile number or ask CLSL administration to reset the old test binding.")
-            conn.execute("UPDATE dealers SET portal_mobile_number=%s,updated_at=now() WHERE id=%s", (user["mobile_number"], dealer["id"]))
-            verified_dealer_id = dealer["id"]
-        metadata = {"dealer_code": payload.dealer_code, "referral_code": payload.referral_code, "profile_completed_at": datetime.now(timezone.utc).isoformat()}
-        # If they are a dealer, override the name they typed with the official DB name
-        final_first_name = payload.first_name.strip()
-        final_last_name = payload.last_name.strip()
-        if payload.role == "dealer" and dealer:
-            official_name = dealer.get("owner_name") or dealer.get("name") or final_first_name
-            # Split the official name into first and last name if possible, or just put it all in first_name
-            name_parts = official_name.strip().split(" ", 1)
-            final_first_name = name_parts[0]
-            final_last_name = name_parts[1] if len(name_parts) > 1 else ""
-
-        updated = conn.execute(
-            """UPDATE farmers SET role=%s,name=%s,last_name=%s,date_of_birth=%s,preferred_language=%s,email=%s,city=%s,district=%s,
-                 village=%s,state=%s,social_media_used=%s::jsonb,acquisition_source=%s,land_size=%s,
-                 location_latitude=%s,location_longitude=%s,location_label=%s,
-                 location_postcode=%s,location_country=%s,location_accuracy_meters=%s,location_metadata=%s::jsonb,
-                 location_consent_at=CASE WHEN %s THEN COALESCE(location_consent_at,now()) ELSE location_consent_at END,
-                 acquisition_dealer_id=COALESCE(acquisition_dealer_id,%s),preferred_dealer_id=COALESCE(%s,preferred_dealer_id),
-                 acquisition_employee_id=COALESCE(acquisition_employee_id,%s),
-                 verified_dealer_id=%s,profile_metadata=profile_metadata || %s::jsonb,updated_at=now()
-               WHERE id=%s RETURNING *""",
-            (payload.role,
-             _to_english(final_first_name),
-             _to_english(final_last_name),
-             payload.date_of_birth,
-             payload.preferred_language,
-             payload.email,
-             _to_english(payload.city),
-             _to_english(payload.district),
-             _to_english(payload.village),
-             _to_english(payload.state),
-             json.dumps(payload.social_media_used),
-             payload.acquisition_source,
-             payload.land_size,
-             payload.location_latitude,payload.location_longitude,payload.location_label,
-             payload.location_postcode,payload.location_country,payload.location_accuracy_meters,
-             json.dumps(payload.location_metadata),payload.location_consent,
-             referral_dealer_id,referral_dealer_id,referral_employee_id,verified_dealer_id,json.dumps(metadata),user["id"]),
-        ).fetchone()
-        if payload.role == "farmer":
-            _sync_farmer_campaign_coupons(conn, updated)
+        conn.execute(
+            "UPDATE farmers SET preferred_language=%s, updated_at=now() WHERE id=%s",
+            (payload.preferred_language, user["id"])
+        )
         conn.commit()
-    return {"status": "success", "user": _public_user(updated)}
+    return {"status": "success"}
 
 
 @router.post("/dealer-referral")
@@ -644,3 +745,107 @@ def get_my_inspections(authorization: str = Header(...)):
         """, (user["id"],)).fetchall()
         
     return {"inspections": inspections}
+
+
+# ── Rewards System ────────────────────────────────────────────────────────────
+
+REWARD_POINTS_MAP = {
+    "daily_login":        10,
+    "crop_inspection":    5,
+    "coupon_engagement":  5,
+    "social_follow":      5,
+}
+
+class RewardLogPayload(BaseModel):
+    activity_type: Literal["daily_login", "crop_inspection", "coupon_engagement", "social_follow"]
+
+
+@router.post("/me/rewards/log")
+def log_reward_activity(payload: RewardLogPayload, authorization: str = Header(...)):
+    """Silently log a reward activity. Idempotent for daily_login (once per day)."""
+    points = REWARD_POINTS_MAP.get(payload.activity_type, 0)
+    if points <= 0:
+        return {"status": "ignored"}
+    with connection() as conn:
+        user = _session_user(conn, authorization)
+        try:
+            if payload.activity_type == "daily_login":
+                # Idempotent: insert into dedup table; if today already done, skip
+                result = conn.execute(
+                    "INSERT INTO farmer_daily_login_dedup(farmer_id, login_date) VALUES(%s, CURRENT_DATE) ON CONFLICT DO NOTHING",
+                    (user["id"],),
+                )
+                if result.rowcount == 0:
+                    return {"status": "already_logged"}
+            conn.execute(
+                """INSERT INTO farmer_reward_activities(farmer_id, activity_type, points, description)
+                   VALUES(%s, %s, %s, %s)""",
+                (user["id"], payload.activity_type, points, payload.activity_type.replace("_", " ").title()),
+            )
+            conn.execute(
+                "UPDATE farmers SET rewards_points = rewards_points + %s WHERE id = %s",
+                (points, user["id"]),
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+    return {"status": "ok", "points_awarded": points}
+
+
+@router.get("/me/rewards")
+def get_my_rewards(authorization: str = Header(...)):
+    """Return the farmer's current points balance and recent activity log."""
+    with connection() as conn:
+        user = _session_user(conn, authorization)
+        activities = conn.execute(
+            """SELECT activity_type, points, description, created_at
+               FROM farmer_reward_activities
+               WHERE farmer_id = %s
+               ORDER BY created_at DESC
+               LIMIT 50""",
+            (user["id"],),
+        ).fetchall()
+        reward_products = conn.execute(
+            """SELECT id, product_name, product_image_url, points_required, description
+               FROM reward_products
+               WHERE is_active = TRUE
+               ORDER BY points_required ASC""",
+        ).fetchall()
+    return {
+        "points": int(user.get("rewards_points", 0) or 0),
+        "activities": activities,
+        "reward_products": reward_products,
+    }
+
+
+@router.post("/me/rewards/redeem/{product_id}")
+def redeem_reward_product(product_id: str, authorization: str = Header(...)):
+    """Redeem a reward product if the farmer has enough points."""
+    with connection() as conn:
+        user = _session_user(conn, authorization)
+        product = conn.execute(
+            "SELECT * FROM reward_products WHERE id = %s AND is_active = TRUE",
+            (product_id,),
+        ).fetchone()
+        if not product:
+            raise HTTPException(404, "Reward product not found.")
+        if (user.get("rewards_points") or 0) < product["points_required"]:
+            raise HTTPException(400, f"You need {product['points_required']} points. You have {user.get('rewards_points', 0)}.")
+        coupon_code = f"RWD-{secrets.token_hex(4).upper()}"
+        conn.execute(
+            """INSERT INTO farmer_reward_redemptions(farmer_id, reward_product_id, points_deducted, coupon_code)
+               VALUES(%s, %s, %s, %s)""",
+            (user["id"], product_id, product["points_required"], coupon_code),
+        )
+        conn.execute(
+            """INSERT INTO farmer_reward_activities(farmer_id, activity_type, points, description)
+               VALUES(%s, 'reward_product_redemption', %s, %s)""",
+            (user["id"], -product["points_required"], f"Redeemed: {product['product_name']}"),
+        )
+        conn.execute(
+            "UPDATE farmers SET rewards_points = rewards_points - %s WHERE id = %s",
+            (product["points_required"], user["id"]),
+        )
+        conn.commit()
+    return {"status": "ok", "coupon_code": coupon_code, "product": product["product_name"]}
+

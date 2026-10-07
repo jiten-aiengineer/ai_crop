@@ -237,7 +237,7 @@
 }
 .admin-gate-card { background:rgba(6,72,120,.94); border-color:rgba(255,255,255,.28); }
 .admin-gate-card .admin-overline { color:#b9ddf6; }
-.admin-gate .admin-login { background:#fff; color:var(--clsl-blue-dark); }
+.admin-gate .admin-login { background:#fff; color:#064878; }
 
 .admin-shell button,
 .admin-gate button,

@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Image } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Image, Share } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { downloadAndShareFile } from '../../utils/downloadHelper';
 import { Ionicons } from '@expo/vector-icons';
@@ -153,42 +153,60 @@ export default function DealerFarmersScreen({ onBack }: { onBack: () => void }) 
                 <Text selectable style={{fontSize: 38, fontWeight: '900', color: C.green, letterSpacing: 5}}>{referral.referral_token || referral.token}</Text>
               </View>
 
-              <View style={{borderTopWidth: 1, borderTopColor: C.bg, paddingTop: 20}}>
-                <Text style={{fontSize: 14, fontWeight: '800', color: C.ink, marginBottom: 12, textAlign: 'center'}}>Download Printable Poster</Text>
-                <View style={{flexDirection: 'row', gap: 12, justifyContent: 'center'}}>
-                  {(() => {
-                    const stateStr = user?.state?.toLowerCase() || '';
-                    let stateLang = { id: 'gu', label: 'Gujarati' };
-                    if (stateStr.includes('maharashtra')) {
-                      stateLang = { id: 'mr', label: 'Marathi' };
-                    } else if (stateStr.includes('punjab')) {
-                      stateLang = { id: 'pa', label: 'Punjabi' };
-                    }
-                    
-                    return [
-                      {id: 'en', label: 'English'},
-                      {id: 'hi', label: 'Hindi'},
-                      stateLang
-                    ].map(lang => (
-                      <TouchableOpacity 
-                        key={lang.id}
-                        onPress={async () => {
-                          const baseUrl = user?.role === 'sales_officer' ? `${API_BASE}/sales_officers` : DEALER_API;
-                          const url = `${baseUrl}/me/referral/poster.pdf?token=${encodeURIComponent(token!)}&lang=${lang.id}`;
-                          await downloadAndShareFile(url, `CLSL_Poster_${lang.id}.pdf`);
-                        }}
-                        style={{paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: C.limePale, borderWidth: 1, borderColor: '#d3e8ad', flexDirection: 'row', alignItems: 'center', gap: 6}}
-                      >
-                        <Ionicons name="download" size={16} color={C.greenDark} />
-                        <Text style={{color: C.greenDark, fontWeight: '700', fontSize: 13}}>{lang.label}</Text>
-                      </TouchableOpacity>
-                    ));
-                  })()}
+              {user?.role !== 'sales_officer' ? (
+                <View style={{borderTopWidth: 1, borderTopColor: C.bg, paddingTop: 20}}>
+                  <Text style={{fontSize: 14, fontWeight: '800', color: C.ink, marginBottom: 12, textAlign: 'center'}}>Download Printable Poster</Text>
+                  <View style={{flexDirection: 'row', gap: 12, justifyContent: 'center'}}>
+                    {(() => {
+                      const stateStr = user?.state?.toLowerCase() || '';
+                      let stateLang = { id: 'gu', label: 'Gujarati' };
+                      if (stateStr.includes('maharashtra')) {
+                        stateLang = { id: 'mr', label: 'Marathi' };
+                      } else if (stateStr.includes('punjab')) {
+                        stateLang = { id: 'pa', label: 'Punjabi' };
+                      }
+                      
+                      return [
+                        {id: 'en', label: 'English'},
+                        {id: 'hi', label: 'Hindi'},
+                        stateLang
+                      ].map(lang => (
+                        <TouchableOpacity 
+                          key={lang.id}
+                          onPress={async () => {
+                            const baseUrl = user?.role === 'sales_officer' ? `${API_BASE}/sales_officers` : DEALER_API;
+                            const url = `${baseUrl}/me/referral/poster.pdf?token=${encodeURIComponent(token!)}&lang=${lang.id}`;
+                            await downloadAndShareFile(url, `CLSL_Poster_${lang.id}.pdf`);
+                          }}
+                          style={{paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: C.limePale, borderWidth: 1, borderColor: '#d3e8ad', flexDirection: 'row', alignItems: 'center', gap: 6}}
+                        >
+                          <Ionicons name="download" size={16} color={C.greenDark} />
+                          <Text style={{color: C.greenDark, fontWeight: '700', fontSize: 13}}>{lang.label}</Text>
+                        </TouchableOpacity>
+                      ));
+                    })()}
+                  </View>
+                  <Text style={{fontSize: 11, color: C.muted, textAlign: 'center', marginTop: 12}}>
+                    Includes CLSL branding, your shop name, steps to install app, and your QR code.
+                  </Text>
                 </View>
-                <Text style={{fontSize: 11, color: C.muted, textAlign: 'center', marginTop: 12}}>
-                  Includes CLSL branding, your shop name, steps to install app, and your QR code.
-                </Text>
-              </View>
+              ) : (
+                <View style={{borderTopWidth: 1, borderTopColor: C.bg, paddingTop: 20}}>
+                  <TouchableOpacity 
+                    onPress={async () => {
+                      const code = referral.referral_token || referral.token;
+                      const link = `https://ai.croplifescience.com/?ref=${code}`;
+                      await Share.share({
+                        message: `Join CLSL AI and unlock crop care rewards! Use my referral code: ${code}\n\nDownload and register here: ${link}`,
+                      });
+                    }}
+                    style={{backgroundColor: C.limePale, borderWidth: 1, borderColor: '#d3e8ad', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12, width: '100%', justifyContent: 'center'}}
+                  >
+                    <Ionicons name="share-social" size={20} color={C.greenDark} style={{marginRight: 8}} />
+                    <Text style={{color: C.greenDark, fontSize: 16, fontWeight: '800'}}>Share via WhatsApp / SMS</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </View>
         </View>

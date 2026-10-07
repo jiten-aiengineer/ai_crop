@@ -13,9 +13,10 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../contexts/AuthContext';
-import { getCatalogue, getHomeStats, CatalogProduct } from '../../services/api';
+import { getCatalogue, getHomeStats, CatalogProduct, logRewardActivity } from '../../services/api';
 import { FARMING_FACTS, FarmingFact } from '../../constants/FarmingFacts';
-
+import GlobalHeader from '../../components/GlobalHeader';
+import mascotImage from '../../../assets/images/mascot_v3.png';
 const { width: W } = Dimensions.get('window');
 const H_PAD = 16;
 const CARD_GAP = 12;
@@ -67,7 +68,7 @@ const QUICK_ACTIONS = [
   { id: 'inspect',    icon: 'leaf',                      lib: 'mci', color: C.green,    bg: C.limePale,  label: 'AI Crop Doctor', sub: 'Identify problems'   },
   { id: 'coupons',    icon: 'tag-outline',               lib: 'mci', color: C.red,      bg: C.redPale,   label: 'My Coupons',     sub: 'View your offers'    },
   { id: 'calculator', icon: 'calculator-variant-outline',lib: 'mci', color: C.teal,     bg: C.tealPale,  label: 'Spray Calc',     sub: 'Get right dosage'    },
-  { id: 'assistant',  icon: 'chat-processing-outline',   lib: 'mci', color: C.purple,   bg: C.purplePale,label: 'Ask Mitra',      sub: 'Your farming friend' },
+  { id: 'assistant',  icon: 'chat-processing-outline',   lib: 'mci', color: C.purple,   bg: C.purplePale,label: 'Ask Dr. CLSL',      sub: 'Your farming friend' },
 ] as const;
 
 type QuickAction = typeof QUICK_ACTIONS[number];
@@ -87,7 +88,7 @@ function productImageUrl(img: string): string {
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function HomeScreen({ onNavigate }: { onNavigate?: (screen: string) => void }) {
-  const { user, logout } = useAuth();
+  const { user, logout, token: authToken } = useAuth();
 
   const [stats, setStats]         = useState({ productCount: 73, cropCount: 25 });
   const [featured, setFeatured]   = useState<CatalogProduct[]>([]);
@@ -100,6 +101,14 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (screen: strin
   const scrollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedFact, setSelectedFact] = useState<FarmingFact | null>(null);
+
+  // Silent daily login reward (backend enforces once-per-day via unique index)
+  useEffect(() => {
+    if (authToken && user?.role === 'farmer') {
+      logRewardActivity(authToken, 'daily_login').catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken]);
 
   useEffect(() => {
     // Shuffle and pick 10 facts to show in this session
@@ -145,58 +154,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (screen: strin
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* ── Top bar ──────────────────────────────────────────────── */}
-      <View style={s.topBar}>
-        <View style={s.topBarHeader}>
-          <View style={s.topBarLeft}>
-            <Image
-              source={require('../../../assets/images/clsl-logo-leaf.png')}
-              style={s.topBarLogo}
-              resizeMode="contain"
-            />
-            <View>
-              <Text style={s.topBarBrand}>CLSL</Text>
-              <Text style={s.topBarTagline}>Crop care, made smarter.</Text>
-            </View>
-          </View>
-          <View style={s.topBarRight}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.05)', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 20 }}>
-              <Text style={{ color: C.ink, fontSize: 12, fontWeight: '800', marginRight: 4 }}>28°C</Text>
-              <Ionicons name="partly-sunny" size={14} color={C.green} />
-            </View>
-            <TouchableOpacity style={s.topBarBtn} onPress={() => setShowNotifications(!showNotifications)}>
-              <Ionicons name="notifications-outline" size={20} color={C.ink} />
-              <View style={s.notifDot} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-      </View>
-
-      {showNotifications && (
-        <View style={{ position: 'absolute', top: Platform.OS === 'ios' ? 100 : 90, right: 16, backgroundColor: '#fff', borderRadius: 16, width: 280, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 10, zIndex: 100, padding: 12, borderWidth: 1, borderColor: '#e5e7eb' }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: 4 }}>
-            <Text style={{ fontSize: 14, fontWeight: '800', color: C.ink }}>Notifications</Text>
-            <TouchableOpacity onPress={() => setShowNotifications(false)}>
-              <Ionicons name="close" size={16} color={C.muted} />
-            </TouchableOpacity>
-          </View>
-          
-          <TouchableOpacity style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }} onPress={() => { setShowNotifications(false); onNavigate?.('coupons'); }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: C.ink }}>New Coupon Added! 🎁</Text>
-            <Text style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>You unlocked 10% off on your next purchase.</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }} onPress={() => { setShowNotifications(false); onNavigate?.('products'); }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: C.ink }}>New CLSL Product 🚀</Text>
-            <Text style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>AMBUCROP is now available for your apple crops.</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={{ padding: 10 }} onPress={() => { setShowNotifications(false); onNavigate?.('assistant'); }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: '#e11d48' }}>Weather Advisory ⚠️</Text>
-            <Text style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>High humidity detected. Increased risk of blight.</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <GlobalHeader onNavigate={onNavigate} />
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
@@ -228,7 +186,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (screen: strin
                 <Text style={s.heroBtnText}>Scan your crop</Text>
               </View>
             </View>
-            <Image source={require('../../../assets/images/mascot_v3.png')} style={{ position: 'absolute', right: 5, bottom: -5, width: 130, height: 130, aspectRatio: 1 }} resizeMode="contain" />
+            <Image source={mascotImage} style={{ position: 'absolute', right: -5, bottom: -5, width: 150, height: 150 }} resizeMode="contain" />
           </LinearGradient>
         </TouchableOpacity>
 
@@ -588,25 +546,24 @@ const s = StyleSheet.create({
   productStrip: { paddingRight: H_PAD, paddingBottom: 6, gap: 12, marginBottom: 24 },
   productCard: {
     width: PRODUCT_CARD_W, backgroundColor: C.card,
-    borderRadius: 14, padding: 12, borderWidth: 1, borderColor: C.line,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+    borderRadius: 18, padding: 14, borderWidth: 1, borderColor: 'rgba(215,228,207,0.5)',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08, shadowRadius: 16, elevation: 4,
   },
-  productCardSkeleton: { height: 180, opacity: 0.4, backgroundColor: C.line },
+  productCardSkeleton: { height: 200, opacity: 0.4, backgroundColor: C.line },
   productImgBox: {
-    width: '100%', height: 90, backgroundColor: C.bg,
-    borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 8,
-    overflow: 'hidden',
+    width: '100%', height: 120,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 14,
   },
   productImg: { width: '100%', height: '100%' },
-  catPill: { borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-start', marginBottom: 6 },
-  catPillText: { fontSize: 8.5, fontWeight: '800', letterSpacing: 0.3 },
-  productName: { fontSize: 12, fontWeight: '800', color: C.ink, lineHeight: 16, marginBottom: 3 },
-  productCommon: { fontSize: 10, color: C.muted, marginBottom: 6 },
-  cropPillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  cropPill: { backgroundColor: C.limePale, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
-  cropPillText: { fontSize: 8.5, fontWeight: '600', color: C.green },
-  cropMore: { fontSize: 8.5, fontWeight: '700', color: C.muted, alignSelf: 'center' },
+  catPill: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start', marginBottom: 8 },
+  catPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
+  productName: { fontSize: 13, fontWeight: '900', color: C.ink, lineHeight: 18, marginBottom: 4 },
+  productCommon: { fontSize: 11, color: C.muted, marginBottom: 10, fontWeight: '500' },
+  cropPillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  cropPill: { backgroundColor: C.limePale, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(203,233,104,0.3)' },
+  cropPillText: { fontSize: 9, fontWeight: '700', color: C.greenDark },
+  cropMore: { fontSize: 9, fontWeight: '800', color: C.muted, alignSelf: 'center', marginLeft: 2 },
 
   // Advisory card
   advisoryCard: {

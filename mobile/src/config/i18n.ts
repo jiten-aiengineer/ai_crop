@@ -82,7 +82,7 @@ const en: LoginCopy = {
   otpButton: 'Continue with OTP',
   otpTitle: 'Verify your mobile',
   otpHelp: 'Testing mode: enter 123456.',
-  otp: '6-digit OTP',
+  otp: 'One-Time Verification Code',
   enter: 'Verify & Enter CLSL AI',
   back: 'Back',
   continue: 'Continue',

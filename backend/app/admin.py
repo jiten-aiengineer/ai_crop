@@ -32,7 +32,7 @@ from psycopg.types.json import Jsonb
 
 from .config import (
     ADMIN_ALLOWED_EMAIL_DOMAIN, ADMIN_GATEWAY_TOKEN, PORTAL_INVITE_EMAIL_FROM,
-    PORTAL_INVITE_URL, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USERNAME,
+    PORTAL_INVITE_URL, PORTAL_RESET_URL, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USERNAME,
     SMTP_USE_TLS, GPU_TRAINING_SERVICE_URL, GPU_TRAINING_SERVICE_TOKEN,
     MODEL_TRAINING_AUTOSTART,
     MODEL_TRAINING_MIN_NEW_CASES, MODEL_PIPELINE_MIN_CONFIDENCE,
@@ -166,6 +166,15 @@ class PortalPasswordLogin(BaseModel):
     password: str = Field(min_length=8, max_length=200)
 
 
+class PortalForgotPassword(BaseModel):
+    email: str = Field(min_length=5, max_length=254)
+
+
+class PortalResetPassword(BaseModel):
+    token: str = Field(min_length=1)
+    new_password: str = Field(min_length=8, max_length=200)
+
+
 def _password_hash(password: str) -> str:
     salt = secrets.token_bytes(16)
     derived = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1, dklen=32)
@@ -188,37 +197,132 @@ def _password_matches(password: str, encoded: str) -> bool:
         return False
 
 
-def _send_portal_invitation(email: str, name: str, temporary_password: str, roles: list[str]) -> tuple[bool, str]:
+def _clsl_email_html(title: str, preheader: str, body_html: str) -> str:
+    """Generate a beautiful branded HTML email wrapper for CLSL portal emails."""
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{html.escape(title)}</title>
+</head>
+<body style="margin:0;padding:0;background:#f0f4f0;font-family:Arial,Helvetica,sans-serif;">
+  <div style="display:none;max-height:0;overflow:hidden;">{html.escape(preheader)}</div>
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f0;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+        <!-- Header -->
+        <tr><td style="background:linear-gradient(135deg,#0d2b1e 0%,#1a4a2e 60%,#2d6b43 100%);border-radius:16px 16px 0 0;padding:32px 40px 24px;text-align:center;">
+          <div style="display:inline-flex;align-items:center;gap:14px;">
+            <img src="https://ai.croplifescience.com/clsl-logo.png" alt="CLSL Logo" style="width:52px;height:52px;background:#fff;border-radius:14px;padding:4px;object-fit:contain;" />
+            <div style="text-align:left;">
+              <div style="color:#ffffff;font-size:20px;font-weight:800;letter-spacing:-0.5px;">Crop Life AI</div>
+              <div style="color:#b7dc53;font-size:11px;font-weight:700;letter-spacing:2px;">OPERATIONS PORTAL</div>
+            </div>
+          </div>
+        </td></tr>
+        <!-- Body -->
+        <tr><td style="background:#ffffff;padding:40px;border-left:1px solid #e0e8e4;border-right:1px solid #e0e8e4;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <img src="https://ai.croplifescience.com/crop-life-mitra.jpg" alt="Crop Life Mitra" style="width:120px;height:120px;border-radius:50%;border:4px solid #f0f4f0;object-fit:cover;" />
+          </div>
+          {body_html}
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="background:#f8faf9;border:1px solid #e0e8e4;border-top:none;border-radius:0 0 16px 16px;padding:24px 40px;text-align:center;">
+          <p style="margin:0 0 6px;font-size:12px;color:#6b8276;">Crop Life Science Limited</p>
+          <p style="margin:0;font-size:11px;color:#9ab0a4;">6th Floor, ABS Tower, Old Padra Road, Vadodara-390007 (Gujarat) India</p>
+          <p style="margin:8px 0 0;font-size:10px;color:#b0c4bb;">This is an automated message. Do not reply to this email.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
+def _send_email(to_email: str, subject: str, text_body: str, html_body: str) -> tuple[bool, str]:
+    """Send an email via the configured SMTP server."""
     if not SMTP_HOST or not PORTAL_INVITE_EMAIL_FROM:
         return False, "Company email delivery is not configured on the server."
     message = EmailMessage()
-    message["From"] = PORTAL_INVITE_EMAIL_FROM
-    message["To"] = email
-    message["Subject"] = "Your Crop Life AI administration access"
-    role_names = ", ".join(role.replace("_", " ") for role in roles) or "read-only employee access"
-    message.set_content(
-        f"Hello {name},\n\n"
-        "You have been invited to the Crop Life AI operations portal.\n\n"
-        f"Portal: {PORTAL_INVITE_URL}\n"
-        f"Email: {email}\n"
-        f"Temporary password: {temporary_password}\n"
-        f"Assigned access: {role_names}\n\n"
-        "Keep this password private. Contact the Crop Life AI administrator if you did not expect this invitation.\n"
-    )
+    message["From"] = f"Crop Life AI <{PORTAL_INVITE_EMAIL_FROM}>"
+    message["To"] = to_email
+    message["Subject"] = subject
+    message.set_content(text_body)
+    message.add_alternative(html_body, subtype="html")
     try:
         if SMTP_PORT == 465:
-            client = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=10)
+            client = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15)
         else:
-            client = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10)
+            client = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15)
         with client:
             if SMTP_USE_TLS and SMTP_PORT != 465:
                 client.starttls()
             if SMTP_USERNAME:
                 client.login(SMTP_USERNAME, SMTP_PASSWORD)
             client.send_message(message)
-        return True, "Invitation email sent."
+        return True, "Email sent successfully."
     except (OSError, smtplib.SMTPException) as error:
         return False, f"Email delivery failed: {type(error).__name__}."
+
+
+def _send_portal_invitation(email: str, name: str, temporary_password: str, roles: list[str]) -> tuple[bool, str]:
+    role_names = ", ".join(r.replace("_", " ").title() for r in roles) or "Read-only Employee Access"
+    roles_html = "".join(
+        f'<span style="display:inline-block;background:#e8f5ee;color:#1a5c35;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;margin:3px;">{r.replace("_", " ").title()}</span>'
+        for r in roles
+    ) or '<span style="color:#6b8276;">Read-only access</span>'
+    body_html = f"""
+      <h2 style="margin:0 0 6px;font-size:24px;color:#0d2b1e;letter-spacing:-0.5px;">Welcome to the Portal</h2>
+      <p style="margin:0 0 24px;color:#6b8276;font-size:14px;">You have been granted access to the Crop Life AI Operations Portal.</p>
+
+      <div style="background:#f8faf9;border:1px solid #ddeee6;border-radius:12px;padding:24px;margin-bottom:24px;">
+        <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#6b8276;text-transform:uppercase;letter-spacing:1px;">Hello,</p>
+        <p style="margin:0 0 20px;font-size:18px;font-weight:800;color:#0d2b1e;">{html.escape(name)}</p>
+
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #e8eeeb;">
+              <span style="font-size:12px;color:#6b8276;">Portal URL</span><br/>
+              <a href="{html.escape(PORTAL_INVITE_URL)}" style="color:#1a5c35;font-weight:700;font-size:14px;">{html.escape(PORTAL_INVITE_URL)}</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #e8eeeb;">
+              <span style="font-size:12px;color:#6b8276;">Login Email</span><br/>
+              <strong style="color:#0d2b1e;font-size:14px;">{html.escape(email)}</strong>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0;">
+              <span style="font-size:12px;color:#6b8276;">Temporary Password</span><br/>
+              <code style="background:#0d2b1e;color:#b7dc53;padding:8px 16px;border-radius:8px;font-size:16px;font-weight:700;display:inline-block;margin-top:6px;letter-spacing:2px;">{html.escape(temporary_password)}</code>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#6b8276;text-transform:uppercase;letter-spacing:1px;">Assigned Roles</p>
+        <div>{roles_html}</div>
+      </div>
+
+      <a href="{html.escape(PORTAL_INVITE_URL)}" style="display:block;background:linear-gradient(135deg,#1a5c35,#2d8050);color:#ffffff;text-align:center;padding:16px;border-radius:10px;text-decoration:none;font-size:16px;font-weight:800;margin-bottom:24px;">Sign in to Portal →</a>
+
+      <p style="margin:0;font-size:12px;color:#9ab0a4;border-top:1px solid #e8eeeb;padding-top:16px;">🔒 Keep your temporary password private. You can change it after logging in. Contact the administrator if you did not expect this invitation.</p>
+    """
+    html_email = _clsl_email_html(
+        "Your Crop Life AI Portal Access",
+        f"You have been granted access to the CLSL Operations Portal. Login: {email}",
+        body_html,
+    )
+    text_body = (
+        f"Hello {name},\n\nYou have been invited to the Crop Life AI operations portal.\n\n"
+        f"Portal: {PORTAL_INVITE_URL}\nEmail: {email}\nTemporary password: {temporary_password}\n"
+        f"Assigned access: {role_names}\n\nKeep this password private.\n"
+    )
+    return _send_email(email, "Your Crop Life AI administration access", text_body, html_email)
 
 
 @router.post("/auth/password")
@@ -247,6 +351,104 @@ def portal_password_login(
         conn.execute("UPDATE portal_password_accounts SET last_login_at=now() WHERE employee_id=%s", (account["employee_id"],))
         conn.commit()
     return {"email": account["email"], "name": account["full_name"]}
+
+
+@router.post("/auth/forgot-password")
+def portal_forgot_password(
+    payload: PortalForgotPassword,
+    x_clsl_admin_gateway_token: Annotated[str | None, Header()] = None,
+):
+    if not ADMIN_GATEWAY_TOKEN or not x_clsl_admin_gateway_token or not hmac.compare_digest(x_clsl_admin_gateway_token, ADMIN_GATEWAY_TOKEN):
+        raise HTTPException(status_code=401, detail="Administration gateway authentication failed.")
+    email = payload.email.strip().lower()
+    with connection() as conn:
+        account = conn.execute(
+            """
+            SELECT account.employee_id, account.active, e.full_name
+            FROM portal_password_accounts account
+            JOIN employees e ON e.id = account.employee_id
+            WHERE lower(account.email) = %s AND e.status = 'active'
+            """,
+            (email,),
+        ).fetchone()
+        
+        if not account or not account["active"]:
+            return {"status": "ok"}
+            
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+        
+        conn.execute(
+            """
+            INSERT INTO portal_password_reset_tokens (employee_id, email, token_hash)
+            VALUES (%s, %s, %s)
+            """,
+            (account["employee_id"], email, token_hash)
+        )
+        conn.commit()
+
+    reset_link = f"{PORTAL_RESET_URL}?reset_token={raw_token}"
+    html_email = _clsl_email_html(
+        "Crop Life AI Portal Password Reset",
+        "A password reset was requested for your CLSL Operations Portal account.",
+        f"""
+        <h2 style="margin:0 0 6px;font-size:24px;color:#0d2b1e;letter-spacing:-0.5px;">Password Reset</h2>
+        <p style="margin:0 0 24px;color:#6b8276;font-size:14px;">A password reset was requested for your account.</p>
+        <div style="background:#f8faf9;border:1px solid #ddeee6;border-radius:12px;padding:24px;margin-bottom:24px;">
+            <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#6b8276;text-transform:uppercase;letter-spacing:1px;">Hello,</p>
+            <p style="margin:0 0 20px;font-size:18px;font-weight:800;color:#0d2b1e;">{html.escape(account['full_name'])}</p>
+            <p style="margin:0 0 20px;font-size:14px;color:#6b8276;">Click the button below to set a new password. This link expires in 1 hour.</p>
+            <a href="{html.escape(reset_link)}" style="display:inline-block;background:linear-gradient(135deg,#1a5c35,#2d8050);color:#ffffff;text-align:center;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:800;margin-bottom:12px;">Reset Password →</a>
+        </div>
+        <p style="margin:0;font-size:12px;color:#9ab0a4;border-top:1px solid #e8eeeb;padding-top:16px;">If you didn't request this, ignore this email.</p>
+        """
+    )
+    
+    text_body = f"Hello {account['full_name']},\n\nReset your password here:\n{reset_link}\n\nThis link expires in 1 hour.\n\nIf you didn't request this, ignore this email."
+    
+    try:
+        _send_email(email, "Crop Life AI Portal Password Reset", text_body, html_email)
+    except Exception:
+        pass
+        
+    return {"status": "ok"}
+
+
+@router.post("/auth/reset-password")
+def portal_reset_password(
+    payload: PortalResetPassword,
+    x_clsl_admin_gateway_token: Annotated[str | None, Header()] = None,
+):
+    if not ADMIN_GATEWAY_TOKEN or not x_clsl_admin_gateway_token or not hmac.compare_digest(x_clsl_admin_gateway_token, ADMIN_GATEWAY_TOKEN):
+        raise HTTPException(status_code=401, detail="Administration gateway authentication failed.")
+    
+    token_hash = hashlib.sha256(payload.token.encode("utf-8")).hexdigest()
+    
+    with connection() as conn:
+        token_record = conn.execute(
+            """
+            SELECT employee_id, email FROM portal_password_reset_tokens
+            WHERE token_hash = %s AND used_at IS NULL AND expires_at > now()
+            """,
+            (token_hash,)
+        ).fetchone()
+        
+        if not token_record:
+            raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+            
+        new_hash = _password_hash(payload.new_password)
+        
+        with conn.transaction():
+            conn.execute(
+                "UPDATE portal_password_accounts SET password_hash = %s WHERE employee_id = %s",
+                (new_hash, token_record["employee_id"])
+            )
+            conn.execute(
+                "UPDATE portal_password_reset_tokens SET used_at = now() WHERE token_hash = %s",
+                (token_hash,)
+            )
+            
+    return {"status": "ok"}
 
 
 def _identity(
@@ -1152,7 +1354,8 @@ def employee_access(identity: AdminIdentity = Depends(_identity)):
             """
             SELECT e.id, e.employee_code, e.full_name, e.office_email, e.microsoft_upn, e.department,
                    e.designation, e.location, e.status, e.reporting_manager_name,
-                   e.office_mobile, e.personal_mobile,
+                   e.office_mobile, e.personal_mobile, e.phone_number,
+                   e.city, e.state, e.territory,
                    e.hr_sync_state, e.hr_first_seen_at, e.hr_last_seen_at, e.hr_last_changed_at,
                    max(portal.email) AS portal_access_email,
                    bool_or(COALESCE(portal.active, false)) AS portal_access_active,
@@ -1203,13 +1406,15 @@ def invite_employee_to_portal(employee_id: UUID, payload: PortalInvitation, iden
     with connection() as conn:
         employee = conn.execute(
             """
-            SELECT id, employee_code, full_name, lower(COALESCE(office_email, microsoft_upn)) AS email
-            FROM employees WHERE id=%s AND status='active' FOR UPDATE
+            SELECT id, employee_code, full_name, lower(COALESCE(office_email, microsoft_upn)) AS email, status
+            FROM employees WHERE id=%s AND status <> 'inactive' FOR UPDATE
             """,
             (employee_id,),
         ).fetchone()
         if not employee:
-            raise HTTPException(status_code=404, detail="Active employee not found.")
+            raise HTTPException(status_code=404, detail="Employee not found or is inactive.")
+        if employee["status"] != "active":
+            conn.execute("UPDATE employees SET status = 'active', updated_at = now() WHERE id = %s", (employee_id,))
         if not employee["email"] or not employee["email"].endswith(f"@{ADMIN_ALLOWED_EMAIL_DOMAIN}"):
             raise HTTPException(status_code=422, detail="This employee needs an approved Crop Life work email before portal access can be issued.")
         existing = conn.execute("SELECT role_code FROM employee_roles WHERE employee_id=%s ORDER BY role_code", (employee_id,)).fetchall()
@@ -1982,7 +2187,7 @@ def list_farmers(
     identity: AdminIdentity = Depends(_identity)
 ):
     _require(identity, SALES_ACTIVITY_ROLES)
-    filters = []
+    filters = ["(f.role != 'dealer' OR f.role IS NULL)"]
     params = []
     
     if search.strip():
@@ -2009,6 +2214,7 @@ def list_farmers(
     sql = f"""
         SELECT f.id, f.mobile_number, f.name AS first_name, f.last_name, f.role, f.city, f.state,
                f.district, f.village, f.created_at, f.last_login_at, f.is_verified, 
+               f.date_of_birth, f.land_acres,
                d.dealer_code, d.name AS dealer_name
         FROM farmers f
         LEFT JOIN dealers d ON COALESCE(f.acquisition_dealer_id, f.preferred_dealer_id, f.verified_dealer_id) = d.id
@@ -2036,6 +2242,7 @@ def list_farmers(
 
 @router.get("/login-audit")
 def login_audit(
+    search: str = Query(default=""),
     date: str = Query(default=""),
     period: str = Query(default="", pattern="^(|today|yesterday|7d|30d)$"),
     dealer_code: str = Query(default=""),
@@ -2057,6 +2264,10 @@ def login_audit(
     elif period == "yesterday": filters.append("ps.created_at >= current_date - interval '1 day' AND ps.created_at < current_date")
     elif period == "7d": filters.append("ps.created_at >= now() - interval '7 days'")
     elif period == "30d": filters.append("ps.created_at >= now() - interval '30 days'")
+    if search:
+        search_str = f"%{search.strip()}%"
+        filters.append("(f.name ILIKE %s OR f.last_name ILIKE %s OR f.mobile_number ILIKE %s OR ps.id::text ILIKE %s)")
+        params.extend([search_str, search_str, search_str, search_str])
     if dealer_code:
         filters.append("d.dealer_code ILIKE %s")
         params.append(f"%{dealer_code.strip()}%")
@@ -2100,5 +2311,367 @@ def login_audit(
                 LEFT JOIN dealers d ON COALESCE(f.acquisition_dealer_id,f.preferred_dealer_id,f.verified_dealer_id)=d.id {where_clause}""", params
         ).fetchone()
         states=conn.execute("SELECT DISTINCT BTRIM(state) state FROM farmers WHERE BTRIM(COALESCE(state,''))<>'' ORDER BY state").fetchall()
+        chart_data=conn.execute(
+            f"""SELECT DATE(ps.created_at) as date, COUNT(*) as count 
+                FROM public_sessions ps JOIN farmers f ON ps.farmer_id=f.id 
+                LEFT JOIN dealers d ON COALESCE(f.acquisition_dealer_id,f.preferred_dealer_id,f.verified_dealer_id)=d.id {where_clause} 
+                GROUP BY DATE(ps.created_at) ORDER BY DATE(ps.created_at) ASC LIMIT 30""", params
+        ).fetchall()
+        for row in chart_data: row["date"] = str(row["date"])
         
-    return {"items": rows, "total": total, "offset": offset, "limit": limit, "summary": summary, "states": [x["state"] for x in states]}
+    return {"items": rows, "total": total, "offset": offset, "limit": limit, "summary": summary, "states": [x["state"] for x in states], "chart_data": chart_data}
+
+
+# ---------------------------------------------------------------------------
+# Password Reset Flow
+# ---------------------------------------------------------------------------
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=254)
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=32, max_length=256)
+    new_password: str = Field(min_length=8, max_length=200)
+
+
+@router.post("/auth/forgot-password")
+def forgot_password(payload: ForgotPasswordRequest):
+    """Send a password-reset link to a portal account email address.
+
+    Always returns 200 to prevent email enumeration.
+    """
+    email = payload.email.strip().lower()
+    with connection() as conn:
+        account = conn.execute(
+            """
+            SELECT ppa.employee_id, ppa.email, e.full_name
+            FROM portal_password_accounts ppa
+            JOIN employees e ON e.id = ppa.employee_id
+            WHERE lower(ppa.email) = %s AND ppa.active AND e.status = 'active'
+            LIMIT 1
+            """,
+            (email,),
+        ).fetchone()
+        if not account:
+            return {"ok": True, "message": "If that email is registered, a reset link has been sent."}
+
+        # Invalidate any previous unused tokens
+        token = secrets.token_urlsafe(48)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        conn.execute(
+            "UPDATE portal_password_reset_tokens SET used_at = now() WHERE employee_id = %s AND used_at IS NULL",
+            (account["employee_id"],),
+        )
+        conn.execute(
+            """
+            INSERT INTO portal_password_reset_tokens(employee_id, email, token_hash)
+            VALUES (%s, %s, %s)
+            """,
+            (account["employee_id"], account["email"], token_hash),
+        )
+        conn.commit()
+
+    reset_link = f"{PORTAL_RESET_URL}?reset_token={token}"
+    body_html = f"""
+      <h2 style="margin:0 0 6px;font-size:24px;color:#0d2b1e;letter-spacing:-0.5px;">Reset Your Password</h2>
+      <p style="margin:0 0 24px;color:#6b8276;font-size:14px;">We received a request to reset your password for the Crop Life AI Operations Portal.</p>
+
+      <div style="background:#f8faf9;border:1px solid #ddeee6;border-radius:12px;padding:24px;margin-bottom:24px;">
+        <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#6b8276;text-transform:uppercase;letter-spacing:1px;">Hello,</p>
+        <p style="margin:0 0 16px;font-size:18px;font-weight:800;color:#0d2b1e;">{html.escape(account['full_name'])}</p>
+        <p style="margin:0;font-size:14px;color:#4a6b5c;">Click the button below to set a new password. This link expires in <strong>1 hour</strong>.</p>
+      </div>
+
+      <a href="{html.escape(reset_link)}" style="display:block;background:linear-gradient(135deg,#1a5c35,#2d8050);color:#ffffff;text-align:center;padding:18px;border-radius:10px;text-decoration:none;font-size:16px;font-weight:800;margin-bottom:24px;">Reset My Password →</a>
+
+      <div style="background:#fff8e8;border:1px solid #f0d090;border-radius:8px;padding:16px;margin-bottom:16px;">
+        <p style="margin:0;font-size:12px;color:#7a5c00;">⚠️ If you did not request a password reset, please ignore this email. Your password will remain unchanged.</p>
+      </div>
+
+      <p style="margin:0;font-size:12px;color:#9ab0a4;">If the button above does not work, copy and paste this link:<br/>
+      <a href="{html.escape(reset_link)}" style="color:#1a5c35;word-break:break-all;">{html.escape(reset_link)}</a></p>
+    """
+    html_email = _clsl_email_html(
+        "Reset Your Crop Life AI Password",
+        "Reset your Crop Life AI Operations Portal password. This link expires in 1 hour.",
+        body_html,
+    )
+    text_body = (
+        f"Hello {account['full_name']},\n\n"
+        "We received a request to reset your Crop Life AI portal password.\n\n"
+        f"Reset link: {reset_link}\n\n"
+        "This link expires in 1 hour. If you did not request this, ignore this email.\n"
+    )
+    _send_email(account["email"], "Reset your Crop Life AI portal password", text_body, html_email)
+    return {"ok": True, "message": "If that email is registered, a reset link has been sent."}
+
+
+@router.post("/auth/reset-password")
+def reset_password(payload: ResetPasswordRequest):
+    """Exchange a valid reset token for a new password."""
+    token_hash = hashlib.sha256(payload.token.encode()).hexdigest()
+    with connection() as conn:
+        token_row = conn.execute(
+            """
+            SELECT prt.employee_id, prt.email, e.full_name
+            FROM portal_password_reset_tokens prt
+            JOIN employees e ON e.id = prt.employee_id
+            WHERE prt.token_hash = %s
+              AND prt.used_at IS NULL
+              AND prt.expires_at > now()
+              AND e.status = 'active'
+            LIMIT 1
+            """,
+            (token_hash,),
+        ).fetchone()
+        if not token_row:
+            raise HTTPException(status_code=400, detail="This reset link is invalid or has expired. Please request a new one.")
+
+        new_hash = _password_hash(payload.new_password)
+        conn.execute(
+            "UPDATE portal_password_accounts SET password_hash = %s WHERE employee_id = %s",
+            (new_hash, token_row["employee_id"]),
+        )
+        conn.execute(
+            "UPDATE portal_password_reset_tokens SET used_at = now() WHERE token_hash = %s",
+            (token_hash,),
+        )
+        conn.commit()
+    return {"ok": True, "message": "Password updated successfully. You can now sign in."}
+
+
+@router.post("/auth/change-password")
+def change_password(
+    payload: ResetPasswordRequest,  # reuse: token=current_password, new_password
+    identity: AdminIdentity = Depends(_identity),
+):
+    """Allow a logged-in portal user to change their own password."""
+    current_password = payload.token  # token field reused for current password
+    with connection() as conn:
+        account = conn.execute(
+            "SELECT password_hash FROM portal_password_accounts WHERE employee_id = %s AND active",
+            (identity.id,),
+        ).fetchone()
+        if not account or not _password_matches(current_password, account["password_hash"]):
+            raise HTTPException(status_code=401, detail="Current password is incorrect.")
+        new_hash = _password_hash(payload.new_password)
+        conn.execute(
+            "UPDATE portal_password_accounts SET password_hash = %s WHERE employee_id = %s",
+            (new_hash, identity.id),
+        )
+        conn.commit()
+    return {"ok": True, "message": "Password changed successfully."}
+
+
+# ---------------------------------------------------------------------------
+# Employee Management — Create, Edit, Import
+# ---------------------------------------------------------------------------
+
+class EmployeeCreateInput(BaseModel):
+    employee_code: str = Field(min_length=2, max_length=32, pattern=r"^[A-Za-z0-9_-]+$")
+    full_name: str = Field(min_length=2, max_length=180)
+    office_email: str = Field(default="", max_length=254)
+    phone_number: str = Field(default="", max_length=32)
+    designation: str = Field(default="", max_length=160)
+    department: str = Field(default="", max_length=160)
+    location: str = Field(default="", max_length=160)
+    city: str = Field(default="", max_length=120)
+    state: str = Field(default="", max_length=120)
+    territory: str = Field(default="", max_length=160)
+    reporting_manager_name: str = Field(default="", max_length=180)
+    status: Literal["pending", "active", "inactive"] = "active"
+
+
+class EmployeeUpdateInput(BaseModel):
+    full_name: str = Field(default="", max_length=180)
+    office_email: str = Field(default="", max_length=254)
+    phone_number: str = Field(default="", max_length=32)
+    designation: str = Field(default="", max_length=160)
+    department: str = Field(default="", max_length=160)
+    location: str = Field(default="", max_length=160)
+    city: str = Field(default="", max_length=120)
+    state: str = Field(default="", max_length=120)
+    territory: str = Field(default="", max_length=160)
+    reporting_manager_name: str = Field(default="", max_length=180)
+    status: Literal["pending", "active", "inactive"] = "active"
+
+
+@router.post("/employees", status_code=201)
+def create_employee(payload: EmployeeCreateInput, identity: AdminIdentity = Depends(_identity)):
+    """Manually add a new employee record."""
+    _require(identity, {"super_admin", "employee_access_approver"})
+    with connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM employees WHERE employee_code = %s", (payload.employee_code,)
+        ).fetchone()
+        if existing:
+            raise HTTPException(status_code=409, detail=f"Employee code '{payload.employee_code}' is already in use.")
+        if payload.office_email:
+            email_conflict = conn.execute(
+                "SELECT id FROM employees WHERE lower(office_email) = %s", (payload.office_email.lower(),)
+            ).fetchone()
+            if email_conflict:
+                raise HTTPException(status_code=409, detail="This email address is already assigned to another employee.")
+        new_id = uuid4()
+        conn.execute(
+            """
+            INSERT INTO employees(
+                id, employee_code, full_name, office_email, phone_number, designation, department,
+                location, city, state, territory, reporting_manager_name, status, hr_sync_state
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'new')
+            """,
+            (
+                new_id, payload.employee_code, payload.full_name,
+                payload.office_email or None, payload.phone_number or None,
+                payload.designation or None, payload.department or None,
+                payload.location or None, payload.city or None, payload.state or None,
+                payload.territory or None, payload.reporting_manager_name or None,
+                payload.status,
+            ),
+        )
+        _audit(conn, identity, "create_employee", "employee", payload.employee_code, None, payload.model_dump())
+        conn.commit()
+    return {"id": str(new_id), "employee_code": payload.employee_code, "full_name": payload.full_name}
+
+
+@router.patch("/employees/{employee_id}")
+def update_employee(employee_id: UUID, payload: EmployeeUpdateInput, identity: AdminIdentity = Depends(_identity)):
+    """Edit an existing employee record."""
+    _require(identity, {"super_admin", "employee_access_approver"})
+    with connection() as conn:
+        existing = conn.execute(
+            "SELECT * FROM employees WHERE id = %s FOR UPDATE", (employee_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Employee not found.")
+        if payload.office_email and payload.office_email.lower() != (existing["office_email"] or "").lower():
+            email_conflict = conn.execute(
+                "SELECT id FROM employees WHERE lower(office_email) = %s AND id <> %s",
+                (payload.office_email.lower(), employee_id),
+            ).fetchone()
+            if email_conflict:
+                raise HTTPException(status_code=409, detail="This email is already assigned to another employee.")
+        updates = {}
+        if payload.full_name: updates["full_name"] = payload.full_name
+        updates["office_email"] = payload.office_email or None
+        updates["phone_number"] = payload.phone_number or None
+        updates["designation"] = payload.designation or None
+        updates["department"] = payload.department or None
+        updates["location"] = payload.location or None
+        updates["city"] = payload.city or None
+        updates["state"] = payload.state or None
+        updates["territory"] = payload.territory or None
+        updates["reporting_manager_name"] = payload.reporting_manager_name or None
+        updates["status"] = payload.status
+        set_clause = ", ".join(f"{k} = %s" for k in updates)
+        conn.execute(
+            f"UPDATE employees SET {set_clause}, updated_at = now() WHERE id = %s",
+            (*updates.values(), employee_id),
+        )
+        _audit(conn, identity, "update_employee", "employee", existing["employee_code"],
+               dict(existing), payload.model_dump())
+        conn.commit()
+    return {"id": str(employee_id), "updated": True}
+
+
+@router.post("/employees/import-csv", status_code=200)
+async def import_employees_csv(
+    file: UploadFile = File(...),
+    identity: AdminIdentity = Depends(_identity),
+):
+    """Bulk-import employees from a CSV file.
+
+    Expected columns (header row required):
+    employee_code, full_name, office_email, phone_number, designation, department,
+    location, city, state, territory, reporting_manager_name, status
+    """
+    _require(identity, {"super_admin"})
+    content = await file.read()
+    try:
+        text = content.decode("utf-8-sig")  # handle BOM
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+    reader = csv.DictReader(io.StringIO(text))
+    created, updated, skipped, errors = 0, 0, 0, []
+
+    with connection() as conn:
+        for i, row in enumerate(reader, start=2):
+            code = (row.get("employee_code") or "").strip()
+            name = (row.get("full_name") or "").strip()
+            if not code or not name:
+                skipped += 1
+                continue
+            email = (row.get("office_email") or "").strip() or None
+            phone = (row.get("phone_number") or "").strip() or None
+            designation = (row.get("designation") or "").strip() or None
+            department = (row.get("department") or "").strip() or None
+            location = (row.get("location") or "").strip() or None
+            city = (row.get("city") or "").strip() or None
+            state = (row.get("state") or "").strip() or None
+            territory = (row.get("territory") or "").strip() or None
+            manager = (row.get("reporting_manager_name") or "").strip() or None
+            raw_status = (row.get("status") or "active").strip().lower()
+            status = raw_status if raw_status in ("pending", "active", "inactive") else "active"
+
+            try:
+                existing = conn.execute(
+                    "SELECT id FROM employees WHERE employee_code = %s LIMIT 1", (code,)
+                ).fetchone()
+                if existing:
+                    conn.execute(
+                        """UPDATE employees SET
+                            full_name=%s, office_email=%s, phone_number=%s, designation=%s,
+                            department=%s, location=%s, city=%s, state=%s, territory=%s,
+                            reporting_manager_name=%s, status=%s, updated_at=now()
+                           WHERE employee_code=%s""",
+                        (name, email, phone, designation, department, location,
+                         city, state, territory, manager, status, code),
+                    )
+                    updated += 1
+                else:
+                    conn.execute(
+                        """INSERT INTO employees(
+                            id, employee_code, full_name, office_email, phone_number,
+                            designation, department, location, city, state, territory,
+                            reporting_manager_name, status, hr_sync_state
+                        ) VALUES (gen_random_uuid(),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'new')""",
+                        (code, name, email, phone, designation, department, location,
+                         city, state, territory, manager, status),
+                    )
+                    created += 1
+            except Exception as exc:
+                errors.append(f"Row {i} ({code}): {exc}")
+        if not errors:
+            conn.commit()
+        else:
+            conn.rollback()
+
+    return {
+        "created": created, "updated": updated, "skipped": skipped,
+        "errors": errors[:20],
+        "message": f"Import complete: {created} new, {updated} updated, {skipped} skipped." if not errors else "Import failed — see errors.",
+    }
+
+
+@router.get("/employees/{employee_id}")
+def get_employee(employee_id: UUID, identity: AdminIdentity = Depends(_identity)):
+    """Fetch a single employee record with full detail."""
+    _require(identity, {"super_admin", "employee_access_approver"})
+    with connection() as conn:
+        emp = conn.execute(
+            """
+            SELECT e.*, COALESCE(array_agg(er.role_code) FILTER (WHERE er.role_code IS NOT NULL), '{}') AS roles,
+                   ppa.email AS portal_email, ppa.active AS portal_active,
+                   ppa.invited_at AS portal_invited_at, ppa.last_login_at AS portal_last_login_at
+            FROM employees e
+            LEFT JOIN employee_roles er ON er.employee_id = e.id
+            LEFT JOIN portal_password_accounts ppa ON ppa.employee_id = e.id
+            WHERE e.id = %s
+            GROUP BY e.id, ppa.email, ppa.active, ppa.invited_at, ppa.last_login_at
+            """,
+            (employee_id,),
+        ).fetchone()
+        if not emp:
+            raise HTTPException(status_code=404, detail="Employee not found.")
+    return emp

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppColors, MobileScreen, shared } from '../../components/MobileScreen';
 import { askMitra } from '../../services/api';
 import mascotImage from '../../../assets/images/mascot_v3.png';
@@ -14,11 +15,12 @@ const getTime = () => {
 
 export default function AssistantScreen({ onBack }: { onBack: () => void }) {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Namaste! I’m Crop Life Mitra. Ask me about crop symptoms, which product to use, how to order, or weather.', time: getTime() }
+    { role: 'assistant', content: 'Namaste! I’m Dr. CLSL. Ask me about crop symptoms, which product to use, how to order, or weather.', time: getTime() }
   ]);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const scroll = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
   
   const send = async () => {
     const q = text.trim();
@@ -45,7 +47,7 @@ export default function AssistantScreen({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <MobileScreen title="Crop Life Mitra" subtitle={busy ? "🟢 Online - typing..." : "🟢 Online"} onBack={onBack} scroll={false} headerAvatar={mascotImage}>
+    <MobileScreen title="Ask Dr. CLSL" subtitle={busy ? "🟢 Online - typing..." : "🟢 Online"} onBack={onBack} scroll={false} headerAvatar={mascotImage}>
       <KeyboardAvoidingView style={styles.wrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView ref={scroll} contentContainerStyle={styles.messages} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}>
           
@@ -77,7 +79,7 @@ export default function AssistantScreen({ onBack }: { onBack: () => void }) {
             </View>
           )}
         </ScrollView>
-        <View style={styles.composerWrapper}>
+        <View style={[styles.composerWrapper, { paddingBottom: Math.max(insets.bottom, 8) + 8 }]}>
           <View style={styles.composer}>
             <TextInput 
               value={text} 
@@ -132,7 +134,7 @@ const styles = StyleSheet.create({
   
   typing: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14 },
   
-  composerWrapper: { flexDirection: 'row', alignItems: 'flex-end', padding: 8, paddingBottom: Platform.OS === 'ios' ? 24 : 8, backgroundColor: '#F0F2F5', gap: 8 },
+  composerWrapper: { flexDirection: 'row', alignItems: 'flex-end', padding: 8, backgroundColor: '#F0F2F5', gap: 8 },
   composer: { flex: 1, minHeight: 44, maxHeight: 120, backgroundColor: '#FFF', borderRadius: 22, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 10, elevation: 1 },
   input: { flex: 1, color: '#111B21', fontSize: 16, padding: 0 },
   send: { width: 44, height: 44, borderRadius: 22, backgroundColor: AppColors.green, alignItems: 'center', justifyContent: 'center', elevation: 1 }

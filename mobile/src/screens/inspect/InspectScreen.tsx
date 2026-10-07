@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../contexts/AuthContext';
 import { inspectCrop, getCatalogue } from '../../services/api';
 import { AppColors, MobileScreen, shared } from '../../components/MobileScreen';
@@ -43,9 +44,28 @@ export default function InspectScreen({ onBack }: { onBack: () => void }) {
   const openCamera = async () => {
     if (!permission?.granted) {
       const p = await requestPermission();
-      if (!p.granted) return;
+      if (!p.granted) {
+        Alert.alert('Permission Denied', 'Camera permission is required.');
+        return;
+      }
     }
     setCamera(true);
+  };
+
+  const openGallery = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert('Permission Denied', 'Gallery permission is required.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setPhotos(v => [...v, result.assets[0].uri]);
+    }
   };
 
   const take = async () => {
@@ -142,6 +162,15 @@ export default function InspectScreen({ onBack }: { onBack: () => void }) {
   return (
     <MobileScreen title="AI Crop Inspection" subtitle={sales ? '4 field photos required' : 'Add one or more clear photos'} onBack={onBack}>
       
+      {/* Hero Mascot Banner */}
+      <View style={styles.heroBanner}>
+        <View style={styles.heroTextContent}>
+          <Text style={styles.heroTitle}>Dr. CLSL is ready!</Text>
+          <Text style={styles.heroSubtitle}>Upload clear photos of your crop and our AI will identify the issue instantly.</Text>
+        </View>
+        <Image source={require('../../../assets/images/mascot_v3.png')} style={styles.heroMascot} resizeMode="contain" />
+      </View>
+
       <View style={shared.card}>
         <Text style={shared.label}>Crop Details *</Text>
         <TouchableOpacity style={styles.dropdownSelector} onPress={() => setCropModal(true)}>
@@ -202,6 +231,9 @@ export default function InspectScreen({ onBack }: { onBack: () => void }) {
           {!crop ? 'Select a crop' : photos.length < minimum ? `Add ${minimum - photos.length} more photo${minimum - photos.length === 1 ? '' : 's'}` : 'Analyse crop'}
         </Text>
       </TouchableOpacity>
+      
+      {/* Spacer to prevent bottom cut off by nav bar */}
+      <View style={{ height: 100 }} />
 
       <Modal visible={cropModal} animationType="slide" transparent={true} onRequestClose={() => setCropModal(false)}>
         <View style={styles.modalOverlay}>
@@ -266,9 +298,15 @@ export default function InspectScreen({ onBack }: { onBack: () => void }) {
             <View style={{ width: 46 }} />
           </View>
           <View style={styles.cameraBottom}>
+            <View style={{ flex: 1 }} />
             <TouchableOpacity style={styles.shutter} onPress={take}>
               <View style={styles.shutterInner} />
             </TouchableOpacity>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <TouchableOpacity onPress={() => { setCamera(false); openGallery(); }} style={styles.galleryButton}>
+                <Ionicons name="image" size={32} color="#FFF" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -404,9 +442,10 @@ const styles = StyleSheet.create({
   cameraTop: { position: 'absolute', top: 45, left: 18, right: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cameraRound: { width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(0,0,0,.45)', alignItems: 'center', justifyContent: 'center' },
   cameraTitle: { color: '#FFF', fontWeight: '900', fontSize: 17, textShadowColor: '#000', textShadowRadius: 5 },
-  cameraBottom: { position: 'absolute', bottom: 48, left: 0, right: 0, alignItems: 'center' },
+  cameraBottom: { position: 'absolute', bottom: 48, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   shutter: { width: 78, height: 78, borderRadius: 39, borderWidth: 4, borderColor: '#FFF', alignItems: 'center', justifyContent: 'center' },
   shutterInner: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#FFF' },
+  galleryButton: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   processing: { ...shared.card, alignItems: 'center', gap: 15, paddingVertical: 46 },
   processingTitle: { color: AppColors.ink, fontSize: 22, fontWeight: '900', marginTop: 8 },
   progress: { height: 8, width: '100%', borderRadius: 5, backgroundColor: '#DCE7ED', overflow: 'hidden', marginTop: 12 },
@@ -417,5 +456,11 @@ const styles = StyleSheet.create({
   resultSub: { color: '#CFE2EF', marginTop: 5 },
   eyebrow: { fontSize: 11, letterSpacing: 1.4, color: AppColors.green, fontWeight: '900', marginBottom: 7 },
   confidence: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#E5EDF2' },
-  confidenceValue: { fontSize: 30, color: AppColors.blue, fontWeight: '900' }
+  confidenceValue: { fontSize: 30, color: AppColors.blue, fontWeight: '900' },
+
+  heroBanner: { backgroundColor: AppColors.greenDark, borderRadius: 20, padding: 20, flexDirection: 'row', alignItems: 'center', marginBottom: 12, elevation: 4, shadowColor: AppColors.greenDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, overflow: 'visible', minHeight: 120 },
+  heroTextContent: { flex: 1, paddingRight: 90, zIndex: 10 },
+  heroTitle: { fontSize: 18, fontWeight: '900', color: '#FFF', marginBottom: 6 },
+  heroSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.9)', lineHeight: 18, fontWeight: '600' },
+  heroMascot: { position: 'absolute', right: -5, bottom: -5, width: 120, height: 135, zIndex: 20 },
 });

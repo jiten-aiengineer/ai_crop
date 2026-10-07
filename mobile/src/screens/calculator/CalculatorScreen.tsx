@@ -13,7 +13,8 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
   const [water, setWater] = useState('150');
   const [dose, setDose] = useState('0');
   const [tank, setTank] = useState('15');
-  const [packSize, setPackSize] = useState('0');
+  const [packSize, setPackSize] = useState('');
+  const [showFormula, setShowFormula] = useState(false);
 
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [search, setSearch] = useState('');
@@ -61,7 +62,7 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
     const w = Number(water) || 0;
     const d = Number(dose) || 0;
     const t = Number(tank) || 1;
-    const pSize = Number(packSize) || 1;
+    const pSize = Number(packSize) || 0;
 
     const totalWater = a * w;
     const totalProduct = a * d;
@@ -96,21 +97,21 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
   }, [area, water, dose, tank, packSize]);
 
   return (
-    <MobileScreen title="Spray Calculator (Updated)" subtitle="Accurate field mixing" onBack={onBack}>
+    <MobileScreen title="Spray Calculator" subtitle="Accurate field mixing" onBack={onBack}>
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         
         {/* INPUTS */}
-        <View style={styles.card}>
-          <View style={[styles.row, { zIndex: 20 }]}>
+        <View style={shared.card}>
+          <View style={[styles.row, { zIndex: 20, marginTop: 0 }]}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Area to treat</Text>
-              <TextInput value={area} onChangeText={setArea} style={styles.inputBox} keyboardType="decimal-pad" />
+              <Text style={shared.label}>Area to treat</Text>
+              <TextInput value={area} onChangeText={setArea} style={shared.input} keyboardType="decimal-pad" />
             </View>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Area unit</Text>
-              <TouchableOpacity style={[styles.inputBox, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]} onPress={() => setShowUnitDrop(!showUnitDrop)}>
-                <Text style={{ fontSize: 16, color: '#102A43', fontWeight: '600' }}>{areaUnit}</Text>
-                <Ionicons name="chevron-down" size={18} color="#8294A0" />
+              <Text style={shared.label}>Area unit</Text>
+              <TouchableOpacity style={[shared.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]} onPress={() => setShowUnitDrop(!showUnitDrop)}>
+                <Text style={{ fontSize: 15, color: AppColors.ink }}>{areaUnit}</Text>
+                <Ionicons name="chevron-down" size={18} color={AppColors.muted} />
               </TouchableOpacity>
               {showUnitDrop && (
                 <View style={styles.unitDrop}>
@@ -123,28 +124,27 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
               )}
             </View>
           </View>
-
+          
+          <View style={{ height: 16 }} />
+          
+          <View style={styles.inputGroup}>
+            <Text style={shared.label}>CLSL product</Text>
+            
+            <TouchableOpacity 
+              style={styles.productSelectorBtn} 
+              onPress={() => setIsDropdownOpen(true)}
+            >
+              {selectedProduct ? (
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: AppColors.ink }}>{selectedProduct.name}</Text>
+                  <Text style={{ fontSize: 12, color: AppColors.muted, marginTop: 2 }}>{selectedProduct.category}</Text>
+                </View>
+              ) : (
+                <Text style={{ fontSize: 15, color: AppColors.muted, flex: 1 }}>Select a product...</Text>
+              )}
+              <Ionicons name="search" size={20} color={AppColors.green} />
+            </TouchableOpacity>
           </View>
-
-          <View style={styles.card}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>CLSL product</Text>
-              
-              <TouchableOpacity 
-                style={styles.productSelectorBtn} 
-                onPress={() => setIsDropdownOpen(true)}
-              >
-                {selectedProduct ? (
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: AppColors.ink }}>{selectedProduct.name}</Text>
-                    <Text style={{ fontSize: 12, color: AppColors.muted, marginTop: 2 }}>{selectedProduct.category}</Text>
-                  </View>
-                ) : (
-                  <Text style={{ fontSize: 16, color: AppColors.muted, flex: 1 }}>Select a product...</Text>
-                )}
-                <Ionicons name="search" size={20} color={AppColors.green} />
-              </TouchableOpacity>
-            </View>
 
           <Modal visible={isDropdownOpen} animationType="slide" onRequestClose={() => setIsDropdownOpen(false)}>
             <View style={styles.modalContainer}>
@@ -215,14 +215,14 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
 
           <View style={styles.row}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Approved dose per acre</Text>
+              <Text style={shared.label}>Dose per acre</Text>
               <View style={styles.inputWithUnit}>
                 <TextInput value={dose} onChangeText={setDose} style={styles.inputFlex} keyboardType="decimal-pad" />
                 <Text style={styles.inputUnit}>ml</Text>
               </View>
             </View>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Water per acre</Text>
+              <Text style={shared.label}>Water per acre</Text>
               <View style={styles.inputWithUnit}>
                 <TextInput value={water} onChangeText={setWater} style={styles.inputFlex} keyboardType="decimal-pad" />
                 <Text style={styles.inputUnit}>L/ac</Text>
@@ -232,28 +232,26 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
 
           <View style={styles.row}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Pump size</Text>
+              <Text style={shared.label}>Pump size</Text>
               <View style={styles.inputWithUnit}>
                 <TextInput value={tank} onChangeText={setTank} style={styles.inputFlex} keyboardType="decimal-pad" />
                 <Text style={styles.inputUnit}>L</Text>
               </View>
             </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Pack size</Text>
-              <View style={styles.inputWithUnit}>
-                <TextInput value={packSize} onChangeText={setPackSize} style={styles.inputFlex} keyboardType="decimal-pad" />
-                <Text style={styles.inputUnit}>ml</Text>
-              </View>
-            </View>
           </View>
           
           <Text style={styles.helpText}>
-            Enter the approved per-acre dose from the label. Exact single-value catalogue doses may be prefilled; always confirm them.
+            Enter the approved per-acre dose from the label. Exact catalogue doses may be prefilled; always confirm them.
           </Text>
         </View>
+        <View style={{ height: 16 }} />
 
         {/* RESULTS - TANK MIX */}
         <View style={styles.resultCard}>
+          <View style={styles.resultHeader}>
+            <Ionicons name="water" size={24} color={AppColors.green} />
+            <Text style={styles.resultHeaderTitle}>Tank Mix Guide</Text>
+          </View>
           <View style={styles.tankList}>
             {result.fullTanks > 0 && (
               <View style={styles.tankItem}>
@@ -266,10 +264,10 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
             )}
             
             {result.finalWater > 0 && (
-              <View style={[styles.tankItem, { borderTopWidth: 1, borderTopColor: '#E8EEF2', paddingTop: 16 }]}>
+              <View style={[styles.tankItem, { borderTopWidth: 1, borderTopColor: AppColors.lineLight, paddingTop: 16 }]}>
                 <Text style={styles.tankNum}>02</Text>
                 <View>
-                  <Text style={styles.tankLabel}>final tank</Text>
+                  <Text style={styles.tankLabel}>FINAL TANK</Text>
                   <Text style={styles.tankMix}>{result.finalWater.toFixed(1)} L + {result.finalMix.toFixed(1)} ml</Text>
                 </View>
               </View>
@@ -279,16 +277,72 @@ export default function CalculatorScreen({ onBack }: { onBack: () => void }) {
 
         {/* RESULTS - SUMMARY */}
         <View style={styles.summaryCard}>
-          <SummaryRow label="Product required" value={`${result.totalProduct.toFixed(1)} ml`} />
-          <SummaryRow label="Water required" value={`${result.totalWater.toFixed(0)} L`} />
-          <SummaryRow label="Pump loads" value={`${result.tanks}`} />
-          <SummaryRow label="Product / full tank" value={`${result.perTank.toFixed(1)} ml`} />
-          <SummaryRow label="Final tank mix" value={`${result.finalMix.toFixed(1)} ml`} />
-          <SummaryRow label="Packs to buy" value={`${result.packs}`} isLast />
+          <SummaryRow label="Total Product" value={`${result.totalProduct.toFixed(1)} ml`} />
+          <SummaryRow label="Total Water" value={`${result.totalWater.toFixed(0)} L`} />
+          <SummaryRow label="Total Pump Loads" value={`${result.tanks}`} />
+          
+          <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: AppColors.bg }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View>
+                <Text style={[shared.label, { marginBottom: 2 }]}>Buying Packets?</Text>
+                <Text style={{ fontSize: 11, color: AppColors.muted }}>Enter pack size to estimate required packets</Text>
+              </View>
+              <View style={[styles.inputWithUnit, { width: 120, minHeight: 40 }]}>
+                <TextInput value={packSize} onChangeText={setPackSize} placeholder="e.g. 500" style={[styles.inputFlex, { paddingVertical: 8, fontSize: 14 }]} keyboardType="decimal-pad" />
+                <Text style={styles.inputUnit}>ml</Text>
+              </View>
+            </View>
+            {result.packs > 0 && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, backgroundColor: AppColors.pale, padding: 12, borderRadius: 12 }}>
+                <Text style={{ fontSize: 14, color: AppColors.greenDark, fontWeight: '700' }}>Estimated packets to buy:</Text>
+                <Text style={{ fontSize: 18, color: AppColors.greenDark, fontWeight: '900' }}>{result.packs}</Text>
+              </View>
+            )}
+          </View>
         </View>
+
+        {/* FORMULA SECTION */}
+        <TouchableOpacity style={styles.formulaBtn} onPress={() => setShowFormula(true)}>
+          <Text style={styles.formulaText}>
+            The above calculations are done logically using proper <Text style={{ color: AppColors.green, fontWeight: '700' }}>formula</Text>.
+          </Text>
+        </TouchableOpacity>
 
         <View style={{height: 50}} />
       </ScrollView>
+
+      <Modal visible={showFormula} animationType="slide" transparent={true} onRequestClose={() => setShowFormula(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={[styles.modalHeader, { paddingTop: 16 }]}>
+              <Text style={styles.modalTitle}>Calculation Formula</Text>
+              <TouchableOpacity onPress={() => setShowFormula(false)} style={{ padding: 4 }}>
+                <Ionicons name="close" size={24} color={AppColors.ink} />
+              </TouchableOpacity>
+            </View>
+            <View style={{ padding: 20 }}>
+              <Text style={shared.body}>The spray calculator uses standard agricultural formulas to ensure accurate field mixing:</Text>
+              
+              <Text style={[shared.label, { marginTop: 16 }]}>Total Water Required</Text>
+              <Text style={styles.formulaCode}>Area × Water per acre</Text>
+
+              <Text style={[shared.label, { marginTop: 16 }]}>Total Product Required</Text>
+              <Text style={styles.formulaCode}>Area × Dose per acre</Text>
+
+              <Text style={[shared.label, { marginTop: 16 }]}>Product per Pump (Full Tank)</Text>
+              <Text style={styles.formulaCode}>Total Product ÷ (Total Water ÷ Pump Size)</Text>
+
+              <Text style={[shared.label, { marginTop: 16 }]}>Final Partial Tank (If any)</Text>
+              <Text style={styles.formulaCode}>Remaining Water × (Product per Pump ÷ Pump Size)</Text>
+              
+              <TouchableOpacity style={[shared.primary, { marginTop: 24 }]} onPress={() => setShowFormula(false)}>
+                <Text style={shared.primaryText}>Got it</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </MobileScreen>
   );
 }
@@ -303,23 +357,19 @@ function SummaryRow({ label, value, isLast }: { label: string, value: string, is
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
-  row: { flexDirection: 'row', gap: 16, marginTop: 20 },
+  row: { flexDirection: 'row', gap: 12, marginTop: 16 },
   inputGroup: { flex: 1 },
-  label: { fontSize: 13, fontWeight: '700', color: '#102A43', marginBottom: 8 },
-  inputBox: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E8EEF2', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 16, fontSize: 16, color: '#102A43', fontWeight: '800' },
+  unitDrop: { position: 'absolute', top: 56, left: 0, right: 0, backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: AppColors.lineLight, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 10, zIndex: 30 },
+  unitDropItem: { padding: 14, borderBottomWidth: 1, borderBottomColor: AppColors.bg },
   
-  unitDrop: { position: 'absolute', top: 90, left: 0, right: 0, backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#D9E2EC', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 10, zIndex: 30 },
-  unitDropItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#F0F4F8' },
-  
-  inputWithUnit: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E8EEF2', borderRadius: 12, paddingHorizontal: 16 },
-  inputFlex: { flex: 1, paddingVertical: 16, fontSize: 16, color: '#102A43', fontWeight: '800' },
-  inputUnit: { fontSize: 14, color: '#8294A0', fontWeight: '700' },
+  inputWithUnit: { flexDirection: 'row', alignItems: 'center', backgroundColor: AppColors.bgAlt, borderWidth: 1, borderColor: AppColors.line, borderRadius: 14, paddingHorizontal: 14, minHeight: 48 },
+  inputFlex: { flex: 1, paddingVertical: 12, fontSize: 15, color: AppColors.ink },
+  inputUnit: { fontSize: 13, color: AppColors.muted, fontWeight: '700' },
 
-  helpText: { fontSize: 12, color: '#8294A0', lineHeight: 18, marginTop: 24 },
+  helpText: { fontSize: 12, color: AppColors.muted, lineHeight: 18, marginTop: 20 },
 
   // Product Selector Button
-  productSelectorBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#E8EEF2' },
+  productSelectorBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, minHeight: 48, backgroundColor: AppColors.bgAlt, borderRadius: 14, borderWidth: 1, borderColor: AppColors.line },
   
   // Modal Styles
   modalContainer: { flex: 1, backgroundColor: '#F8FBF3' },
@@ -333,21 +383,30 @@ const styles = StyleSheet.create({
   categoryPillText: { fontSize: 14, fontWeight: '700', color: AppColors.muted },
   categoryPillTextActive: { color: '#FFF' },
   
-  modalProductItem: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FFF', marginHorizontal: 16, marginBottom: 8, borderRadius: 12, borderWidth: 1, borderColor: '#E8EEF2' },
+  modalProductItem: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FFF', marginHorizontal: 16, marginBottom: 8, borderRadius: 14, borderWidth: 1, borderColor: AppColors.lineLight },
   modalProductName: { fontSize: 16, fontWeight: '800', color: AppColors.ink },
   modalProductCat: { fontSize: 13, color: AppColors.muted, marginTop: 4, fontWeight: '600' },
   modalProductCrops: { fontSize: 12, color: AppColors.muted, marginTop: 2 },
 
-  resultCard: { backgroundColor: '#FFF', borderRadius: 16, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
-  tankList: { padding: 20 },
+  resultCard: { backgroundColor: '#FFF', borderRadius: 18, marginBottom: 16, elevation: 2, shadowColor: AppColors.greenDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, borderWidth: 1, borderColor: AppColors.lineLight },
+  resultHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: AppColors.lineLight },
+  resultHeaderTitle: { fontSize: 16, fontWeight: '800', color: AppColors.green },
+  tankList: { padding: 20, paddingTop: 10 },
   tankItem: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
-  tankNum: { fontSize: 24, fontWeight: '900', color: '#BCCCDC' },
-  tankLabel: { fontSize: 12, fontWeight: '700', color: '#8294A0', textTransform: 'uppercase', letterSpacing: 1 },
-  tankMix: { fontSize: 22, fontWeight: '900', color: '#102A43', marginTop: 2 },
+  tankNum: { fontSize: 28, fontWeight: '900', color: AppColors.pale },
+  tankLabel: { fontSize: 11, fontWeight: '800', color: AppColors.muted, letterSpacing: 1 },
+  tankMix: { fontSize: 22, fontWeight: '900', color: AppColors.ink, marginTop: 2 },
 
-  summaryCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14 },
-  summaryBorder: { borderBottomWidth: 1, borderBottomColor: '#F0F4F8' },
-  summaryLabel: { fontSize: 14, color: '#486581', fontWeight: '600' },
-  summaryValue: { fontSize: 16, color: '#102A43', fontWeight: '800' }
+  summaryCard: { backgroundColor: AppColors.card, borderRadius: 18, padding: 18, elevation: 2, shadowColor: AppColors.greenDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, borderWidth: 1, borderColor: AppColors.lineLight },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+  summaryBorder: { borderBottomWidth: 1, borderBottomColor: AppColors.bg },
+  summaryLabel: { fontSize: 14, color: AppColors.muted, fontWeight: '600' },
+  summaryValue: { fontSize: 15, color: AppColors.ink, fontWeight: '800' },
+
+  formulaBtn: { marginTop: 12, paddingHorizontal: 8 },
+  formulaText: { fontSize: 13, color: AppColors.muted, textAlign: 'center', lineHeight: 20 },
+  
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, minHeight: 300, paddingBottom: 20 },
+  formulaCode: { backgroundColor: AppColors.pale, color: AppColors.greenDark, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: '600', fontFamily: 'monospace', overflow: 'hidden' }
 });

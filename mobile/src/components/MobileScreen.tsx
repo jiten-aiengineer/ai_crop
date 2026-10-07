@@ -8,8 +8,10 @@ import {
   ScrollView, StatusBar, StyleSheet,
   Text, TouchableOpacity, View, Image
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import GlobalHeader from './GlobalHeader';
 
 /** Design tokens extracted from ai.croplifescience.com CSS */
 export const AppColors = {
@@ -53,29 +55,28 @@ export function MobileScreen({
   scroll?: boolean;
   headerAvatar?: any;
 }) {
+  const header = (
+    <View style={styles.header}>
+      {headerAvatar && <Image source={headerAvatar} style={styles.headerAvatar} />}
+      <View style={[styles.heading, headerAvatar && { alignItems: 'flex-start', marginLeft: 12 }]}>
+        <Text style={styles.title}>{title}</Text>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      </View>
+    </View>
+  );
+
   const body = <View style={[styles.body, !scroll && { flex: 1, padding: 0 }]}>{children}</View>;
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <View style={styles.header}>
-        {onBack ? (
-          <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.back}>
-            <Ionicons name="arrow-back" size={22} color={AppColors.ink} />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.backSpace} />
-        )}
-        {headerAvatar && <Image source={headerAvatar} style={styles.headerAvatar} />}
-        <View style={[styles.heading, headerAvatar && { alignItems: 'flex-start', marginLeft: 12 }]}>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-        </View>
-        <View style={styles.backSpace} />
-      </View>
+    <View style={styles.safe}>
+      <GlobalHeader onBack={onBack} />
       {scroll
-        ? <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>{body}</ScrollView>
-        : body}
-    </SafeAreaView>
+        ? <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+            {header}
+            {body}
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        : <>{header}{body}</>}
+    </View>
   );
 }
 
@@ -83,98 +84,100 @@ export function MobileScreen({
 export const shared = StyleSheet.create({
   card: {
     backgroundColor: AppColors.card,
-    borderRadius: 22,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: AppColors.line,
-    padding: 18,
+    borderColor: AppColors.lineLight,
+    padding: 16,
     shadowColor: AppColors.greenDark,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 14,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
   sectionTitle: {
     color: AppColors.ink,
-    fontSize: 19,
-    lineHeight: 25,
+    fontSize: 17,
+    lineHeight: 23,
     fontWeight: '800',
   },
   body: {
     color: AppColors.muted,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 13,
+    lineHeight: 19,
   },
   label: {
     color: AppColors.ink,
     fontSize: 13,
     fontWeight: '800',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   input: {
-    minHeight: 54,
-    borderRadius: 15,
+    minHeight: 48,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: AppColors.line,
     backgroundColor: AppColors.bgAlt,
-    paddingHorizontal: 16,
-    fontSize: 16,
+    paddingHorizontal: 14,
+    fontSize: 15,
     color: AppColors.ink,
   },
   primary: {
-    minHeight: 54,
-    borderRadius: 16,
+    minHeight: 52,
+    borderRadius: 14,
     backgroundColor: AppColors.green,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 9,
-    paddingHorizontal: 18,
+    gap: 8,
+    paddingHorizontal: 16,
     shadowColor: AppColors.green,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
   },
   primaryText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
   },
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 999,
     backgroundColor: AppColors.pale,
   },
   chipText: {
     color: AppColors.green,
     fontWeight: '700',
+    fontSize: 13,
   },
 });
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: AppColors.bg },
   header: {
-    minHeight: 78,
-    backgroundColor: '#FFFFFF',
+    minHeight: 54,
+    backgroundColor: 'transparent',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 16,
+    paddingBottom: 4,
   },
   back: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: AppColors.bgAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backSpace: { width: 42 },
-  headerAvatar: { width: 38, height: 38, borderRadius: 19, marginLeft: 4, backgroundColor: '#FFF' },
+  backSpace: { width: 40 },
+  headerAvatar: { width: 34, height: 34, borderRadius: 17, marginLeft: 4, backgroundColor: '#FFF' },
   heading: { flex: 1, alignItems: 'center' },
-  title: { color: AppColors.ink, fontSize: 19, fontWeight: '700' },
-  subtitle: { color: AppColors.muted, fontSize: 12, marginTop: 1 },
-  scroll: { paddingBottom: 100 },
-  body: { padding: 16, gap: 14 },
+  title: { color: AppColors.ink, fontSize: 17, fontWeight: '800' },
+  subtitle: { color: AppColors.muted, fontSize: 11, marginTop: 1 },
+  scroll: { flexGrow: 1 },
+  body: { padding: 16, gap: 12 },
 });

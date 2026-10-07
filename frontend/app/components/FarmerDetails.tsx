@@ -18,7 +18,22 @@ type Farmer = {
   is_verified: boolean;
   dealer_code: string;
   dealer_name: string;
+  date_of_birth: string | null;
+  land_acres: number | null;
 };
+
+function getAge(dateString: string | null) {
+  if (!dateString || !dateString.trim()) return null;
+  const birthDate = new Date(dateString);
+  if (isNaN(birthDate.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
@@ -90,35 +105,43 @@ export default function FarmerDetails() {
           <h2>Farmer Details</h2>
           <p>View registered farmers, their details, and verified dealer codes.</p>
         </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button className="admin-secondary" onClick={() => alert('Airtel SMS integration pending for bulk messages.')}>
+            Send Bulk SMS
+          </button>
+          <button className="admin-primary" onClick={() => alert('Airtel SMS integration pending for birthday wishes.')}>
+            Send Birthday Wishes
+          </button>
+        </div>
       </div>
       
-      <div className="admin-catalogue-filters farmer-filters">
-        <label className="admin-search">
+      <div className="dealer-filters">
+        <label>
           <span>Search</span>
           <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Name or mobile" />
         </label>
-        <label className="admin-search">
+        <label>
           <span>State</span>
           <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
             <option value="">All States</option>
             {facets.states.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
-        <label className="admin-search">
+        <label>
           <span>City</span>
           <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
             <option value="">All Cities</option>
             {facets.cities.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
-        <label className="admin-search">
+        <label>
           <span>Village</span>
           <select value={villageFilter} onChange={(e) => setVillageFilter(e.target.value)}>
             <option value="">All Villages</option>
             {facets.villages.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
-        <label className="admin-search">
+        <label>
           <span>Dealer Code</span>
           <input value={dealerCodeFilter} onChange={(e)=>setDealerCodeFilter(e.target.value)} placeholder="Filter by dealer code" />
         </label>
@@ -135,12 +158,12 @@ export default function FarmerDetails() {
               <tr>
                 <th>Farmer Name</th>
                 <th>Mobile Number</th>
+                <th>Age / DOB</th>
+                <th>Land (Acres)</th>
                 <th>Location</th>
-                <th>Role</th>
                 <th>Dealer Name / Code</th>
                 <th>Verified</th>
                 <th>Joined At</th>
-                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -148,15 +171,22 @@ export default function FarmerDetails() {
                 <tr key={farmer.id}>
                   <td><b>{farmer.first_name || ''} {farmer.last_name || ''}</b></td>
                   <td>{farmer.mobile_number}</td>
-                  <td>{farmer.village || farmer.city}, {farmer.district}, {farmer.state}</td>
-                  <td>{farmer.role || 'farmer'}</td>
+                  <td>
+                    {farmer.date_of_birth && getAge(farmer.date_of_birth) !== null ? (
+                      <>
+                        <b>{getAge(farmer.date_of_birth)} yrs</b>
+                        <small>{new Date(farmer.date_of_birth).toLocaleDateString()}</small>
+                      </>
+                    ) : '—'}
+                  </td>
+                  <td>{farmer.land_acres != null ? farmer.land_acres : '—'}</td>
+                  <td>
+                    <b>{farmer.village || 'Unknown Village'}</b>
+                    <small>{[farmer.city, farmer.district, farmer.state].filter(Boolean).join(', ')}</small>
+                  </td>
                   <td>{farmer.dealer_name ? `${farmer.dealer_name} (${farmer.dealer_code})` : '—'}</td>
                   <td>{farmer.is_verified ? 'Yes' : 'No'}</td>
                   <td>{new Date(farmer.created_at).toLocaleDateString()}</td>
-                  <td style={{ display: 'flex', gap: '8px' }}>
-                    <a href={`sms:${farmer.mobile_number}`} className="admin-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>SMS</a>
-                    <a href={`https://wa.me/${whatsappNumber(farmer.mobile_number)}`} target="_blank" rel="noreferrer" className="admin-primary" style={{ padding: '4px 8px', fontSize: '12px', background: '#25D366' }}>WhatsApp</a>
-                  </td>
                 </tr>
               ))}
             </tbody>

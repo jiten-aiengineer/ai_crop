@@ -6,11 +6,11 @@ def _database_url() -> str:
     configured = os.getenv("DATABASE_URL", "").strip()
     if configured:
         return configured
-    user = quote_plus(os.getenv("POSTGRES_USER", "crop_life"))
-    password = quote_plus(os.getenv("POSTGRES_PASSWORD", "crop-life-local-only"))
+    user = quote_plus(os.getenv("POSTGRES_USER", "postgres"))
+    password = quote_plus(os.getenv("POSTGRES_PASSWORD", "postgres"))
     database = quote_plus(os.getenv("POSTGRES_DB", "crop_life_ai"))
     host = os.getenv("POSTGRES_HOST", "127.0.0.1").strip() or "127.0.0.1"
-    port = os.getenv("POSTGRES_HOST_PORT", "5434").strip() or "5434"
+    port = os.getenv("POSTGRES_HOST_PORT", "5432").strip() or "5432"
     return f"postgresql://{user}:{password}@{host}:{port}/{database}"
 
 
@@ -35,10 +35,11 @@ ADMIN_ALLOWED_EMAIL_DOMAIN = os.getenv("ADMIN_ALLOWED_EMAIL_DOMAIN", "croplifesc
 # Administrator so it can be shared through an approved internal channel.
 PORTAL_INVITE_EMAIL_FROM = os.getenv("PORTAL_INVITE_EMAIL_FROM", INITIAL_ADMIN_EMAIL).strip()
 PORTAL_INVITE_URL = os.getenv("PORTAL_INVITE_URL", "https://ai.croplifescience.com/admin/portal").strip()
-SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+PORTAL_RESET_URL = os.getenv("PORTAL_RESET_URL", "https://ai.croplifescience.com/admin/portal").strip()
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.office365.com").strip()
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "noreply@croplifescience.com").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "sgbkvmxvtzsdpfjt")
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").strip().lower() not in {"0", "false", "no"}
 
 # Private GPU continuous-training connector. The main worker exports only
